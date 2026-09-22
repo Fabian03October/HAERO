@@ -46,4 +46,11 @@ public class ServicioAutenticacion {
 
         return new LoginResponse(token, usuario.getRol().getNombre(), usuario.isDebeCambiarContrasena());
     }
+
+    public void logout(String nombreUsuario) {
+        usuarioRepository.findByNombreUsuario(nombreUsuario).ifPresent(usuario -> {
+            usuario.setTokenValidoDesde(LocalDateTime.now());
+            usuarioRepository.save(usuario);
+        });
+    }
 }
