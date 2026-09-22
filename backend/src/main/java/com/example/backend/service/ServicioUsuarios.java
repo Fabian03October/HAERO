@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 @Service
@@ -32,6 +33,14 @@ public class ServicioUsuarios {
         this.usuarioRepository = usuarioRepository;
         this.rolRepository = rolRepository;
         this.passwordEncoder = passwordEncoder;
+    }
+
+    public List<UsuarioResponse> listarUsuarios(String nombre) {
+        List<Usuario> usuarios = (nombre == null || nombre.isBlank())
+                ? usuarioRepository.findAll()
+                : usuarioRepository.findByNombreCompletoContainingIgnoreCase(nombre);
+
+        return usuarios.stream().map(this::aRespuesta).toList();
     }
 
     public UsuarioResponse crearUsuario(CrearUsuarioRequest request) {

@@ -9,4 +9,5 @@ public class LoginResponse {
     private String token;
     private String rol;
     private boolean debeCambiarContrasena;
+    private String nombreCompleto;
 }
