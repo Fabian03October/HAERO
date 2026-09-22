@@ -1,0 +1,25 @@
+<div class="ccontrasena-page">
+  <div class="ccontrasena-card card">
+    <h1>Cambiar contraseña</h1>
+    <p class="subtitle">Elige una nueva contraseña para tu cuenta.</p>
+
+    @if (esTemporal()) {
+      <div class="banner info">Su contraseña es temporal. Elija una nueva.</div>
+    }
+
+    <div class="field">
+      <label for="actual">Contraseña actual</label>
+      <input id="actual" type="password" placeholder="••••••••">
+    </div>
+    <div class="field">
+      <label for="nueva">Nueva contraseña</label>
+      <input id="nueva" type="password" placeholder="•••••••••••">
+      <div class="hint">Mínimo 8 caracteres y distinta de la actual.</div>
+    </div>
+    <div class="field">
+      <label for="confirmar">Confirmar nueva contraseña</label>
+      <input id="confirmar" type="password" placeholder="•••••••••••">
+    </div>
+    <button class="btn block" type="button" (click)="guardar()">Guardar contraseña</button>
+  </div>
+</div>
