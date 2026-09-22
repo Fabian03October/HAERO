@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/usuarios")
 public class UsuarioController {
@@ -19,6 +21,11 @@ public class UsuarioController {
 
     public UsuarioController(ServicioUsuarios servicioUsuarios) {
         this.servicioUsuarios = servicioUsuarios;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<UsuarioResponse>> listar(@RequestParam(required = false) String nombre) {
+        return ResponseEntity.ok(servicioUsuarios.listarUsuarios(nombre));
     }
 
     @PostMapping

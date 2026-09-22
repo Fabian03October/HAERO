@@ -44,7 +44,7 @@ public class ServicioAutenticacion {
 
         String token = jwtUtil.generarToken(usuario.getNombreUsuario(), usuario.getRol().getNombre());
 
-        return new LoginResponse(token, usuario.getRol().getNombre(), usuario.isDebeCambiarContrasena());
+        return new LoginResponse(token, usuario.getRol().getNombre(), usuario.isDebeCambiarContrasena(), usuario.getNombreCompleto());
     }
 
     public void logout(String nombreUsuario) {
