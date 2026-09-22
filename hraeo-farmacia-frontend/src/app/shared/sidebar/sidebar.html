@@ -1,0 +1,19 @@
+<div class="sidebar">
+  @for (item of items(); track item.etiqueta) {
+    @if (item.routerLink) {
+      <a [routerLink]="item.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+        {{ item.etiqueta }}
+        @if (item.etiquetaExtra) {
+          <span class="tag">{{ item.etiquetaExtra }}</span>
+        }
+      </a>
+    } @else {
+      <span class="disabled">
+        {{ item.etiqueta }}
+        @if (item.etiquetaExtra) {
+          <span class="tag">{{ item.etiquetaExtra }}</span>
+        }
+      </span>
+    }
+  }
+</div>
