@@ -7,6 +7,8 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 
 @Component
@@ -14,7 +16,9 @@ public class JwtUtil {
 
     // En un proyecto real esta clave va en application.properties, no aquí
     private final SecretKey key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-    private final long EXPIRACION_MS = 15 * 60 * 1000; // 15 minutos, según lo definido con el asesor
+    // Techo de seguridad absoluto del token; el cierre real por 15 min de inactividad
+    // (HU09) lo aplica JwtAuthenticationFilter comparando la última actividad registrada.
+    private final long EXPIRACION_MS = 8 * 60 * 60 * 1000;
 
     public String generarToken(String nombreUsuario, String rol) {
         return Jwts.builder()
@@ -40,6 +44,10 @@ public class JwtUtil {
 
     public String extraerRol(String token) {
         return extraerClaims(token).get("rol", String.class);
+    }
+
+    public LocalDateTime extraerFechaEmision(String token) {
+        return extraerClaims(token).getIssuedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 
     public boolean tokenValido(String token) {
