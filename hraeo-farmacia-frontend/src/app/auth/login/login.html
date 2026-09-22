@@ -1,0 +1,28 @@
+<div class="login-page">
+  <div class="login-card card">
+    <h1>Iniciar sesión</h1>
+    <p class="subtitle">Servicio de Farmacia Hospitalaria, HRAEO</p>
+
+    @if (error()) {
+      <div class="banner error">Usuario o contraseña incorrectos.</div>
+    }
+
+    <div class="field">
+      <label for="usuario">Usuario</label>
+      <input id="usuario" type="text" placeholder="nombre de usuario" #usuario>
+    </div>
+    <div class="field">
+      <label for="contrasena">Contraseña</label>
+      <input
+        id="contrasena"
+        type="password"
+        placeholder="••••••••"
+        #contrasena
+        (keyup.enter)="iniciarSesion(usuario.value, contrasena.value)"
+      >
+    </div>
+    <button class="btn block" type="button" (click)="iniciarSesion(usuario.value, contrasena.value)">
+      Iniciar sesión
+    </button>
+  </div>
+</div>

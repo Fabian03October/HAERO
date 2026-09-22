@@ -1,0 +1,28 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.shell {
+  display: flex;
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.main {
+  flex-grow: 1;
+  padding: 26px 30px;
+  overflow: auto;
+}
+
+.main .card h1 {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+
+.main .card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
