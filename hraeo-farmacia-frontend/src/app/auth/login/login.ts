@@ -14,8 +14,8 @@ export class Login {
 
   readonly error = signal(false);
 
-  iniciarSesion(nombreUsuario: string, contrasena: string): void {
-    const usuario = this.session.iniciarSesion(nombreUsuario, contrasena);
+  async iniciarSesion(nombreUsuario: string, contrasena: string): Promise<void> {
+    const usuario = await this.session.iniciarSesion(nombreUsuario, contrasena);
     if (!usuario) {
       this.error.set(true);
       return;

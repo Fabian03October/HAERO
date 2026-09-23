@@ -1,4 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 export type Rol = 'ALMACEN' | 'FARMACIA' | 'SUPERVISION' | 'ADMIN';
 
@@ -16,43 +18,66 @@ export const RUTA_POR_ROL: Record<Rol, string> = {
   ADMIN: '/admin',
 };
 
-interface UsuarioPrueba extends UsuarioSesion {
-  contrasena: string;
-  activo: boolean;
-}
+export const ROL_ETIQUETA: Record<Rol, string> = {
+  ALMACEN: 'Almacén',
+  FARMACIA: 'Farmacia',
+  SUPERVISION: 'Supervisión',
+  ADMIN: 'Administrador',
+};
 
-// Usuarios de prueba en memoria, solo para navegar el prototipo sin backend.
-// Se reemplaza por la llamada real a ServicioAutenticacion cuando exista la API.
-// Contraseña de todos: 1234
-const USUARIOS_PRUEBA: UsuarioPrueba[] = [
-  { nombreCompleto: 'Ana Torres', nombreUsuario: 'atorres', rol: 'ALMACEN', activo: true, debeCambiarContrasena: false, contrasena: '1234' },
-  { nombreCompleto: 'Luis Ramos', nombreUsuario: 'lramos', rol: 'FARMACIA', activo: true, debeCambiarContrasena: false, contrasena: '1234' },
-  { nombreCompleto: 'Marta Díaz', nombreUsuario: 'mdiaz', rol: 'SUPERVISION', activo: true, debeCambiarContrasena: false, contrasena: '1234' },
-  { nombreCompleto: 'Iván Paz', nombreUsuario: 'ipaz', rol: 'ADMIN', activo: true, debeCambiarContrasena: false, contrasena: '1234' },
-  { nombreCompleto: 'Carlos Nieto', nombreUsuario: 'cnieto', rol: 'FARMACIA', activo: false, debeCambiarContrasena: false, contrasena: '1234' },
-  { nombreCompleto: 'Usuario Nuevo', nombreUsuario: 'nuevo', rol: 'ALMACEN', activo: true, debeCambiarContrasena: true, contrasena: '1234' },
-];
+const API_BASE_URL = 'http://localhost:8080/api';
+
+interface LoginResponse {
+  token: string;
+  rol: Rol;
+  debeCambiarContrasena: boolean;
+  nombreCompleto: string;
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class Session {
+  private readonly http = inject(HttpClient);
+
   readonly usuarioActual = signal<UsuarioSesion | null>(null);
 
-  iniciarSesion(nombreUsuario: string, contrasena: string): UsuarioSesion | null {
-    const encontrado = USUARIOS_PRUEBA.find(
-      (u) => u.nombreUsuario === nombreUsuario && u.contrasena === contrasena && u.activo,
-    );
-    if (!encontrado) {
+  private token: string | null = null;
+
+  obtenerToken(): string | null {
+    return this.token;
+  }
+
+  async iniciarSesion(nombreUsuario: string, contrasena: string): Promise<UsuarioSesion | null> {
+    try {
+      const respuesta = await firstValueFrom(
+        this.http.post<LoginResponse>(`${API_BASE_URL}/auth/login`, { nombreUsuario, contrasena }),
+      );
+
+      this.token = respuesta.token;
+      const usuario: UsuarioSesion = {
+        nombreCompleto: respuesta.nombreCompleto,
+        nombreUsuario,
+        rol: respuesta.rol,
+        debeCambiarContrasena: respuesta.debeCambiarContrasena,
+      };
+      this.usuarioActual.set(usuario);
+      return usuario;
+    } catch {
       return null;
     }
-    const { contrasena: _contrasena, activo: _activo, ...usuario } = encontrado;
-    this.usuarioActual.set(usuario);
-    return usuario;
   }
 
   cerrarSesion(): void {
+    const token = this.token;
+    this.token = null;
     this.usuarioActual.set(null);
+
+    if (token) {
+      this.http
+        .post(`${API_BASE_URL}/auth/logout`, {}, { headers: { Authorization: `Bearer ${token}` } })
+        .subscribe({ error: () => {} });
+    }
   }
 
   contrasenaCambiada(): void {

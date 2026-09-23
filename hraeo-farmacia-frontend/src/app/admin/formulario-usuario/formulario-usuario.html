@@ -1,39 +1,61 @@
+
 <div class="formulario-page">
   <div class="formulario-card card">
     <a routerLink="/admin/usuarios" class="volver">← Volver a usuarios</a>
-    <h1>Nuevo usuario</h1>
+    <h1>{{ modoEdicion ? 'Editar usuario' : 'Nuevo usuario' }}</h1>
     <p class="subtitle">Todos los campos son obligatorios.</p>
 
-    <div class="field">
-      <label for="nombreCompleto">Nombre completo</label>
-      <input id="nombreCompleto" type="text">
-    </div>
-    <div class="field">
-      <label for="nombreUsuario">Nombre de usuario</label>
-      <input id="nombreUsuario" type="text">
-    </div>
-    <div class="field">
-      <label for="correo">Correo electrónico</label>
-      <input id="correo" type="email" placeholder="correo@ejemplo.com">
-    </div>
-    <div class="field">
-      <label for="contrasenaTemporal">Contraseña temporal (solo al crear)</label>
-      <input id="contrasenaTemporal" type="password" placeholder="••••••••">
-    </div>
-    <div class="field">
-      <label for="rol">Rol</label>
-      <select id="rol">
-        <option>Seleccione un rol</option>
-        <option>Almacén</option>
-        <option>Farmacia</option>
-        <option>Supervisión</option>
-        <option>Administrador</option>
-      </select>
-    </div>
+    @if (cargando()) {
+      <p class="subtitle">Cargando...</p>
+    } @else {
+      @if (error()) {
+        <div class="banner error">{{ error() }}</div>
+      }
 
-    <div class="acciones">
-      <button class="btn" type="button">Guardar</button>
-      <a routerLink="/admin/usuarios" class="btn secondary">Cancelar</a>
-    </div>
+      <div class="field">
+        <label for="nombreCompleto">Nombre completo</label>
+        <input id="nombreCompleto" type="text" [value]="nombreCompletoInicial()" #nombreCompleto>
+      </div>
+      <div class="field">
+        <label for="nombreUsuario">Nombre de usuario</label>
+        <input
+          id="nombreUsuario"
+          type="text"
+          [value]="nombreUsuarioInicial()"
+          [disabled]="modoEdicion"
+          #nombreUsuario
+        >
+      </div>
+      <div class="field">
+        <label for="correo">Correo electrónico</label>
+        <input id="correo" type="email" placeholder="correo@ejemplo.com" [value]="correoInicial()" #correo>
+      </div>
+      <div class="field" [hidden]="modoEdicion">
+        <label for="contrasenaTemporal">Contraseña temporal (solo al crear)</label>
+        <input id="contrasenaTemporal" type="password" placeholder="••••••••" #contrasenaTemporal>
+      </div>
+      <div class="field">
+        <label for="rol">Rol</label>
+        <select id="rol" [value]="rolInicial()" #rol>
+          <option value="">Seleccione un rol</option>
+          <option value="ALMACEN">Almacén</option>
+          <option value="FARMACIA">Farmacia</option>
+          <option value="SUPERVISION">Supervisión</option>
+          <option value="ADMIN">Administrador</option>
+        </select>
+      </div>
+
+      <div class="acciones">
+        <button
+          class="btn"
+          type="button"
+          [disabled]="guardando()"
+          (click)="guardar(nombreCompleto.value, nombreUsuario.value, correo.value, modoEdicion ? '' : contrasenaTemporal.value, rol.value)"
+        >
+          {{ guardando() ? 'Guardando...' : 'Guardar' }}
+        </button>
+        <a routerLink="/admin/usuarios" class="btn secondary">Cancelar</a>
+      </div>
+    }
   </div>
 </div>

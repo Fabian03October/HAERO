@@ -1,55 +1,66 @@
 <div class="panel">
-  <app-topbar nombreCompleto="Iván Paz" rol="Administrador" />
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
   <div class="shell">
     <app-sidebar [items]="items" />
     <div class="main">
       <div class="card">
         <h1>Usuarios</h1>
-        <p class="subtitle">Datos de ejemplo.</p>
+        <p class="subtitle">Datos reales de la base de datos.</p>
 
         <div class="toolbar">
-          <input class="search" type="text" placeholder="Buscar por nombre...">
+          <input class="search" type="text" placeholder="Buscar por nombre..." #buscador (input)="buscar(buscador.value)">
           <a routerLink="/admin/usuarios/nuevo" class="btn">+ Nuevo usuario</a>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Usuario</th>
-              <th>Correo</th>
-              <th>Rol</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (u of usuarios; track u.nombreUsuario) {
+        @if (cargando()) {
+          <p class="subtitle">Cargando...</p>
+        } @else {
+          <table>
+            <thead>
               <tr>
-                <td>{{ u.nombreCompleto }}</td>
-                <td>{{ u.nombreUsuario }}</td>
-                <td>{{ u.correo }}</td>
-                <td>{{ u.rol }}</td>
-                <td>
-                  @if (u.activo) {
-                    <span class="badge active">Activo</span>
-                  } @else {
-                    <span class="badge inactive">Inactivo</span>
-                  }
-                </td>
-                <td class="rowact">
-                  <a routerLink="/admin/usuarios/{{ u.nombreUsuario }}/editar">Editar</a>
-                  <a href="#">Restablecer contraseña</a>
-                  @if (u.activo) {
-                    <a href="#" class="danger">Desactivar</a>
-                  } @else {
-                    <a href="#">Reactivar</a>
-                  }
-                </td>
+                <th>Nombre</th>
+                <th>Usuario</th>
+                <th>Correo</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Acciones</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (u of usuarios(); track u.id) {
+                <tr>
+                  <td>{{ u.nombreCompleto }}</td>
+                  <td>{{ u.nombreUsuario }}</td>
+                  <td>{{ u.correo }}</td>
+                  <td>{{ rolEtiqueta[u.rol] }}</td>
+                  <td>
+                    @if (u.activo) {
+                      <span class="badge active">Activo</span>
+                    } @else {
+                      <span class="badge inactive">Inactivo</span>
+                    }
+                  </td>
+                  <td class="rowact">
+                    <a routerLink="/admin/usuarios/{{ u.id }}/editar">Editar</a>
+                    <a routerLink="/admin/usuarios/{{ u.id }}/restablecer-contrasena">Restablecer contraseña</a>
+                    @if (u.activo) {
+                      <a href="javascript:void(0)" class="danger" (click)="desactivar(u.id)">Desactivar</a>
+                    } @else {
+                      <a href="javascript:void(0)" (click)="reactivar(u.id)">Reactivar</a>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6">No hay usuarios que coincidan con la búsqueda.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
       </div>
     </div>
   </div>

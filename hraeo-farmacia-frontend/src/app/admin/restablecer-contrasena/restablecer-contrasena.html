@@ -1,0 +1,38 @@
+<div class="formulario-page">
+  <div class="formulario-card card">
+    <a routerLink="/admin/usuarios" class="volver">← Volver a usuarios</a>
+    <h1>Restablecer contraseña</h1>
+
+    @if (cargando()) {
+      <p class="subtitle">Cargando...</p>
+    } @else {
+      <p class="subtitle">Usuario: {{ nombreUsuario() }}</p>
+
+      @if (error()) {
+        <div class="banner error">{{ error() }}</div>
+      }
+
+      <div class="field">
+        <label for="contrasenaTemporal">Nueva contraseña temporal</label>
+        <input id="contrasenaTemporal" type="password" placeholder="••••••••" #contrasenaTemporal>
+        <div class="hint">Mínimo 8 caracteres. El usuario deberá cambiarla al iniciar sesión.</div>
+      </div>
+      <div class="field">
+        <label for="confirmar">Confirmar contraseña</label>
+        <input id="confirmar" type="password" placeholder="••••••••" #confirmar>
+      </div>
+
+      <div class="acciones">
+        <button
+          class="btn"
+          type="button"
+          [disabled]="guardando()"
+          (click)="guardar(contrasenaTemporal.value, confirmar.value)"
+        >
+          {{ guardando() ? 'Guardando...' : 'Restablecer' }}
+        </button>
+        <a routerLink="/admin/usuarios" class="btn secondary">Cancelar</a>
+      </div>
+    }
+  </div>
+</div>
