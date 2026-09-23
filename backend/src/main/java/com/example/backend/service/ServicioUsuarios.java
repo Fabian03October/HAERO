@@ -69,6 +69,10 @@ public class ServicioUsuarios {
         return aRespuesta(usuarioRepository.save(usuario));
     }
 
+    public UsuarioResponse obtenerUsuario(Long id) {
+        return aRespuesta(buscarUsuario(id));
+    }
+
     public UsuarioResponse editarUsuario(Long id, EditarUsuarioRequest request) {
         Usuario usuario = buscarUsuario(id);
 

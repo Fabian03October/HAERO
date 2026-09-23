@@ -6,20 +6,30 @@
     @if (esTemporal()) {
       <div class="banner info">Su contraseña es temporal. Elija una nueva.</div>
     }
+    @if (error()) {
+      <div class="banner error">{{ error() }}</div>
+    }
 
     <div class="field">
       <label for="actual">Contraseña actual</label>
-      <input id="actual" type="password" placeholder="••••••••">
+      <input id="actual" type="password" placeholder="••••••••" #actual>
     </div>
     <div class="field">
       <label for="nueva">Nueva contraseña</label>
-      <input id="nueva" type="password" placeholder="•••••••••••">
+      <input id="nueva" type="password" placeholder="•••••••••••" #nueva>
       <div class="hint">Mínimo 8 caracteres y distinta de la actual.</div>
     </div>
     <div class="field">
       <label for="confirmar">Confirmar nueva contraseña</label>
-      <input id="confirmar" type="password" placeholder="•••••••••••">
+      <input id="confirmar" type="password" placeholder="•••••••••••" #confirmar>
     </div>
-    <button class="btn block" type="button" (click)="guardar()">Guardar contraseña</button>
+    <button
+      class="btn block"
+      type="button"
+      [disabled]="guardando()"
+      (click)="guardar(actual.value, nueva.value, confirmar.value)"
+    >
+      {{ guardando() ? 'Guardando...' : 'Guardar contraseña' }}
+    </button>
   </div>
 </div>
