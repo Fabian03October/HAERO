@@ -1,0 +1,1 @@
+ALTER TABLE usuario ADD token_valido_desde DATETIME2 NOT NULL DEFAULT GETDATE();
