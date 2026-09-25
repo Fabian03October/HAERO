@@ -154,6 +154,28 @@ class ServicioUsuariosTest {
                 .hasMessageContaining("Rol inválido");
     }
 
+    @Test
+    void crearUsuario_conRolAdmin_lanza400() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreUsuario("otroadmin");
+        request.setCorreo("otroadmin@hraeo.test");
+        request.setContrasenaTemporal("Temporal123*");
+        request.setRol("ADMIN");
+
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+
+        when(usuarioRepository.existsByNombreUsuario("otroadmin")).thenReturn(false);
+        when(usuarioRepository.existsByCorreo("otroadmin@hraeo.test")).thenReturn(false);
+        when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
+
+        assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("solo puede existir uno");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
     // ---------- editarUsuario ----------
 
     @Test
@@ -161,20 +183,49 @@ class ServicioUsuariosTest {
         EditarUsuarioRequest request = new EditarUsuarioRequest();
         request.setNombreCompleto("Juan Perez Editado");
         request.setCorreo("jperez.nuevo@hraeo.test");
+        request.setRol("SUPERVISION");
+
+        Rol rolSupervision = new Rol();
+        rolSupervision.setNombre("SUPERVISION");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.existsByCorreoAndIdNot("jperez.nuevo@hraeo.test", 5L)).thenReturn(false);
+        when(rolRepository.findByNombre("SUPERVISION")).thenReturn(Optional.of(rolSupervision));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UsuarioResponse respuesta = servicioUsuarios.editarUsuario(5L, request, "admin");
+
+        assertThat(respuesta.getNombreCompleto()).isEqualTo("Juan Perez Editado");
+        assertThat(respuesta.getRol()).isEqualTo("SUPERVISION");
+    }
+
+    @Test
+    void editarUsuario_aSiMismo_lanza400() {
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, new EditarUsuarioRequest(), "jperez"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("no puede editar su propio usuario");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void editarUsuario_asignandoRolAdmin_lanza400() {
+        EditarUsuarioRequest request = new EditarUsuarioRequest();
+        request.setCorreo("jperez@hraeo.test");
         request.setRol("ADMIN");
 
         Rol rolAdmin = new Rol();
         rolAdmin.setNombre("ADMIN");
 
         when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
-        when(usuarioRepository.existsByCorreoAndIdNot("jperez.nuevo@hraeo.test", 5L)).thenReturn(false);
+        when(usuarioRepository.existsByCorreoAndIdNot("jperez@hraeo.test", 5L)).thenReturn(false);
         when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
-        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UsuarioResponse respuesta = servicioUsuarios.editarUsuario(5L, request);
-
-        assertThat(respuesta.getNombreCompleto()).isEqualTo("Juan Perez Editado");
-        assertThat(respuesta.getRol()).isEqualTo("ADMIN");
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("solo puede existir uno");
     }
 
     @Test
@@ -185,7 +236,7 @@ class ServicioUsuariosTest {
         when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
         when(usuarioRepository.existsByCorreoAndIdNot("ocupado@hraeo.test", 5L)).thenReturn(true);
 
-        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, request))
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, request, "admin"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("correo ya está registrado");
     }
@@ -194,7 +245,7 @@ class ServicioUsuariosTest {
     void editarUsuario_conIdInexistente_lanza404() {
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(99L, new EditarUsuarioRequest()))
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(99L, new EditarUsuarioRequest(), "admin"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Usuario no encontrado");
     }
@@ -247,6 +298,43 @@ class ServicioUsuariosTest {
         UsuarioResponse respuesta = servicioUsuarios.restablecerContrasena(5L, request);
 
         assertThat(respuesta.isDebeCambiarContrasena()).isTrue();
+    }
+
+    @Test
+    void restablecerContrasena_aUnAdmin_lanza400() {
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+        usuarioExistente.setRol(rolAdmin);
+
+        RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
+        request.setContrasenaTemporal("NuevaTemp123*");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+
+        assertThatThrownBy(() -> servicioUsuarios.restablecerContrasena(5L, request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("No se puede restablecer la contraseña del administrador");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void cambiarContrasenaPropia_siendoAdmin_lanza400() {
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+        usuarioExistente.setRol(rolAdmin);
+
+        CambiarContrasenaRequest request = new CambiarContrasenaRequest();
+        request.setContrasenaActual("hash-actual-en-claro");
+        request.setContrasenaNueva("NuevaValida123*");
+
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+
+        assertThatThrownBy(() -> servicioUsuarios.cambiarContrasenaPropia("jperez", request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("no puede cambiar su propia contraseña");
+
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test

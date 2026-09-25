@@ -40,8 +40,9 @@ public class UsuarioController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UsuarioResponse> editar(@PathVariable Long id, @RequestBody EditarUsuarioRequest request) {
-        return ResponseEntity.ok(servicioUsuarios.editarUsuario(id, request));
+    public ResponseEntity<UsuarioResponse> editar(@PathVariable Long id, @RequestBody EditarUsuarioRequest request,
+                                                   Authentication authentication) {
+        return ResponseEntity.ok(servicioUsuarios.editarUsuario(id, request, authentication.getName()));
     }
 
     @PatchMapping("/{id}/desactivar")

@@ -44,12 +44,16 @@
                     }
                   </td>
                   <td class="rowact">
-                    <a routerLink="/admin/usuarios/{{ u.id }}/editar">Editar</a>
-                    <a routerLink="/admin/usuarios/{{ u.id }}/restablecer-contrasena">Restablecer contraseña</a>
-                    @if (u.activo) {
-                      <a href="javascript:void(0)" class="danger" (click)="desactivar(u.id)">Desactivar</a>
+                    @if (u.rol === 'ADMIN') {
+                      <span class="subtitle">Sin acciones</span>
                     } @else {
-                      <a href="javascript:void(0)" (click)="reactivar(u.id)">Reactivar</a>
+                      <a routerLink="/admin/usuarios/{{ u.id }}/editar">Editar</a>
+                      <a routerLink="/admin/usuarios/{{ u.id }}/restablecer-contrasena">Restablecer contraseña</a>
+                      @if (u.activo) {
+                        <a href="javascript:void(0)" class="danger" (click)="desactivar(u.id)">Desactivar</a>
+                      } @else {
+                        <a href="javascript:void(0)" (click)="reactivar(u.id)">Reactivar</a>
+                      }
                     }
                   </td>
                 </tr>
