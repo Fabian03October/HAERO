@@ -1,6 +1,8 @@
 <div class="topbar">
   <div class="brand">Farmacia HRAEO</div>
   <div class="user">{{ nombreCompleto() }} · {{ rol() }}</div>
-  <a class="tlink" routerLink="/cambiar-contrasena">Mi contraseña</a>
+  @if (rol() !== 'Administrador') {
+    <a class="tlink" routerLink="/cambiar-contrasena">Mi contraseña</a>
+  }
   <button class="tlink" type="button" (click)="cerrarSesion()">Cerrar sesión</button>
 </div>

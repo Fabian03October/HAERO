@@ -56,6 +56,9 @@ public class ServicioUsuarios {
         validarLongitudContrasena(request.getContrasenaTemporal());
 
         Rol rol = buscarRol(request.getRol());
+        if (esAdmin(rol)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se pueden crear más administradores; solo puede existir uno");
+        }
 
         Usuario usuario = new Usuario();
         usuario.setNombreCompleto(request.getNombreCompleto());
@@ -73,8 +76,12 @@ public class ServicioUsuarios {
         return aRespuesta(buscarUsuario(id));
     }
 
-    public UsuarioResponse editarUsuario(Long id, EditarUsuarioRequest request) {
+    public UsuarioResponse editarUsuario(Long id, EditarUsuarioRequest request, String nombreUsuarioSolicitante) {
         Usuario usuario = buscarUsuario(id);
+
+        if (usuario.getNombreUsuario().equals(nombreUsuarioSolicitante)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El administrador no puede editar su propio usuario");
+        }
 
         if (usuarioRepository.existsByCorreoAndIdNot(request.getCorreo(), id)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El correo ya está registrado");
@@ -83,6 +90,9 @@ public class ServicioUsuarios {
         validarCorreo(request.getCorreo());
 
         Rol rol = buscarRol(request.getRol());
+        if (esAdmin(rol)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se puede asignar el rol Administrador; solo puede existir uno");
+        }
 
         usuario.setNombreCompleto(request.getNombreCompleto());
         usuario.setCorreo(request.getCorreo());
@@ -110,6 +120,9 @@ public class ServicioUsuarios {
 
     public UsuarioResponse restablecerContrasena(Long id, RestablecerContrasenaRequest request) {
         Usuario usuario = buscarUsuario(id);
+        if (esAdmin(usuario.getRol())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se puede restablecer la contraseña del administrador");
+        }
 
         validarLongitudContrasena(request.getContrasenaTemporal());
 
@@ -123,6 +136,10 @@ public class ServicioUsuarios {
     public void cambiarContrasenaPropia(String nombreUsuario, CambiarContrasenaRequest request) {
         Usuario usuario = usuarioRepository.findByNombreUsuario(nombreUsuario)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+
+        if (esAdmin(usuario.getRol())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El administrador no puede cambiar su propia contraseña");
+        }
 
         if (!passwordEncoder.matches(request.getContrasenaActual(), usuario.getContrasenaHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contraseña actual no es correcta");
@@ -139,6 +156,10 @@ public class ServicioUsuarios {
     private Usuario buscarUsuario(Long id) {
         return usuarioRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+    }
+
+    private boolean esAdmin(Rol rol) {
+        return "ADMIN".equals(rol.getNombre());
     }
 
     private Rol buscarRol(String nombreRol) {
