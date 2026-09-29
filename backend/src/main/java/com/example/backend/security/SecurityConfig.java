@@ -2,6 +2,7 @@ package com.example.backend.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -52,6 +53,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/usuarios/me/**").authenticated()
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/almacen/**").hasAnyRole("ALMACEN", "SUPERVISION")
+                        .requestMatchers("/api/almacen/**").hasRole("ALMACEN")
+                        .requestMatchers(HttpMethod.GET, "/api/farmacia/**").hasAnyRole("FARMACIA", "SUPERVISION")
+                        .requestMatchers("/api/farmacia/**").hasRole("FARMACIA")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
