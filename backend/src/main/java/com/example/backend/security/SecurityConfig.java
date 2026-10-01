@@ -53,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/usuarios/me/**").authenticated()
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
+                        // Farmacia solo consulta el catálogo para capturar sus solicitudes (HU13).
+                        .requestMatchers(HttpMethod.GET, "/api/almacen/medicamentos/**").hasAnyRole("ALMACEN", "SUPERVISION", "FARMACIA")
                         .requestMatchers(HttpMethod.GET, "/api/almacen/**").hasAnyRole("ALMACEN", "SUPERVISION")
                         .requestMatchers("/api/almacen/**").hasRole("ALMACEN")
                         .requestMatchers(HttpMethod.GET, "/api/farmacia/**").hasAnyRole("FARMACIA", "SUPERVISION")

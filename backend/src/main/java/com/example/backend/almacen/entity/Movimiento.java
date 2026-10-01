@@ -37,4 +37,12 @@ public class Movimiento {
     @ManyToOne
     @JoinColumn(name = "solicitud_id")
     private Solicitud solicitud;
+
+    // ENTRADA o SALIDA en canjes, prestamos y transferencias (HU20 CA1).
+    @Column(length = 10)
+    private String sentido;
+
+    // Institucion del prestamo o transferencia (HU20 CA4).
+    @Column(name = "institucion_externa", length = 120)
+    private String institucionExterna;
 }

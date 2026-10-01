@@ -4,18 +4,22 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @AllArgsConstructor
-public class ExistenciaResponse {
-    private Long existenciaId;
+public class MovimientoResponse {
+    private Long id;
+    private String tipo;
+    private LocalDateTime fecha;
+    private String usuario;
+    private Long solicitudId;
     private String clave;
     private String nombreGenerico;
-    private Long loteId;
     private String numeroLote;
     private LocalDate caducidad;
     private String ubicacion;
     private Integer cajas;
-    private boolean fefo;
-    private String proveedor;
+    private String sentido;
+    private String institucion;
 }

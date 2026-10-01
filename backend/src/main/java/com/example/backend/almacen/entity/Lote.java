@@ -35,4 +35,9 @@ public class Lote {
     @ManyToOne
     @JoinColumn(name = "pedido_id")
     private Pedido pedido;
+
+    // Lote al que sustituye cuando entró por un canje (HU18 CA3).
+    @ManyToOne
+    @JoinColumn(name = "lote_origen_id")
+    private Lote loteOrigen;
 }

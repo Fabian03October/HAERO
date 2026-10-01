@@ -114,7 +114,8 @@ public class ServicioPedidos {
                 pedido.getProveedor(),
                 pedido.getEstatus(),
                 pedido.getFecha(),
-                partidas
+                partidas,
+                pedido.getMotivoCancelacion()
         );
     }
 }
