@@ -1,0 +1,118 @@
+<header class="screen-heading">
+  <p class="eyebrow">Movimientos especiales · HU18</p>
+  <h1>Canje de lote</h1>
+  <p>Sustituye un lote con menos de {{ mesesParaCanje }} meses de vida por el lote nuevo que entrega el proveedor.</p>
+</header>
+
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">
+    {{ mensaje() }}
+    @if (tipoMensaje() === 'success') {
+      <a class="message-link" routerLink="/almacen/recepcion/inventario">Ver en Inventario</a>
+    }
+  </div>
+}
+
+<div class="two-columns">
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Carta de canje</p>
+        <h2>Registrar canje</h2>
+      </div>
+      <div class="counters">
+        <span>{{ movimientos.lotesParaCanje().length }} lotes canjeables</span>
+      </div>
+    </div>
+
+    <div class="entry-form">
+      <label>Lote que se va a canjear
+        <select [ngModel]="origenSeleccionado()" (ngModelChange)="elegirOrigen($event)">
+          <option value="">Selecciona el lote próximo a caducar</option>
+          @for (lote of movimientos.lotesParaCanje(); track lote.loteId) {
+            <option [value]="lote.loteId">{{ lote.clave }} · {{ lote.lote }} · caduca {{ formatoCaducidad(lote.caducidad) }}</option>
+          }
+        </select>
+      </label>
+
+      @if (origen(); as lote) {
+        <div class="summary-box">
+          <strong>{{ medicamento(lote.clave) || 'Clave ' + lote.clave }} · {{ lote.proveedor }}</strong>
+          <span>
+            {{ lote.cajas }} cajas en
+            @for (item of lote.ubicaciones; track item.ubicacion; let ultimo = $last) {
+              {{ item.ubicacion }} ({{ item.cajas }}){{ ultimo ? '' : ', ' }}
+            }
+            · le quedan {{ lote.mesesDeVida }} {{ lote.mesesDeVida === 1 ? 'mes' : 'meses' }}
+          </span>
+          <small>Al confirmar, todo el lote sale del inventario disponible y ya no se puede despachar.</small>
+        </div>
+      } @else if (!movimientos.lotesParaCanje().length) {
+        <p class="card-help">Ningún lote tiene menos de {{ mesesParaCanje }} meses de vida.</p>
+      }
+
+      <div class="form-section">
+        <p>Lote nuevo que entrega el proveedor</p>
+        <span>Copia el número de lote y la caducidad impresos en la caja nueva o en la carta de canje. La cantidad y la ubicación ya vienen del lote anterior; cámbialas si son distintas.</span>
+      </div>
+      <div class="form-row">
+        <label>Número de lote nuevo
+          <input [(ngModel)]="nuevo.lote" [disabled]="!origen()" [class.missing]="intentado && !nuevo.lote.trim()" placeholder="Como viene en la caja" />
+        </label>
+        <label>Caducidad del lote nuevo
+          <input type="month" [(ngModel)]="nuevo.caducidad" [min]="caducidadMinima()" [disabled]="!origen()" [class.missing]="intentado && !nuevo.caducidad" />
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Cantidad (cajas)
+          <input type="number" min="1" [(ngModel)]="nuevo.cajas" [disabled]="!origen()" [class.missing]="intentado && !(nuevo.cajas > 0)" />
+        </label>
+        <label>Ubicación
+          <input [(ngModel)]="nuevo.ubicacion" [disabled]="!origen()" [class.missing]="intentado && !nuevo.ubicacion.trim()" placeholder="Sector 3" />
+        </label>
+      </div>
+      <button class="primary-button" type="button" [disabled]="!origen() || guardando()" (click)="registrar()">
+        {{ guardando() ? 'Guardando…' : 'Confirmar canje' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Trazabilidad</p>
+        <h2>Canjes registrados</h2>
+      </div>
+      <div class="counters">
+        <span>{{ movimientos.canjes().length }}</span>
+      </div>
+    </div>
+
+    @if (movimientos.canjes().length) {
+      <ul class="trace-list">
+        @for (canje of movimientos.canjes(); track canje.loteNuevoId) {
+          <li>
+            <div class="trace-head">
+              <strong>{{ canje.clave }} · {{ canje.nombreGenerico }}</strong>
+              <small>{{ canje.fecha | date: 'dd/MM/yyyy HH:mm' }}</small>
+            </div>
+            <div class="trace-flow">
+              <span class="trace-lot old">
+                <b>{{ canje.loteOrigen }}</b>
+                <small>Cad. {{ formatoCaducidad(canje.caducidadOrigen) }} · {{ canje.cajasOrigen }} cajas</small>
+              </span>
+              <span class="trace-arrow" aria-hidden="true">→</span>
+              <span class="trace-lot">
+                <b>{{ canje.loteNuevo }}</b>
+                <small>Cad. {{ formatoCaducidad(canje.caducidadNueva) }} · {{ canje.cajasNuevas }} cajas · {{ canje.ubicacion }}</small>
+              </span>
+            </div>
+            <small>{{ canje.proveedor }} · registró {{ canje.usuario || '—' }}</small>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="card-help">Aún no hay canjes. Cada canje deja aquí el enlace entre el lote original y el que lo sustituye.</p>
+    }
+  </section>
+</div>

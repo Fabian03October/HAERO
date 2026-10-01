@@ -13,6 +13,7 @@ export class Login {
   private readonly router = inject(Router);
 
   readonly error = signal(false);
+  readonly verContrasena = signal(false);
 
   async iniciarSesion(nombreUsuario: string, contrasena: string): Promise<void> {
     const usuario = await this.session.iniciarSesion(nombreUsuario, contrasena);

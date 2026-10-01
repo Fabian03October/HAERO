@@ -1,0 +1,141 @@
+<header class="screen-heading">
+  <p class="eyebrow">Rotación · HU17</p>
+  <h1>Alertas de stock</h1>
+  <p>Mínimo = {{ mesesMinimo }} meses de CPM y máximo = {{ mesesMaximo }} meses. Las alertas se generan solas al cruzar esos niveles.</p>
+</header>
+
+<div class="alert-columns">
+  <section class="card alert-card low">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Existencia en su mínimo o por debajo</p>
+        <h2>Alertas de desabasto</h2>
+      </div>
+      <span class="alert-count">{{ desabasto().length }}</span>
+    </div>
+    <p class="card-help">Claves en riesgo de agotarse: conviene pedirlas o darles seguimiento.</p>
+
+    @if (desabasto().length) {
+      <ul class="alert-list">
+        @for (alerta of desabasto(); track alerta.clave + alerta.inicio) {
+          <li class="low">
+            <div class="alert-main">
+              <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+              <span>Hay <b>{{ existenciaActual(alerta.clave) }}</b> · mínimo {{ alerta.limite }}</span>
+            </div>
+            <div class="alert-since">
+              <span>Desde</span>
+              <strong>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</strong>
+              <small>{{ diasDesde(alerta.inicio) }}</small>
+            </div>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty-state">Ninguna clave está en riesgo de desabasto.</p>
+    }
+  </section>
+
+  <section class="card alert-card high">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Existencia en su máximo o por encima</p>
+        <h2>Alertas de sobreabasto</h2>
+      </div>
+      <span class="alert-count">{{ sobreabasto().length }}</span>
+    </div>
+    <p class="card-help">Claves con más de lo que se consume en {{ mesesMaximo }} meses: revisar antes de volver a pedir.</p>
+
+    @if (sobreabasto().length) {
+      <ul class="alert-list">
+        @for (alerta of sobreabasto(); track alerta.clave + alerta.inicio) {
+          <li class="high">
+            <div class="alert-main">
+              <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+              <span>Hay <b>{{ existenciaActual(alerta.clave) }}</b> · máximo {{ alerta.limite }}</span>
+            </div>
+            <div class="alert-since">
+              <span>Desde</span>
+              <strong>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</strong>
+              <small>{{ diasDesde(alerta.inicio) }}</small>
+            </div>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty-state">Ninguna clave está en riesgo de sobreabasto.</p>
+    }
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Niveles por clave</p>
+      <h2>Stock mínimo y máximo</h2>
+    </div>
+    <div class="counters">
+      <span>{{ niveles().length }} claves</span>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Clave</th>
+          <th class="number">CPM</th>
+          <th class="number">Existencia</th>
+          <th class="number">Mínimo ({{ mesesMinimo }} m)</th>
+          <th class="number">Máximo ({{ mesesMaximo }} m)</th>
+          <th>Estatus</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (fila of niveles(); track fila.clave) {
+          <tr>
+            <td><strong>{{ fila.clave }}</strong><small>{{ fila.medicamento || 'Sin nombre en catálogo' }}</small></td>
+            <td class="number">{{ fila.cpm }}</td>
+            <td class="number"><strong>{{ fila.existencia }}</strong></td>
+            <td class="number">{{ fila.cpm ? fila.minimo : '—' }}</td>
+            <td class="number">{{ fila.cpm ? fila.maximo : '—' }}</td>
+            <td><span [class]="'level ' + fila.estado.toLowerCase()">{{ estadoTexto[fila.estado] }}</span></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="card-help">La existencia no incluye lotes vencidos. Una clave sin consumo registrado no genera alertas.</p>
+</section>
+
+@if (rotacion.alertasCerradas().length) {
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Historial</p>
+        <h2>Alertas cerradas</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Clave</th>
+            <th>Tipo</th>
+            <th>Inicio</th>
+            <th>Cierre</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (alerta of rotacion.alertasCerradas(); track alerta.clave + alerta.inicio) {
+            <tr>
+              <td><strong>{{ alerta.clave }}</strong><small>{{ medicamento(alerta.clave) }}</small></td>
+              <td>{{ alerta.tipo === 'DESABASTO' ? 'Desabasto' : 'Sobreabasto' }}</td>
+              <td>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td>{{ alerta.fin | date: 'dd/MM/yyyy HH:mm' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

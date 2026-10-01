@@ -1,0 +1,105 @@
+<header class="screen-heading">
+  <p class="eyebrow">Recepción · HU22</p>
+  <h1>Pedidos</h1>
+  <p>Consulta los pedidos registrados y captura uno nuevo mientras no exista integración con FONSABI.</p>
+</header>
+
+@if (mensaje) {
+  <div class="message" [class]="'message ' + tipoMensaje" role="status">{{ mensaje }}</div>
+}
+
+<div class="two-columns">
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Captura manual</p>
+        <h2>Pedido nuevo</h2>
+      </div>
+    </div>
+    <div class="entry-form">
+      <div class="form-row">
+        <label>Número de pedido
+          <input [(ngModel)]="numero" placeholder="PED-2026-0149" />
+        </label>
+        <label>Fecha
+          <input type="date" [(ngModel)]="fecha" />
+        </label>
+      </div>
+      <label>Proveedor
+        <input [(ngModel)]="proveedor" placeholder="Laboratorios Sanfer" />
+      </label>
+
+      <datalist id="claves-pedido">
+        @for (item of catalogo.catalogo(); track item.clave) {
+          <option [value]="item.clave">{{ item.nombreGenerico }}</option>
+        }
+      </datalist>
+      @for (partida of partidas; track $index; let i = $index) {
+        <div class="form-row partida-row">
+          <label>Clave {{ partidas.length > 1 ? i + 1 : '' }}
+            <input [(ngModel)]="partida.clave" list="claves-pedido" placeholder="Clave del catálogo" />
+            @if (catalogo.nombreMedicamento(partida.clave.trim()); as nombre) {
+              <small class="hint">{{ nombre }}</small>
+            }
+          </label>
+          <label>Cajas esperadas
+            <span class="inline-control">
+              <input type="number" min="1" [(ngModel)]="partida.cantidadEsperada" />
+              @if (partidas.length > 1) {
+                <button type="button" class="link-remove" title="Quitar clave" (click)="quitarPartida(i)">✕</button>
+              }
+            </span>
+          </label>
+        </div>
+      }
+      <button type="button" class="link-add" (click)="agregarPartida()">+ Agregar otra clave</button>
+
+      <button class="primary-button" type="button" [disabled]="guardando()" (click)="registrarPedido()">
+        {{ guardando() ? 'Guardando…' : 'Registrar pedido' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Pedidos registrados</p>
+        <h2>Lista de pedidos</h2>
+      </div>
+      <div class="counters">
+        <span>{{ pedidos.pedidos().length }} pedidos</span>
+        <span>{{ pedidos.pendientes().length }} por recibir</span>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pedido</th>
+            <th>Proveedor</th>
+            <th>Clave</th>
+            <th class="number">Recibidas</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (pedido of pedidos.pedidos(); track pedido.id) {
+            <tr>
+              <td><strong>{{ pedido.numero }}</strong><small>{{ pedido.fecha }}</small></td>
+              <td>{{ pedido.proveedor }}</td>
+              <td>
+                @for (partida of pedido.partidas; track partida.clave) {
+                  <span class="partida">{{ partida.clave }}<small>{{ partida.nombreGenerico }} · {{ partida.cantidadRecibida }}/{{ partida.cantidadEsperada }}</small></span>
+                }
+              </td>
+              <td class="number">{{ pedido.cajasRecibidas }} / {{ pedido.cajasEsperadas }}</td>
+              <td><span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span></td>
+            </tr>
+          } @empty {
+            <tr><td colspan="5" class="empty">{{ pedidos.cargando() ? 'Cargando…' : pedidos.error() || 'Aún no hay pedidos registrados.' }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

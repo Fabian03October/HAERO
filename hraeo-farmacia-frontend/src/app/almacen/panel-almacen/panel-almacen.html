@@ -5,12 +5,108 @@
   />
   <div class="shell">
     <app-sidebar [items]="items" />
-    <div class="main">
-      <div class="card">
-        <h1>Bienvenido/a, {{ session.usuarioActual()?.nombreCompleto }}</h1>
-        <p>Acceso al módulo de Almacén de Medicamentos.</p>
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="hero-date">{{ fechaHoy }}</p>
+            <h1>{{ saludo }}, {{ primerNombre() }}</h1>
+            <p class="hero-text">Este es el resumen del Almacén de Medicamentos: lo pendiente de hoy y el estado del inventario.</p>
+          </div>
+        </header>
+
+        <section class="kpi-grid" aria-label="Indicadores del almacén">
+          @for (item of indicadores(); track item.titulo) {
+            <a class="kpi" [class]="'kpi ' + item.tono" [routerLink]="item.ruta">
+              <span class="kpi-title">
+                {{ item.titulo }}
+                @if (item.ejemplo) {
+                  <span class="demo">ejemplo</span>
+                }
+              </span>
+              <strong>{{ item.valor }}</strong>
+              <small>{{ item.detalle }}</small>
+            </a>
+          }
+        </section>
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Regla FEFO · primero en caducar, primero en salir</p>
+                <h2>Próximos a salir</h2>
+              </div>
+              <a class="card-link" routerLink="/almacen/recepcion/inventario">Ver inventario →</a>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Clave</th>
+                    <th>Lote</th>
+                    <th>Caducidad</th>
+                    <th>Ubicación</th>
+                    <th class="number">Cajas</th>
+                    <th>Prioridad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (lote of proximosASalir(); track lote.clave + lote.lote + lote.ubicacion) {
+                    <tr>
+                      <td><strong>{{ lote.clave }}</strong></td>
+                      <td>{{ lote.lote }}</td>
+                      <td>
+                        {{ lote.caducidad }}
+                        @if (lote.porCaducar) {
+                          <span class="pill warning">Por caducar</span>
+                        }
+                      </td>
+                      <td>{{ lote.ubicacion }}</td>
+                      <td class="number">{{ lote.cajas }}</td>
+                      <td>
+                        @if (lote.fefo) {
+                          <span class="pill success">Sale primero</span>
+                        } @else {
+                          <span class="pill">En espera</span>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty">El inventario está vacío. Súbelo desde Recepción → Inventario.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Recepción</p>
+                <h2>Pedidos por recibir</h2>
+              </div>
+              <a class="card-link" routerLink="/almacen/recepcion/pedidos">Ver todos →</a>
+            </div>
+            @if (pedidos.pendientes().length) {
+              <ul class="order-list">
+                @for (pedido of pedidos.pendientes(); track pedido.numero) {
+                  <li>
+                    <div class="order-top">
+                      <strong>{{ pedido.numero }}</strong>
+                      <span>{{ pedido.cajasRecibidas }} / {{ pedido.cajasEsperadas }} cajas</span>
+                    </div>
+                    <small>{{ pedido.medicamento || 'Clave ' + pedido.clave }} · {{ pedido.proveedor }}</small>
+                    <div class="progress"><span [style.width.%]="avance(pedido.cajasRecibidas, pedido.cajasEsperadas)"></span></div>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="empty-box">No hay pedidos pendientes. Todo lo pedido ya se recibió.</p>
+            }
+          </section>
+        </div>
       </div>
-      <div class="empty-area">Área de trabajo del módulo (se habilita en la iteración correspondiente)</div>
-    </div>
+    </main>
   </div>
 </div>

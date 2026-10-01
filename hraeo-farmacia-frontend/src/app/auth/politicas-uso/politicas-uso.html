@@ -1,0 +1,65 @@
+<div class="politicas-page">
+  @if (usuario(); as actual) {
+    <article class="politicas-card">
+      <header class="politicas-header">
+        <p class="brand">Farmacia HRAEO · Servicio de Farmacia Hospitalaria</p>
+        <h1>Políticas de uso y aviso de privacidad</h1>
+        <p class="meta">Versión {{ version }} · vigente desde {{ fechaVersion }}</p>
+      </header>
+
+      <div class="politicas-body">
+        @if (aceptacion(); as previa) {
+          <div class="banner info">
+            Aceptaste esta versión el {{ previa.fecha | date: 'dd/MM/yyyy' }} a las {{ previa.fecha | date: 'HH:mm' }}.
+          </div>
+        } @else {
+          <p class="intro">
+            Antes de usar el sistema, lee y acepta estas políticas. Es un sistema hospitalario: cada movimiento de
+            medicamento queda registrado a nombre de quien lo hace.
+          </p>
+        }
+
+        @if (responsabilidades(); as rol) {
+          <section class="seccion destacada">
+            <h2>{{ rol.titulo }}</h2>
+            <ul>
+              @for (punto of rol.puntos; track $index) {
+                <li>{{ punto }}</li>
+              }
+            </ul>
+          </section>
+        }
+
+        @for (seccion of secciones; track seccion.titulo) {
+          <section class="seccion">
+            <h2>{{ seccion.titulo }}</h2>
+            <ul>
+              @for (punto of seccion.puntos; track $index) {
+                <li>{{ punto }}</li>
+              }
+            </ul>
+          </section>
+        }
+      </div>
+
+      <footer class="politicas-footer">
+        @if (aceptacion()) {
+          <button class="btn" type="button" (click)="volver()">Volver al sistema</button>
+        } @else {
+          <label class="check">
+            <input type="checkbox" [checked]="marcado()" (change)="marcado.set($any($event.target).checked)" />
+            <span>
+              Yo, <strong>{{ actual.nombreCompleto }}</strong> ({{ rolEtiqueta[actual.rol] }}), he leído y acepto estas
+              políticas y la responsabilidad de las operaciones que realice con mi cuenta.
+            </span>
+          </label>
+          <p class="registro">Se registrará tu usuario ({{ actual.nombreUsuario }}), la fecha y la hora: {{ hoy | date: 'dd/MM/yyyy HH:mm' }}.</p>
+          <div class="acciones">
+            <button class="btn secondary" type="button" (click)="rechazar()">No acepto, salir</button>
+            <button class="btn" type="button" [disabled]="!marcado()" (click)="aceptar()">Aceptar y continuar</button>
+          </div>
+        }
+      </footer>
+    </article>
+  }
+</div>

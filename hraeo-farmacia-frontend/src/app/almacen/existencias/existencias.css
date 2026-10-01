@@ -1,0 +1,19 @@
+td[rowspan] { vertical-align: top; }
+tr:not(.group-start) td { border-top-style: dashed; border-top-color: #f3efe9; }
+.origin { display: block; color: #25627b; font-size: 11px; }
+a.status { text-decoration: none; }
+.total { color: #2b2b2b; font-weight: 800; }
+tr.expired td { color: #a9463e; }
+.card-help { margin-top: 14px; }
+
+.link-button {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #9f2241;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}

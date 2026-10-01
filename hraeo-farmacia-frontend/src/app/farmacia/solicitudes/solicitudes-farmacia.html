@@ -1,0 +1,100 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="reception-page page">
+        <header class="screen-heading">
+          <p class="eyebrow">Farmacia · HU13</p>
+          <h1>Solicitudes a Almacén</h1>
+          <p>Pide medicamento a Almacén con la clave y la cantidad. Almacén elige el lote y lo despacha.</p>
+        </header>
+
+        @if (mensaje()) {
+          <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+        }
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Pedir medicamento</p>
+                <h2>Nueva solicitud</h2>
+              </div>
+            </div>
+            <div class="entry-form">
+              <div class="form-row">
+                <label>Clave
+                  <input [ngModel]="clave()" (ngModelChange)="clave.set($event)" list="claves-catalogo" placeholder="Clave del catálogo" />
+                  <datalist id="claves-catalogo">
+                    @for (item of catalogo(); track item.clave) {
+                      <option [value]="item.clave">{{ item.nombreGenerico }} · {{ item.presentacion }}</option>
+                    }
+                  </datalist>
+                </label>
+                <label>Cantidad (cajas)
+                  <input type="number" min="1" [(ngModel)]="cantidad" placeholder="0" />
+                </label>
+              </div>
+              <label>Medicamento
+                <input [value]="medicamento() ? medicamento()!.nombreGenerico + ' · ' + medicamento()!.presentacion : ''" readonly placeholder="Se llena al escribir la clave" />
+              </label>
+              <div class="form-row">
+                <label>Solicitante
+                  <input [value]="solicitante()" readonly />
+                </label>
+                <label>Fecha y hora
+                  <input value="Se registra al enviar" readonly />
+                </label>
+              </div>
+              <p class="card-help">Almacén valida la clave contra el catálogo de medicamentos. La solicitud no descuenta el inventario: las cajas salen hasta que Almacén la despacha.</p>
+              <button class="primary-button" type="button" [disabled]="enviando()" (click)="enviar()">
+                {{ enviando() ? 'Enviando…' : 'Enviar solicitud' }}
+              </button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Seguimiento</p>
+                <h2>Mis solicitudes</h2>
+              </div>
+              <div class="counters">
+                <span>{{ enEspera() }} en espera</span>
+                <button class="secondary-button" type="button" [disabled]="cargando()" (click)="recargar()">Actualizar</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Folio</th>
+                    <th>Medicamento</th>
+                    <th class="number">Atendidas</th>
+                    <th>Estatus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (solicitud of solicitudes(); track solicitud.id) {
+                    <tr>
+                      <td><strong>{{ folio(solicitud.id) }}</strong><small>{{ solicitud.fecha | date: 'dd/MM/yyyy HH:mm' }}</small></td>
+                      <td><strong>{{ solicitud.clave }}</strong><small>{{ solicitud.nombreGenerico || '—' }}</small></td>
+                      <td class="number">{{ solicitud.cantidadAtendida }} / {{ solicitud.cantidadSolicitada }}</td>
+                      <td><span [class]="'status ' + solicitud.estatus.toLowerCase()">{{ estadoTexto[solicitud.estatus] }}</span></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="empty">{{ cargando() ? 'Cargando…' : 'Aún no hay solicitudes.' }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

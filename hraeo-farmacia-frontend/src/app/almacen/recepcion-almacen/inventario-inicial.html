@@ -1,0 +1,138 @@
+<header class="screen-heading">
+  <p class="eyebrow">Recepción · HU21</p>
+  <h1>Inventario</h1>
+  <p>Consulta las existencias del almacén y agrega medicamentos desde un archivo Excel.</p>
+</header>
+
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+}
+
+@if (renglones().length) {
+  <section class="card preview-card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Vista previa · {{ archivoNombre() }}</p>
+        <h2>Datos que se van a guardar</h2>
+      </div>
+      <div class="counters">
+        <span>{{ validos() }} correctos</span>
+        @if (errores()) {
+          <span class="has-errors">{{ errores() }} con error</span>
+        }
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Clave</th>
+            <th>Descripción</th>
+            <th>Lote</th>
+            <th>Caducidad</th>
+            <th class="number">Cantidad</th>
+            <th class="number">Consumo prom.</th>
+            <th>Ubicación</th>
+            <th>Fuente</th>
+            <th>Fecha de ingreso</th>
+            <th>Proveedor</th>
+            <th>Revisión</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (renglon of renglones(); track $index) {
+            <tr [class.invalid]="renglon.error">
+              <td>{{ renglon.clave || '—' }}</td>
+              <td class="description"><span class="clamp" [title]="renglon.descripcion ?? ''">{{ renglon.descripcion || '—' }}</span></td>
+              <td>{{ renglon.lote || '—' }}</td>
+              <td>{{ renglon.caducidad ? formatoFecha(renglon.caducidad) : '—' }}</td>
+              <td class="number">{{ renglon.cajas || '—' }}</td>
+              <td class="number">{{ renglon.cpm ?? '—' }}</td>
+              <td>{{ renglon.ubicacion || '—' }}</td>
+              <td>{{ renglon.fuente || '—' }}</td>
+              <td>{{ renglon.fechaIngreso ? formatoFecha(renglon.fechaIngreso) : '—' }}</td>
+              <td class="wrap">{{ renglon.proveedor || '—' }}</td>
+              <td>{{ renglon.error || '✓ Correcto' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <span>La carga inicial no cuenta como salida. El consumo promedio de la hoja se usa como CPM hasta que haya salidas registradas. Cada clave debe existir en el catálogo de medicamentos.</span>
+      <button type="button" class="save-button" [disabled]="!validos() || guardando()" (click)="guardarDatos()">
+        {{ guardando() ? 'Guardando…' : 'Guardar datos (' + validos() + ')' }}
+      </button>
+    </div>
+  </section>
+}
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Existencias actuales</p>
+      <h2>Inventario del almacén</h2>
+    </div>
+    <div class="counters">
+      <span>{{ inventario.lotes().length }} lotes</span>
+      <span>{{ inventario.totalClaves() }} claves</span>
+      <span>{{ inventario.totalCajas() }} en existencia</span>
+    </div>
+  </div>
+  <div class="table-tools">
+    <input
+      class="filter"
+      [ngModel]="filtro()"
+      (ngModelChange)="filtro.set($event)"
+      placeholder="Buscar por clave, descripción, lote, ubicación o fuente"
+    />
+    <label class="file-button">
+      Subir Excel
+      <input type="file" accept=".xlsx,.xls,.csv" (change)="seleccionarArchivo($event)" />
+    </label>
+    <button type="button" class="download-button" [disabled]="!lotesFiltrados().length" (click)="descargarInventario()">
+      Descargar Excel
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Clave</th>
+          <th>Descripción</th>
+          <th>Lote</th>
+          <th>Caducidad</th>
+          <th class="number">Cantidad</th>
+          <th class="number">Consumo prom.</th>
+          <th>Ubicación</th>
+          <th>Fuente</th>
+          <th>Fecha de ingreso</th>
+          <th>Proveedor</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (lote of lotesFiltrados(); track lote.existenciaId) {
+          <tr>
+            <td><strong>{{ lote.clave }}</strong></td>
+            <td class="description"><span class="clamp" [title]="lote.descripcion ?? ''">{{ lote.descripcion || '—' }}</span></td>
+            <td>
+              {{ lote.lote }}
+              @if (lote.loteOrigen) {
+                <small class="origin">Canje de {{ lote.loteOrigen }}</small>
+              }
+            </td>
+            <td>{{ formatoFecha(lote.caducidad) }}</td>
+            <td class="number"><strong>{{ lote.cajas }}</strong></td>
+            <td class="number">{{ inventario.cpmCarga()[lote.clave] || '—' }}</td>
+            <td>{{ lote.ubicacion }}</td>
+            <td>{{ lote.fuente || '—' }}</td>
+            <td>{{ lote.fechaIngreso ? formatoFecha(lote.fechaIngreso) : '—' }}</td>
+            <td class="wrap">{{ lote.proveedor || '—' }}</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="10" class="empty">{{ inventario.cargando() ? 'Cargando…' : inventario.error() || 'No hay lotes que coincidan con la búsqueda.' }}</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,158 @@
+<header class="screen-heading">
+  <p class="eyebrow">Despacho · HU14 · HU15</p>
+  <h1>Bandeja de despacho</h1>
+  <p>Valida las solicitudes de Farmacia eligiendo lote y ubicación. Siempre sale primero la caducidad más próxima.</p>
+</header>
+
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+}
+
+<div class="dispatch-layout">
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Por atender</p>
+        <h2>Solicitudes</h2>
+      </div>
+      <div class="counters">
+        <span>{{ porAtender().length }}</span>
+        <button type="button" class="secondary-button small" [disabled]="cargandoBandeja()" (click)="recargarBandeja()">Actualizar</button>
+      </div>
+    </div>
+
+    @if (porAtender().length) {
+      <ul class="request-list">
+        @for (item of porAtender(); track item.id) {
+          <li>
+            <button type="button" class="request" [class.active]="item.id === seleccionada()" (click)="seleccionar(item.id)">
+              <span class="request-top">
+                <strong>{{ folio(item.id) }}</strong>
+                <span [class]="'status ' + item.estatus.toLowerCase()">{{ estadoTexto[item.estatus] }}</span>
+              </span>
+              <span class="request-name">{{ item.nombreGenerico || 'Clave ' + item.clave }}</span>
+              <small>{{ item.clave }} · {{ item.cantidadSolicitada - item.cantidadAtendida }} cajas por surtir · {{ item.fecha | date: 'dd/MM HH:mm' }}</small>
+            </button>
+          </li>
+        }
+      </ul>
+    } @else if (cargandoBandeja()) {
+      <p class="card-help">Cargando solicitudes…</p>
+    } @else {
+      <p class="card-help">No hay solicitudes pendientes. Las nuevas aparecen aquí en cuanto Farmacia las envía. Usa «Actualizar» para revisar.</p>
+    }
+  </section>
+
+  <section class="card">
+    @if (solicitud(); as actual) {
+      <div class="card-heading">
+        <div>
+          <p class="eyebrow">{{ folio(actual.id) }} · {{ actual.fecha | date: 'dd/MM/yyyy HH:mm' }}</p>
+          <h2>{{ actual.nombreGenerico || 'Clave ' + actual.clave }}</h2>
+          <p class="card-help">Clave {{ actual.clave }} · Solicitud de Farmacia</p>
+        </div>
+        <div class="quantity">
+          <strong>{{ porSurtir() }}</strong>
+          <span>cajas por surtir</span>
+          @if (actual.cantidadAtendida) {
+            <small>{{ actual.cantidadAtendida }} de {{ actual.cantidadSolicitada }} ya entregadas</small>
+          }
+        </div>
+      </div>
+
+      @if (cargandoDetalle()) {
+        <p class="card-help">Cargando existencias y sugerencia FEFO…</p>
+      } @else if (sugerenciaFefo(); as fefo) {
+        <div class="fefo-callout">
+          <span class="tag fefo">FEFO</span>
+          <div>
+            <strong>Lote {{ fefo.lotes }} · caduca {{ formatoCaducidad(fefo.caducidad) }}</strong>
+            <span>{{ fefo.cajas }} cajas en {{ fefo.ubicaciones }}. Debe agotarse antes de usar un lote con caducidad posterior.</span>
+          </div>
+        </div>
+
+        @if (disponibleTotal() < porSurtir()) {
+          <div class="message info">Solo hay {{ disponibleTotal() }} cajas disponibles de esta clave. Puedes registrar una entrega parcial y completar después.</div>
+        }
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Lote</th>
+                <th>Caducidad</th>
+                <th>Ubicación</th>
+                <th class="number">Disponibles</th>
+                <th class="number">A despachar</th>
+                <th>Orden</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (renglon of renglones(); track renglon.existenciaId) {
+                <tr [class.locked]="renglon.bloqueado" [class.selected]="renglon.aDespachar > 0">
+                  <td><strong>{{ renglon.numeroLote }}</strong></td>
+                  <td>{{ formatoCaducidad(renglon.caducidad) }}</td>
+                  <td>{{ renglon.ubicacion }}</td>
+                  <td class="number">{{ renglon.cajas }}</td>
+                  <td class="number">
+                    <input
+                      type="number"
+                      min="0"
+                      [max]="renglon.cajas"
+                      class="qty-input"
+                      [ngModel]="renglon.aDespachar"
+                      (ngModelChange)="asignar(renglon, $event)"
+                      [disabled]="renglon.bloqueado && !renglon.aDespachar"
+                      [attr.aria-label]="'Cajas a despachar del lote ' + renglon.numeroLote + ' en ' + renglon.ubicacion"
+                    />
+                  </td>
+                  <td>
+                    @if (renglon.bloqueado) {
+                      <span class="tag bloqueado" title="Hay un lote con caducidad más próxima con existencia">Bloqueado</span>
+                    } @else if (renglon.fefo) {
+                      <span class="tag fefo">FEFO</span>
+                    } @else {
+                      <span class="tag fefo">Disponible</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (lotesVencidos()) {
+          <p class="card-help">{{ lotesVencidos() }} registro(s) vencido(s) de esta clave no se ofrecen para despacho.</p>
+        }
+
+        @if (errorPartidas()) {
+          <div class="message error">{{ errorPartidas() }}</div>
+        }
+
+        <div class="dispatch-actions">
+          <span>
+            Despachar <strong>{{ totalADespachar() }}</strong> de {{ porSurtir() }} cajas
+          </span>
+          <div>
+            <button type="button" class="secondary-button" (click)="usarSugerencia()">Usar sugerencia FEFO</button>
+            <button type="button" class="primary-button" [disabled]="!totalADespachar() || !!errorPartidas() || enviando()" (click)="confirmar()">
+              {{ enviando() ? 'Guardando…' : esParcial() ? 'Registrar entrega parcial' : 'Confirmar despacho' }}
+            </button>
+          </div>
+        </div>
+      } @else {
+        <div class="message error">
+          No hay existencia disponible de la clave {{ actual.clave }}.
+          @if (lotesVencidos()) {
+            Hay {{ lotesVencidos() }} registro(s) vencido(s) que no pueden despacharse.
+          }
+        </div>
+      }
+    } @else {
+      <div class="placeholder">
+        <p class="eyebrow">Detalle</p>
+        <p class="card-help">Selecciona una solicitud para ver el lote sugerido y confirmar la salida.</p>
+      </div>
+    }
+  </section>
+</div>

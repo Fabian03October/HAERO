@@ -1,0 +1,108 @@
+/* minmax(0, 1fr): sin esto la tabla ancha estira la página completa en lugar de
+   desplazarse dentro de su tarjeta. */
+:host { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #a57f2c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.screen-heading h1 { margin: 0 0 6px; color: #611232; font-size: 28px; }
+.screen-heading p:last-child { margin: 0; color: #6f7271; font-size: 14px; }
+h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
+
+.card {
+  padding: 22px;
+  border: 1px solid #e4ddd3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgb(60 40 20 / 5%);
+}
+
+.file-button,
+.save-button,
+.download-button {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #a57f2c;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.file-button input { display: none; }
+.save-button { background: #9f2241; }
+.download-button { background: #fff; border: 1px solid #9f2241; color: #9f2241; }
+.file-button:hover, .save-button:hover:not(:disabled) { filter: brightness(0.92); }
+.download-button:hover:not(:disabled) { background: #f6e9ed; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.message { padding: 12px 16px; border: 1px solid; border-radius: 10px; font-size: 13px; }
+.message.info { border-color: #cfe3ee; background: #edf7fb; color: #25627b; }
+.message.success { border-color: #cbe8d9; background: #edf9f3; color: #176a4b; }
+.message.error { border-color: #f1cdc8; background: #fff1ef; color: #98423b; }
+
+.preview-card { box-shadow: 0 0 0 3px #f6e9ed; }
+
+.card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.counters { display: flex; flex-wrap: wrap; gap: 8px; }
+.counters span { padding: 4px 10px; border-radius: 999px; background: #f6e9ed; color: #9f2241; font-size: 12px; font-weight: 800; }
+.counters span.has-errors { background: #fff1ef; color: #b64f47; }
+
+.table-tools { display: flex; gap: 10px; margin-bottom: 8px; }
+
+.filter {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fdfcfa;
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.filter:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; color: #4a4a4a; font-size: 12px; }
+th, td { padding: 11px 10px; border-top: 1px solid #efebe4; text-align: left; white-space: nowrap; }
+th { color: #6f7271; font-size: 10px; text-transform: uppercase; }
+td strong { color: #2b2b2b; }
+.number { text-align: right; }
+.empty { color: #8c8a86; text-align: center; }
+tr.invalid { background: #fff5f4; }
+tr.invalid td { color: #9b443c; }
+
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; color: #6f7271; font-size: 11px; }
+
+@media (max-width: 760px) {
+  .card-heading, .actions, .table-tools { align-items: stretch; flex-direction: column; }
+}
+
+.origin { display: block; color: #25627b; font-size: 11px; }
+
+/* La tabla tiene las 10 columnas de la hoja: se desplaza de lado dentro de la
+   tarjeta y la clave queda fija a la izquierda para no perder el renglón. */
+.card { min-width: 0; }
+.table-wrap { border: 1px solid #efebe4; border-radius: 10px; }
+.table-wrap th, .table-wrap td { padding: 9px 10px; }
+.table-wrap thead th { background: #faf8f4; border-top: 0; }
+.table-wrap th:first-child,
+.table-wrap td:first-child { position: sticky; left: 0; z-index: 1; background: #fff; box-shadow: 1px 0 0 #efebe4; }
+.table-wrap thead th:first-child { background: #faf8f4; }
+tr.invalid td:first-child { background: #fff5f4; }
+
+/* La descripción de la hoja es larga: se muestra en dos renglones y completa al pasar el cursor. */
+.description { min-width: 220px; max-width: 260px; white-space: normal; }
+.clamp { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.35; }
+.wrap { min-width: 150px; max-width: 190px; white-space: normal; line-height: 1.35; }

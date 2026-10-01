@@ -1,19 +1,59 @@
-<div class="sidebar">
+<!-- Fondo oscuro detrás del menú en celular; al tocarlo se cierra. -->
+<div class="backdrop" (click)="menu.cerrar()"></div>
+<nav class="sidebar" aria-label="Menú principal">
   @for (item of items(); track item.etiqueta) {
-    @if (item.routerLink) {
-      <a [routerLink]="item.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-        {{ item.etiqueta }}
-        @if (item.etiquetaExtra) {
-          <span class="tag">{{ item.etiquetaExtra }}</span>
+    @if (item.hijos?.length) {
+      <div class="group" [class.open]="estaAbierto(item)" [class.current]="contieneRutaActual(item)">
+        <button type="button" class="item group-toggle" [attr.aria-expanded]="estaAbierto(item)" (click)="alternar(item)">
+          <span class="label">
+            {{ item.etiqueta }}
+            @if (item.etiquetaExtra) {
+              <span class="tag">{{ item.etiquetaExtra }}</span>
+            }
+          </span>
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        @if (estaAbierto(item)) {
+          <div class="submenu">
+            @for (hijo of item.hijos!; track hijo.etiqueta) {
+              <a class="subitem" [routerLink]="hijo.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="opcionesActivo">
+                <span>{{ hijo.etiqueta }}</span>
+                @if (hijo.etiquetaExtra) {
+                  <span class="tag">{{ hijo.etiquetaExtra }}</span>
+                }
+              </a>
+            }
+          </div>
         }
+      </div>
+    } @else if (item.routerLink) {
+      <a class="item" [routerLink]="item.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="opcionesActivo">
+        <span class="label">
+          {{ item.etiqueta }}
+          @if (item.etiquetaExtra) {
+            <span class="tag">{{ item.etiquetaExtra }}</span>
+          }
+        </span>
       </a>
     } @else {
-      <span class="disabled">
-        {{ item.etiqueta }}
-        @if (item.etiquetaExtra) {
-          <span class="tag">{{ item.etiquetaExtra }}</span>
-        }
+      <span class="item disabled">
+        <span class="label">
+          {{ item.etiqueta }}
+          @if (item.etiquetaExtra) {
+            <span class="tag">{{ item.etiquetaExtra }}</span>
+          }
+        </span>
       </span>
     }
   }
-</div>
+
+  <!-- Solo en celular: lo que en computadora está en la barra superior. -->
+  @if (session.usuarioActual(); as usuario) {
+    <div class="account">
+      <strong>{{ usuario.nombreCompleto }}</strong>
+      <span>{{ rolEtiqueta[usuario.rol] }}</span>
+      <a routerLink="/politicas">Políticas</a>
+      <a routerLink="/cambiar-contrasena">Mi contraseña</a>
+    </div>
+  }
+</nav>

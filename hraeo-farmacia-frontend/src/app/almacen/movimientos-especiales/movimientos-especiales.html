@@ -1,0 +1,14 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="reception-page">
+        <router-outlet />
+      </div>
+    </main>
+  </div>
+</div>

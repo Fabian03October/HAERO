@@ -1,0 +1,17 @@
+.counters span.danger { background: #fff1ef; color: #b64f47; }
+
+.cancel-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+
+.cancel-list li {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid #efebe4;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.cancel-list strong { color: #9b443c; }
+.cancel-list span,
+.cancel-list small { color: #6f7271; }

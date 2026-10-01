@@ -1,0 +1,47 @@
+/* Estilos compartidos por las páginas de Despacho. Se cargan junto con
+   recepcion-comun.css para que ambos módulos se vean igual. */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; color: #4a4a4a; font-size: 12px; }
+th, td { padding: 11px 10px; border-top: 1px solid #efebe4; text-align: left; white-space: nowrap; }
+th { color: #6f7271; font-size: 10px; text-transform: uppercase; }
+td strong { display: block; color: #2b2b2b; }
+td small { color: #8c8a86; font-size: 11px; }
+.number { text-align: right; }
+.empty { color: #8c8a86; text-align: center; }
+
+.status.atendida { background: #edf9f3; color: #176a4b; }
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.tag.fefo { background: #f4ebd5; color: #7a5b17; }
+.tag.bloqueado { background: #f3f1ee; color: #7d7a75; }
+
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.filters.single { grid-template-columns: minmax(0, 420px); }
+
+.filters input,
+.filters select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fdfcfa;
+  color: #2b2b2b;
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.filters input:focus,
+.filters select:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+
+@media (max-width: 640px) {
+  .filters { grid-template-columns: minmax(0, 1fr); }
+}

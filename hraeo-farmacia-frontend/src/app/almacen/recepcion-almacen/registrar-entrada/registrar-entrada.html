@@ -1,0 +1,109 @@
+<header class="screen-heading">
+  <p class="eyebrow">Recepción · HU10</p>
+  <h1>Registrar entrada</h1>
+  <p>Recibe un lote contra un pedido activo y asígnale su ubicación en el almacén.</p>
+</header>
+
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+}
+
+<section class="card entry-card" [class.blocked]="cancelado()">
+  @if (cancelado()) {
+    <div class="blocked-alert">
+      <strong>Este pedido fue cancelado por el nivel central.</strong>
+      <span>No se puede recibir medicamento contra este pedido.</span>
+    </div>
+  }
+
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Pedido y lote</p>
+      <h2>Datos de la entrada</h2>
+    </div>
+    <div class="counters">
+      <span>{{ pedidos.pendientes().length }} pedidos por recibir</span>
+    </div>
+  </div>
+
+  <div class="entry-form">
+    <label>Pedido
+      <select [ngModel]="pedidoId() ?? ''" (ngModelChange)="seleccionarPedido($event)">
+        <option value="">Selecciona un pedido activo</option>
+        @for (item of pedidos.pedidos(); track item.id) {
+          <option [value]="item.id">{{ item.numero }} · {{ item.proveedor }}{{ item.estado === 'CANCELADO' ? ' (cancelado)' : '' }}</option>
+        }
+      </select>
+    </label>
+
+    <label>Escaneo de código de barras
+      <div class="scanner-control">
+        <input [(ngModel)]="codigoEscaneado" (keyup.enter)="escanearCodigo()" placeholder="Escanea la caja y presiona Enter" />
+        <button type="button" title="Buscar código" (click)="escanearCodigo()">▣</button>
+        <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
+      </div>
+    </label>
+    @if (camaraAbierta()) {
+      <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
+    }
+    @if (codigoSinRegistrar() && partida() && !cancelado()) {
+      <button type="button" class="link-add" (click)="asociarCodigo()">
+        Asociar {{ codigoSinRegistrar() }} a {{ clave() }} · {{ pedido()?.proveedor }}
+      </button>
+    }
+
+    @if (pedido(); as seleccionado) {
+      <div class="pedido-resumen">
+        <span>Recibidas <strong>{{ partida()?.cantidadRecibida ?? seleccionado.cajasRecibidas }}</strong> de <strong>{{ partida()?.cantidadEsperada ?? seleccionado.cajasEsperadas }}</strong> cajas{{ partida() ? ' de esta clave' : ' del pedido' }}</span>
+        <span [class]="'status ' + pedidos.estadoTexto(seleccionado).toLowerCase()">{{ pedidos.estadoTexto(seleccionado) }}</span>
+      </div>
+    }
+
+    <div class="form-row">
+      <label>Clave
+        <select [ngModel]="clave()" (ngModelChange)="clave.set($event)" [disabled]="!pedido() || cancelado()">
+          <option value="">{{ pedido() ? 'Elige la clave que recibes' : 'Se llena al elegir pedido' }}</option>
+          @for (item of pedido()?.partidas ?? []; track item.clave) {
+            <option [value]="item.clave">{{ item.clave }} · {{ item.nombreGenerico }} ({{ item.cantidadRecibida }}/{{ item.cantidadEsperada }})</option>
+          }
+        </select>
+      </label>
+      <label>Proveedor
+        <input [value]="pedido()?.proveedor ?? ''" readonly placeholder="Se llena al elegir pedido" />
+      </label>
+    </div>
+
+    <div class="form-row">
+      <label>Lote
+        <input [(ngModel)]="entrada.lote" [disabled]="cancelado()" placeholder="Número de lote" />
+      </label>
+      <label>Caducidad
+        <input type="month" [(ngModel)]="entrada.caducidad" [disabled]="cancelado()" />
+      </label>
+    </div>
+
+    @for (fila of ubicaciones; track $index; let i = $index) {
+      <div class="form-row">
+        <label>Ubicación {{ ubicaciones.length > 1 ? i + 1 : '' }}
+          <input [(ngModel)]="fila.ubicacion" [disabled]="cancelado()" placeholder="Sector 5" />
+        </label>
+        <label>Cantidad (cajas)
+          <span class="inline-control">
+            <input type="number" min="1" [(ngModel)]="fila.cajas" [disabled]="cancelado()" placeholder="0" />
+            @if (ubicaciones.length > 1) {
+              <button type="button" class="link-remove" title="Quitar ubicación" (click)="quitarUbicacion(i)">✕</button>
+            }
+          </span>
+        </label>
+      </div>
+    }
+    <button type="button" class="link-add" [disabled]="cancelado()" (click)="agregarUbicacion()">+ Repartir en otra ubicación</button>
+    @if (partida()) {
+      <p class="card-help">Total de la entrada: {{ totalCajas() }} cajas · pendientes de esta clave: {{ pendientePartida() }}.</p>
+    }
+
+    <button class="primary-button" type="button" [disabled]="cancelado() || guardando()" (click)="registrarEntrada()">
+      {{ guardando() ? 'Guardando…' : 'Confirmar entrada' }}
+    </button>
+  </div>
+</section>
