@@ -17,4 +17,5 @@ public class ExistenciaResponse {
     private String ubicacion;
     private Integer cajas;
     private boolean fefo;
+    private String proveedor;
 }

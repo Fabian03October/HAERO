@@ -90,7 +90,8 @@ public class ServicioDespacho {
                             e.getLote().getCaducidad(),
                             e.getUbicacion(),
                             e.getCantidadCajas(),
-                            esFefo
+                            esFefo,
+                            e.getLote().getProveedor()
                     );
                 })
                 .toList();

@@ -11,7 +11,7 @@ import lombok.Setter;
 public class Medicamento {
 
     @Id
-    @Column(length = 10)
+    @Column(length = 30)
     private String clave;
 
     @Column(name = "nombre_generico", nullable = false, length = 150)

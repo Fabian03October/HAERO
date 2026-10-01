@@ -7,4 +7,12 @@ import java.util.List;
 
 public interface LoteRepository extends JpaRepository<Lote, Long> {
     List<Lote> findByMedicamentoClaveAndEstatus(String medicamentoClave, String estatus);
+
+    List<Lote> findByEstatus(String estatus);
+
+    List<Lote> findByLoteOrigenIsNotNull();
+
+    boolean existsByMedicamentoClaveAndNumeroLoteIgnoreCase(String medicamentoClave, String numeroLote);
+
+    List<Lote> findByMedicamentoClaveAndNumeroLoteIgnoreCaseAndEstatus(String medicamentoClave, String numeroLote, String estatus);
 }

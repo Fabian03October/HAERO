@@ -15,4 +15,5 @@ public class PedidoResponse {
     private String estatus;
     private LocalDate fecha;
     private List<PartidaPedidoResponse> partidas;
+    private String motivoCancelacion;
 }
