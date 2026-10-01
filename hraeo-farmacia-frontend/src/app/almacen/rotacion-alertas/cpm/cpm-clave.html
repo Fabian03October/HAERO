@@ -1,0 +1,110 @@
+<header class="screen-heading">
+  <p class="eyebrow">Rotación · HU16</p>
+  <h1>Consumo promedio mensual</h1>
+  <p>El CPM se calcula solo con las salidas a Farmacia registradas en el sistema. No se captura a mano.</p>
+</header>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Consulta individual</p>
+      <h2>CPM de una clave</h2>
+    </div>
+    <label class="clave-select">
+      <select [ngModel]="claveSeleccionada()" (ngModelChange)="claveSeleccionada.set($event)" aria-label="Clave a consultar">
+        @for (item of rotacion.rotacion(); track item.clave) {
+          <option [value]="item.clave">{{ item.clave }} · {{ item.medicamento || 'Sin nombre' }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  @if (detalle(); as item) {
+    <div class="cpm-detail">
+      <div class="cpm-figure">
+        <span>CPM</span>
+        <strong>{{ item.cpm }}</strong>
+        <small>cajas por mes</small>
+      </div>
+
+      <div class="months" role="img" [attr.aria-label]="'Salidas a Farmacia por mes de la clave ' + item.clave">
+        @for (mes of item.meses; track mes.mes) {
+          <div class="month">
+            <span class="month-value">{{ mes.cajas }}</span>
+            <div class="bar-track"><div class="bar" [style.height.%]="altura(mes.cajas)"></div></div>
+            <span class="month-label">{{ nombreMes(mes.mes) }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <dl class="facts">
+      <div>
+        <dt>Periodo del cálculo</dt>
+        <dd>{{ periodo() }} ({{ item.mesesHistorial }} {{ item.mesesHistorial === 1 ? 'mes cerrado' : 'meses cerrados' }})</dd>
+      </div>
+      <div>
+        <dt>Mes en curso</dt>
+        <dd>{{ item.consumoMesActual }} cajas despachadas; entran al CPM al cerrar el mes</dd>
+      </div>
+      <div>
+        <dt>No cuentan como consumo</dt>
+        <dd>{{ item.cajasExcluidas }} cajas en préstamos, transferencias o bajas</dd>
+      </div>
+    </dl>
+
+    @if (item.origenCpm === 'HOJA') {
+      <div class="message info">Esta clave aún no tiene salidas registradas en el sistema. Se usa el consumo promedio de la hoja de inventario ({{ item.cpm }}) hasta que haya salidas propias.</div>
+    } @else if (!item.mesesHistorial) {
+      <div class="message info">Todavía no hay meses cerrados con salidas registradas. El CPM aparece al cerrar el primer mes.</div>
+    } @else if (item.mesesHistorial < 6) {
+      <div class="message info">Aún no hay 6 meses cerrados de historial. Mientras se completan, el CPM se divide entre {{ item.mesesHistorial }}.</div>
+    }
+  }
+</section>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Listado general</p>
+      <h2>CPM de todas las claves</h2>
+    </div>
+    <div class="counters">
+      <span>{{ rotacion.rotacion().length }} claves</span>
+    </div>
+  </div>
+
+  <div class="filters single">
+    <input [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar por clave o medicamento" />
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Clave</th>
+          <th class="number">CPM</th>
+          <th class="number">Mes en curso</th>
+          <th class="number">Existencia</th>
+          <th class="number">Meses de abasto</th>
+          <th class="number">Excluidas</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (fila of listado(); track fila.clave) {
+          <tr class="clickable" [class.selected]="fila.clave === claveSeleccionada()" (click)="claveSeleccionada.set(fila.clave)">
+            <td><strong>{{ fila.clave }}</strong><small>{{ fila.medicamento || 'Sin nombre en catálogo' }}</small></td>
+            <td class="number"><strong>{{ fila.cpm }}</strong>@if (fila.origenCpm === 'HOJA') {<small>de la hoja</small>}</td>
+            <td class="number">{{ fila.consumoMesActual }}</td>
+            <td class="number">{{ fila.existencia }}</td>
+            <td class="number">{{ fila.mesesAbasto ?? '—' }}</td>
+            <td class="number">{{ fila.cajasExcluidas }}</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="6" class="empty">No hay claves que coincidan con la búsqueda.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="card-help">CPM = cajas despachadas a Farmacia en los últimos 6 meses cerrados ÷ 6. Se recalcula solo con cada salida registrada.</p>
+</section>

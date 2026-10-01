@@ -1,0 +1,21 @@
+<div class="overlay" role="dialog" aria-modal="true" aria-label="Escanear código de barras con la cámara">
+  <div class="scanner">
+    <div class="scanner-head">
+      <strong>Escanear con cámara</strong>
+      <button type="button" class="close" aria-label="Cerrar" (click)="cancelar()">✕</button>
+    </div>
+
+    <div class="viewport" [class.hidden]="estado() === 'error'">
+      <video #video muted playsinline></video>
+      <span class="guide" aria-hidden="true"></span>
+    </div>
+
+    @if (estado() === 'error') {
+      <p class="error">{{ error() }}</p>
+    } @else {
+      <p class="hint">{{ estado() === 'iniciando' ? 'Abriendo la cámara…' : 'Centra el código de barras de la caja dentro del recuadro.' }}</p>
+    }
+
+    <button type="button" class="cancel" (click)="cancelar()">Cancelar</button>
+  </div>
+</div>

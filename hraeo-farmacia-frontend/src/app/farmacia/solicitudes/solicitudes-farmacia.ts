@@ -1,0 +1,104 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
+import { ROL_ETIQUETA, Session } from '../../auth/session';
+import { Topbar } from '../../shared/topbar/topbar';
+import { Sidebar } from '../../shared/sidebar/sidebar';
+import { FARMACIA_MENU } from '../farmacia-nav';
+import { AlmacenApi, ESTATUS_SOLICITUD_TEXTO, Medicamento, Solicitud, folioSolicitud, mensajeDeError } from '../../almacen/almacen-api';
+
+// Farmacia · Solicitudes a Almacén (HU13). Farmacia pide medicamento con clave y
+// cantidad y consulta el estatus; Almacén las atiende en su Bandeja de despacho.
+// La clave se elige del catálogo de medicamentos; el backend la vuelve a validar al guardar.
+@Component({
+  selector: 'app-solicitudes-farmacia',
+  imports: [FormsModule, DatePipe, Topbar, Sidebar],
+  templateUrl: './solicitudes-farmacia.html',
+  styleUrls: [
+    '../../almacen/recepcion-almacen/recepcion-almacen.css',
+    '../../almacen/recepcion-almacen/recepcion-comun.css',
+    '../../almacen/despacho/despacho-comun.css',
+    './solicitudes-farmacia.css',
+  ],
+})
+export class SolicitudesFarmacia {
+  protected readonly session = inject(Session);
+  private readonly api = inject(AlmacenApi);
+  protected readonly rolEtiqueta = ROL_ETIQUETA;
+  protected readonly estadoTexto = ESTATUS_SOLICITUD_TEXTO;
+  protected readonly folio = folioSolicitud;
+  readonly items = FARMACIA_MENU;
+
+  readonly solicitudes = signal<Solicitud[]>([]);
+  readonly cargando = signal(true);
+  readonly enviando = signal(false);
+  readonly enEspera = computed(() => this.solicitudes().filter((item) => item.estatus !== 'ATENDIDA').length);
+
+  readonly catalogo = signal<Medicamento[]>([]);
+  readonly clave = signal('');
+  readonly medicamento = computed(() => this.catalogo().find((item) => item.clave === this.clave().trim()));
+  readonly solicitante = computed(() => this.session.usuarioActual()?.nombreCompleto ?? '');
+  cantidad = 0;
+
+  readonly mensaje = signal('');
+  readonly tipoMensaje = signal<'success' | 'error'>('success');
+
+  constructor() {
+    this.recargar();
+    this.api.listarMedicamentos().subscribe({ next: (lista) => this.catalogo.set(lista), error: () => {} });
+  }
+
+  recargar(): void {
+    this.cargando.set(true);
+    this.api.misSolicitudes().subscribe({
+      next: (lista) => {
+        // Las más recientes primero.
+        this.solicitudes.set([...lista].sort((a, b) => b.fecha.localeCompare(a.fecha)));
+        this.cargando.set(false);
+      },
+      error: (error) => {
+        this.cargando.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudieron cargar tus solicitudes.'), 'error');
+      },
+    });
+  }
+
+  enviar(): void {
+    const clave = this.clave().trim();
+    if (!clave) {
+      this.mostrarMensaje('Escribe la clave del medicamento.', 'error');
+      return;
+    }
+    if (this.catalogo().length && !this.medicamento()) {
+      this.mostrarMensaje('La clave no existe en el catálogo. Revisa la clave del medicamento.', 'error');
+      return;
+    }
+    if (!Number.isInteger(this.cantidad) || this.cantidad <= 0) {
+      this.mostrarMensaje('La cantidad debe ser un número entero mayor a cero.', 'error');
+      return;
+    }
+
+    this.enviando.set(true);
+    this.api.crearSolicitud(clave, this.cantidad).subscribe({
+      next: (solicitud) => {
+        this.enviando.set(false);
+        this.mostrarMensaje(
+          `Solicitud ${folioSolicitud(solicitud.id)} enviada a Almacén: ${solicitud.cantidadSolicitada} cajas de ${solicitud.nombreGenerico} (${solicitud.clave}). Queda pendiente hasta que Almacén la despache.`,
+          'success',
+        );
+        this.solicitudes.set([solicitud, ...this.solicitudes()]);
+        this.clave.set('');
+        this.cantidad = 0;
+      },
+      error: (error) => {
+        this.enviando.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudo enviar la solicitud.'), 'error');
+      },
+    });
+  }
+
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error'): void {
+    this.mensaje.set(texto);
+    this.tipoMensaje.set(tipo);
+  }
+}

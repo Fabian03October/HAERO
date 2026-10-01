@@ -1,0 +1,132 @@
+<header class="screen-heading">
+  <p class="eyebrow">Movimientos especiales · HU20</p>
+  <h1>Préstamos y transferencias</h1>
+  <p>Registra lo que se presta, transfiere o recibe de otra institución pública, aparte del traspaso a Farmacia.</p>
+</header>
+
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+}
+
+<div class="two-columns">
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Otra institución</p>
+        <h2>Registrar movimiento</h2>
+      </div>
+    </div>
+
+    <div class="entry-form">
+      <div class="form-row">
+        <label>Tipo
+          <span class="segmented">
+            <button type="button" [class.active]="tipo() === 'PRESTAMO'" (click)="tipo.set('PRESTAMO')">Préstamo</button>
+            <button type="button" [class.active]="tipo() === 'TRANSFERENCIA'" (click)="tipo.set('TRANSFERENCIA')">Transferencia</button>
+          </span>
+        </label>
+        <label>Sentido
+          <span class="segmented">
+            <button type="button" [class.active]="sentido() === 'SALIDA'" (click)="sentido.set('SALIDA')">Sale</button>
+            <button type="button" [class.active]="sentido() === 'ENTRADA'" (click)="sentido.set('ENTRADA')">Entra</button>
+          </span>
+        </label>
+      </div>
+
+      <label>Institución
+        <input [(ngModel)]="institucion" placeholder="Hospital General Dr. Aurelio Valdivieso" />
+      </label>
+
+      <div class="form-row">
+        <label>Clave
+          <input [ngModel]="clave()" (ngModelChange)="cambiarClave($event)" list="claves-externos" placeholder="010.000.6059.01-1" />
+          <datalist id="claves-externos">
+            @for (item of solicitudes.clavesConocidas(); track item) {
+              <option [value]="item">{{ solicitudes.nombreMedicamento(item) }}</option>
+            }
+          </datalist>
+        </label>
+        <label>Cantidad (cajas)
+          <input type="number" min="1" [(ngModel)]="cajas" />
+        </label>
+      </div>
+
+      @if (sentido() === 'SALIDA') {
+        <label>Lote y ubicación de donde sale
+          <select [(ngModel)]="existenciaElegida" [disabled]="!existenciasDeClave().length">
+            <option value="">{{ clave() ? (existenciasDeClave().length ? 'Selecciona lote y ubicación' : 'Sin existencia disponible de esta clave') : 'Escribe primero la clave' }}</option>
+            @for (fila of existenciasDeClave(); track fila.existenciaId) {
+              <option [value]="fila.existenciaId">{{ fila.lote }} · {{ fila.ubicacion }} · {{ fila.cajas }} cajas · cad. {{ formatoCaducidad(fila.caducidad) }}</option>
+            }
+          </select>
+        </label>
+      } @else {
+        <div class="form-row">
+          <label>Lote
+            <input [(ngModel)]="entrada.lote" placeholder="L-6120" />
+          </label>
+          <label>Caducidad
+            <input type="month" [(ngModel)]="entrada.caducidad" />
+          </label>
+        </div>
+        <label>Ubicación donde se guarda
+          <input [(ngModel)]="entrada.ubicacion" placeholder="Sector 5" />
+        </label>
+      }
+
+      <p class="card-help">
+        {{ sentido() === 'SALIDA' ? 'Se descuenta de la ubicación elegida.' : 'Se suma al inventario en la ubicación indicada.' }}
+        No cuenta como consumo de Farmacia para el CPM.
+      </p>
+      <button class="primary-button" type="button" [disabled]="guardando()" (click)="registrar()">
+        {{ guardando() ? 'Guardando…' : 'Registrar ' + (tipo() === 'PRESTAMO' ? 'préstamo' : 'transferencia') }}
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Historial</p>
+        <h2>Movimientos con otras instituciones</h2>
+      </div>
+      <div class="counters">
+        <span>{{ historial().length }}</span>
+      </div>
+    </div>
+
+    <div class="segmented history-filter">
+      <button type="button" [class.active]="filtroTipo() === ''" (click)="filtroTipo.set('')">Todos</button>
+      <button type="button" [class.active]="filtroTipo() === 'PRESTAMO'" (click)="filtroTipo.set('PRESTAMO')">Préstamos</button>
+      <button type="button" [class.active]="filtroTipo() === 'TRANSFERENCIA'" (click)="filtroTipo.set('TRANSFERENCIA')">Transferencias</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Movimiento</th>
+            <th>Clave · lote</th>
+            <th class="number">Cajas</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of historial(); track $index) {
+            <tr>
+              <td><strong>{{ item.fecha | date: 'dd/MM/yyyy' }}</strong><small>{{ item.usuario || '—' }}</small></td>
+              <td>
+                <span [class]="'direction ' + item.sentido.toLowerCase()">{{ item.tipo === 'PRESTAMO' ? 'Préstamo' : 'Transferencia' }} · {{ item.sentido === 'SALIDA' ? 'sale' : 'entra' }}</span>
+                <small class="institution">{{ item.institucion }}</small>
+              </td>
+              <td><strong>{{ item.clave }} · {{ item.lote }}</strong><small>{{ item.ubicacion }}</small></td>
+              <td class="number">{{ item.cajas }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="4" class="empty">Aún no hay movimientos con otras instituciones.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

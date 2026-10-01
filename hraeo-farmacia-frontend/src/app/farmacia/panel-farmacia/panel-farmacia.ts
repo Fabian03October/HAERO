@@ -1,7 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
 import { Topbar } from '../../shared/topbar/topbar';
-import { Sidebar, ItemMenu } from '../../shared/sidebar/sidebar';
+import { Sidebar } from '../../shared/sidebar/sidebar';
+import { FARMACIA_MENU } from '../farmacia-nav';
 
 @Component({
   selector: 'app-panel-farmacia',
@@ -13,9 +14,5 @@ export class PanelFarmacia {
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
 
-  readonly items: ItemMenu[] = [
-    { etiqueta: 'Inicio', routerLink: '/farmacia' },
-    { etiqueta: 'Dispensación' },
-    { etiqueta: 'Recetas' },
-  ];
+  readonly items = FARMACIA_MENU;
 }

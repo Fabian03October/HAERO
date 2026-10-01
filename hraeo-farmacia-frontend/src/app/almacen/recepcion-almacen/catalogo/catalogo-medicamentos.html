@@ -1,0 +1,79 @@
+<header class="screen-heading">
+  <p class="eyebrow">Recepción · Catálogo</p>
+  <h1>Catálogo de medicamentos</h1>
+  <p>Da de alta las claves que maneja el almacén. Pedidos, entradas, carga de inventario y solicitudes de Farmacia solo aceptan claves del catálogo.</p>
+</header>
+
+@if (mensaje) {
+  <div class="message" [class]="'message ' + tipoMensaje" role="status">{{ mensaje }}</div>
+}
+
+<div class="two-columns">
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Alta</p>
+        <h2>Medicamento nuevo</h2>
+      </div>
+    </div>
+    <div class="entry-form">
+      <div class="form-row">
+        <label>Clave
+          <input [(ngModel)]="nuevo.clave" placeholder="Clave del cuadro básico" />
+        </label>
+        <label>Piezas por caja (opcional)
+          <input type="number" min="1" [(ngModel)]="nuevo.piezasPorCaja" />
+        </label>
+      </div>
+      <label>Nombre genérico
+        <input [(ngModel)]="nuevo.nombreGenerico" placeholder="Lactulosa" />
+      </label>
+      <label>Presentación
+        <input [(ngModel)]="nuevo.presentacion" placeholder="Jarabe 10 g/15 ml, frasco 240 ml" />
+      </label>
+      <label>Descripción (opcional)
+        <input [(ngModel)]="nuevo.descripcion" placeholder="Cada 100 ml contienen…" />
+      </label>
+      <button class="primary-button" type="button" [disabled]="guardando()" (click)="registrar()">
+        {{ guardando() ? 'Guardando…' : 'Agregar al catálogo' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Registrados</p>
+        <h2>Medicamentos</h2>
+      </div>
+      <div class="counters">
+        <span>{{ datos.catalogo().length }} claves</span>
+      </div>
+    </div>
+    <div class="entry-form">
+      <input [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar por clave, nombre o presentación" />
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Clave</th>
+            <th>Medicamento</th>
+            <th class="number">Piezas/caja</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of medicamentos(); track item.clave) {
+            <tr>
+              <td><strong>{{ item.clave }}</strong></td>
+              <td>{{ item.nombreGenerico }}<small>{{ item.presentacion }}</small></td>
+              <td class="number">{{ item.piezasPorCaja ?? '—' }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="3" class="empty">Aún no hay medicamentos en el catálogo.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

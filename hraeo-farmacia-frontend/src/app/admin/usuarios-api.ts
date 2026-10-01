@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Rol, Session } from '../auth/session';
+import { API_BASE_URL } from '../api-config';
 
 export interface Usuario {
   id: number;
@@ -31,8 +32,6 @@ export interface CambiarContrasenaRequest {
   contrasenaActual: string;
   contrasenaNueva: string;
 }
-
-const API_BASE_URL = 'http://localhost:8080/api';
 
 @Injectable({
   providedIn: 'root',

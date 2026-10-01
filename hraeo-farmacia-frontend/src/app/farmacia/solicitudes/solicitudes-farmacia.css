@@ -1,0 +1,18 @@
+:host { display: block; }
+/* minmax(0, 1fr): la tabla se desplaza dentro de su tarjeta en lugar de ensanchar la página. */
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+
+.secondary-button {
+  padding: 6px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fff;
+  color: #9f2241;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:hover:not(:disabled) { background: #f6e9ed; }
+.secondary-button:disabled { opacity: 0.5; cursor: not-allowed; }

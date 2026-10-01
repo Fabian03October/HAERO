@@ -1,0 +1,84 @@
+/* Estilos compartidos por las páginas de Movimientos especiales. */
+.summary-box {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8f5f0;
+  color: #4a4a4a;
+  font-size: 12px;
+}
+
+.summary-box strong { color: #2b2b2b; font-size: 13px; }
+.summary-box small { color: #8a6a2e; }
+
+.form-section {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid #efebe4;
+}
+
+.form-section p {
+  margin: 0;
+  color: #9f2241;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.form-section span { color: #6f7271; font-size: 12px; line-height: 1.5; }
+
+.entry-form input.missing { border-color: #c95e55; background: #fff7f6; }
+
+.trace-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+
+.trace-list li {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e4ddd3;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.trace-list li > small { color: #8c8a86; }
+.trace-head { display: flex; justify-content: space-between; gap: 10px; }
+.trace-head strong { color: #2b2b2b; }
+.trace-head small { color: #8c8a86; }
+.trace-flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.trace-lot { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #edf9f3; }
+.trace-lot.old { background: #f3f1ee; }
+.trace-lot.old b { color: #7d7a75; text-decoration: line-through; }
+.trace-lot b { color: #176a4b; font-size: 13px; }
+.trace-lot small { color: #6f7271; font-size: 11px; }
+.trace-arrow { color: #9f2241; font-size: 18px; font-weight: 800; }
+
+.segmented { display: flex; gap: 6px; }
+
+.segmented button {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fdfcfa;
+  color: #4a4a4a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segmented button.active { border-color: #9f2241; background: #fbf1f4; color: #9f2241; }
+
+.direction { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.direction.salida { background: #fff1ef; color: #a9463e; }
+.direction.entrada { background: #edf9f3; color: #176a4b; }
+
+.history-filter { margin-bottom: 12px; }
+.history-filter button { flex: 0 1 auto; padding: 6px 12px; font-size: 12px; }
+.institution { display: block; margin-top: 4px; color: #6f7271; font-size: 11px; white-space: normal; }
+
+.message-link { margin-left: 8px; color: inherit; font-weight: 800; }

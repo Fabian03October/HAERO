@@ -1,0 +1,91 @@
+<header class="screen-heading">
+  <p class="eyebrow">Despacho · HU12</p>
+  <h1>Existencias por ubicación</h1>
+  <p>Consulta en qué ubicación está cada lote para saber de dónde tomarlo al despachar.</p>
+</header>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Control por ubicación</p>
+      <h2>Lotes en almacén</h2>
+    </div>
+    <div class="counters">
+      <span>{{ inventario.lotes().length }} registros</span>
+      <span>{{ ubicaciones().length }} ubicaciones</span>
+      <span>{{ inventario.totalCajas() }} cajas</span>
+      <button type="button" class="link-button" [disabled]="inventario.cargando()" (click)="inventario.recargar()">Actualizar</button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <input [ngModel]="filtroClave()" (ngModelChange)="filtroClave.set($event)" placeholder="Clave o medicamento" />
+    <input [ngModel]="filtroLote()" (ngModelChange)="filtroLote.set($event)" placeholder="Lote" />
+    <select [ngModel]="filtroUbicacion()" (ngModelChange)="filtroUbicacion.set($event)">
+      <option value="">Todas las ubicaciones</option>
+      @for (ubicacion of ubicaciones(); track ubicacion) {
+        <option [value]="ubicacion">{{ ubicacion }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Clave</th>
+          <th>Lote</th>
+          <th>Caducidad</th>
+          <th>Ubicación</th>
+          <th class="number">Cajas</th>
+          <th class="number">Total lote</th>
+          <th>Orden</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (grupo of grupos(); track grupo.clave + grupo.lote) {
+          @for (renglon of grupo.ubicaciones; track $index; let primero = $first) {
+            <tr [class.group-start]="primero" [class.expired]="grupo.vencido">
+              @if (primero) {
+                <td [attr.rowspan]="grupo.ubicaciones.length">
+                  <strong>{{ grupo.clave }}</strong><small>{{ grupo.medicamento || 'Sin nombre en catálogo' }}</small>
+                </td>
+                <td [attr.rowspan]="grupo.ubicaciones.length">
+                  {{ grupo.lote }}
+                  @if (grupo.loteOrigen) {
+                    <small class="origin">Canje de {{ grupo.loteOrigen }}</small>
+                  }
+                </td>
+                <td [attr.rowspan]="grupo.ubicaciones.length">{{ formatoCaducidad(grupo.caducidad) }}</td>
+              }
+              <td>{{ renglon.ubicacion }}</td>
+              <td class="number">{{ renglon.cajas }}</td>
+              @if (primero) {
+                <td class="number total" [attr.rowspan]="grupo.ubicaciones.length">{{ grupo.total }}</td>
+                <td [attr.rowspan]="grupo.ubicaciones.length">
+                  @if (grupo.vencido) {
+                    <a class="status cancelado" routerLink="/almacen/movimientos-especiales/caducados" title="Apartar en caducados">Vencido · apartar</a>
+                  } @else if (grupo.fefo) {
+                    <span class="tag fefo">FEFO · sale primero</span>
+                  } @else {
+                    <span class="tag bloqueado">En espera</span>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        } @empty {
+          <tr>
+            <td colspan="7" class="empty">
+              {{ inventario.cargando() ? 'Cargando…' : inventario.error() || 'No hay lotes que coincidan con la búsqueda.' }}
+              @if (hayFiltros()) {
+                <button type="button" class="link-button" (click)="limpiarFiltros()">Limpiar filtros</button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="card-help">Un lote puede estar repartido en varias ubicaciones. Al despachar, las cajas se descuentan de la ubicación elegida, no del total.</p>
+</section>

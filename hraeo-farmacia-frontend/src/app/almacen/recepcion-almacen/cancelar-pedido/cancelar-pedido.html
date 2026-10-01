@@ -1,0 +1,65 @@
+<header class="screen-heading">
+  <p class="eyebrow">Recepción · HU11</p>
+  <h1>Cancelar pedido</h1>
+  <p>Bloquea la recepción de un pedido que fue cancelado por el nivel central.</p>
+</header>
+
+@if (mensaje) {
+  <div class="message" [class]="'message ' + tipoMensaje" role="status">{{ mensaje }}</div>
+}
+
+<div class="two-columns">
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Bloqueo de recepción</p>
+        <h2>Cancelar un pedido</h2>
+      </div>
+      <div class="counters">
+        <span>{{ pedidos.pendientes().length }} cancelables</span>
+      </div>
+    </div>
+    <div class="entry-form">
+      <label>Pedido
+        <select [(ngModel)]="pedidoACancelar">
+          <option value="">Selecciona un pedido pendiente</option>
+          @for (pedido of pedidos.pendientes(); track pedido.id) {
+            <option [value]="pedido.id">{{ pedido.numero }} · {{ pedido.proveedor }}</option>
+          }
+        </select>
+      </label>
+      <label>Motivo de cancelación
+        <input [(ngModel)]="motivoCancelacion" placeholder="Cancelado por nivel central" />
+      </label>
+      <p class="card-help">Un pedido cancelado ya no podrá seleccionarse para registrar entradas.</p>
+      <button class="danger-button" type="button" [disabled]="guardando()" (click)="cancelarPedido()">
+        {{ guardando() ? 'Guardando…' : 'Marcar como cancelado' }}
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Historial</p>
+        <h2>Pedidos cancelados</h2>
+      </div>
+      <div class="counters">
+        <span class="danger">{{ pedidos.cancelados().length }} cancelados</span>
+      </div>
+    </div>
+    @if (pedidos.cancelados().length) {
+      <ul class="cancel-list">
+        @for (pedido of pedidos.cancelados(); track pedido.id) {
+          <li>
+            <strong>{{ pedido.numero }}</strong>
+            <span>{{ pedido.proveedor }} · clave {{ pedido.clave }}</span>
+            <small>Motivo: {{ pedido.motivoCancelacion || '—' }} · {{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} cajas recibidas</small>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="card-help">Aún no hay pedidos cancelados.</p>
+    }
+  </section>
+</div>

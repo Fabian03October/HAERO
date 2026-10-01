@@ -1,0 +1,75 @@
+<header class="screen-heading">
+  <p class="eyebrow">Despacho · HU14</p>
+  <h1>Salidas registradas</h1>
+  <p>Historial de lo que salió de Almacén hacia Farmacia, por lote y ubicación de origen.</p>
+</header>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">{{ esHoy() ? 'Hoy' : 'Historial' }}</p>
+      <h2>{{ diaTexto() }}</h2>
+    </div>
+    <div class="counters">
+      <span>{{ salidas().length }} movimientos</span>
+      <span>{{ totalCajas() }} cajas</span>
+    </div>
+  </div>
+
+  <div class="day-tools">
+    <div class="day-picker">
+      <button type="button" class="day-button" title="Día anterior" aria-label="Día anterior" (click)="cambiarDia(-1)">‹</button>
+      <input type="date" [max]="hoy" [ngModel]="dia()" (ngModelChange)="elegirDia($event)" aria-label="Fecha a consultar" />
+      <button type="button" class="day-button" title="Día siguiente" aria-label="Día siguiente" [disabled]="esHoy()" (click)="cambiarDia(1)">›</button>
+      @if (!esHoy()) {
+        <button type="button" class="today-button" (click)="dia.set(hoy)">Volver a hoy</button>
+      }
+    </div>
+    <input class="search" [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar en este día por folio, clave, lote o usuario" />
+  </div>
+
+  @if (salidas().length) {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Referencia</th>
+            <th>Clave</th>
+            <th>Lote</th>
+            <th>Ubicación origen</th>
+            <th class="number">Cajas</th>
+            <th>Usuario</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (salida of salidas(); track $index) {
+            <tr>
+              <td><strong>{{ salida.fecha | date: 'dd/MM/yyyy' }}</strong><small>{{ salida.fecha | date: 'HH:mm' }}</small></td>
+              <td><span class="tag" [class.fefo]="salida.tipo === 'FARMACIA'" [class.bloqueado]="salida.tipo !== 'FARMACIA'">{{ tipoTexto[salida.tipo] }}</span></td>
+              <td><strong>{{ salida.folio }}</strong>@if (salida.institucion) {<small>{{ salida.institucion }}</small>}</td>
+              <td><strong>{{ salida.clave }}</strong><small>{{ solicitudes.nombreMedicamento(salida.clave) }}</small></td>
+              <td><strong>{{ salida.lote }}</strong><small>Cad. {{ formatoCaducidad(salida.caducidad) }}</small></td>
+              <td>{{ salida.ubicacion }}</td>
+              <td class="number">{{ salida.cajas }}</td>
+              <td>{{ salida.usuario || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <!-- Fuera de la tabla para que en celular no quede cortado. -->
+    <div class="empty-day">
+      @if (filtro()) {
+        <p>Ninguna salida de este día coincide con la búsqueda.</p>
+      } @else {
+        <p>No hubo salidas {{ esHoy() ? 'hoy' : 'este día' }}.</p>
+      }
+      @if (diaAnteriorConSalidas(); as anterior) {
+        <button type="button" class="link-button" (click)="dia.set(anterior)">Ver el {{ anterior | date: 'dd/MM/yyyy' }}, último día con salidas</button>
+      }
+    </div>
+  }
+</section>

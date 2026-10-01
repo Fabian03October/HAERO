@@ -1,20 +1,27 @@
 /* You can add global styles to this file, and also import other style files */
 
 :root {
-  --color-navy: #1e3a5f;
-  --color-bg: #eef1f5;
+  /* Identidad guinda y dorado (IMSS-Bienestar). El nombre --color-navy se conserva
+     porque lo usan varios componentes; ahora es el guinda principal. */
+  --color-navy: #611232;
+  --color-guinda: #611232;
+  --color-guinda-medio: #9f2241;
+  --color-guinda-suave: #f6e9ed;
+  --color-dorado: #a57f2c;
+  --color-dorado-suave: #f4ebd5;
+  --color-bg: #f6f3ee;
   --color-card: #ffffff;
-  --color-border: #d8dee5;
-  --color-text: #1f2937;
-  --color-text-muted: #6b7280;
+  --color-border: #e4ddd3;
+  --color-text: #2b2b2b;
+  --color-text-muted: #6f7271;
   --color-error-bg: #fdecea;
   --color-error-text: #b3261e;
   --color-error-border: #f3c2be;
   --color-warn-bg: #fff4e0;
   --color-warn-text: #8a5a00;
   --color-warn-border: #f0d9a8;
-  --color-info-bg: #eaf1fb;
-  --color-info-border: #c7dbf3;
+  --color-info-bg: #f6e9ed;
+  --color-info-border: #e8c9d2;
   --color-success-bg: #e8f5ea;
   --color-success-text: #1c7c3c;
   --color-danger-link: #c0392b;
@@ -46,7 +53,7 @@ a {
 /* Botones */
 .btn {
   display: inline-block;
-  background: var(--color-navy);
+  background: var(--color-guinda-medio);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -61,8 +68,8 @@ a {
 
 .btn.secondary {
   background: #fff;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  color: var(--color-guinda-medio);
+  border: 1px solid var(--color-guinda-medio);
 }
 
 .btn.block {
@@ -87,7 +94,7 @@ a {
 .field select {
   width: 100%;
   padding: 9px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #ddd4c8;
   border-radius: 7px;
   font-size: 14px;
   font-family: inherit;
@@ -145,7 +152,7 @@ table {
 th {
   text-align: left;
   padding: 10px 12px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--color-border);
   color: var(--color-text-muted);
   font-size: 11px;
   text-transform: uppercase;
@@ -154,7 +161,7 @@ th {
 
 td {
   padding: 12px;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 1px solid #efebe4;
   vertical-align: middle;
 }
 
@@ -180,10 +187,26 @@ td {
 /* Área de trabajo pendiente de módulo */
 .empty-area {
   margin-top: 18px;
-  border: 1.5px dashed #d1d5db;
+  border: 1.5px dashed #ddd4c8;
   border-radius: 10px;
   padding: 40px;
   text-align: center;
   color: #9ca3af;
   font-size: 13px;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 0;
+  border-color: var(--color-guinda-medio);
+  box-shadow: 0 0 0 3px #f3dde4;
+}
+
+.btn:hover {
+  filter: brightness(0.92);
+}
+
+/* Títulos de página en guinda en todos los módulos. */
+h1 {
+  color: var(--color-guinda);
 }

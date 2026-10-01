@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { API_BASE_URL } from '../api-config';
 
 export type Rol = 'ALMACEN' | 'FARMACIA' | 'SUPERVISION' | 'ADMIN';
 
@@ -25,7 +26,9 @@ export const ROL_ETIQUETA: Record<Rol, string> = {
   ADMIN: 'Administrador',
 };
 
-const API_BASE_URL = 'http://localhost:8080/api';
+
+const SESSION_STORAGE_KEY = 'hraeo.session';
+const TOKEN_STORAGE_KEY = 'hraeo.token';
 
 interface LoginResponse {
   token: string;
@@ -43,6 +46,10 @@ export class Session {
   readonly usuarioActual = signal<UsuarioSesion | null>(null);
 
   private token: string | null = null;
+
+  constructor() {
+    this.restaurarSesion();
+  }
 
   obtenerToken(): string | null {
     return this.token;
@@ -62,6 +69,7 @@ export class Session {
         debeCambiarContrasena: respuesta.debeCambiarContrasena,
       };
       this.usuarioActual.set(usuario);
+      this.persistirSesion(usuario);
       return usuario;
     } catch {
       return null;
@@ -72,6 +80,8 @@ export class Session {
     const token = this.token;
     this.token = null;
     this.usuarioActual.set(null);
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
 
     if (token) {
       this.http
@@ -83,7 +93,36 @@ export class Session {
   contrasenaCambiada(): void {
     const actual = this.usuarioActual();
     if (actual) {
-      this.usuarioActual.set({ ...actual, debeCambiarContrasena: false });
+      const actualizado = { ...actual, debeCambiarContrasena: false };
+      this.usuarioActual.set(actualizado);
+      this.persistirSesion(actualizado);
+    }
+  }
+
+  restaurarSesion(): void {
+    const usuarioGuardado = localStorage.getItem(SESSION_STORAGE_KEY);
+    const tokenGuardado = localStorage.getItem(TOKEN_STORAGE_KEY);
+
+    if (!usuarioGuardado || !tokenGuardado) {
+      return;
+    }
+
+    try {
+      const usuario = JSON.parse(usuarioGuardado) as UsuarioSesion;
+      if (usuario.nombreUsuario && usuario.nombreCompleto && usuario.rol) {
+        this.token = tokenGuardado;
+        this.usuarioActual.set(usuario);
+      }
+    } catch {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  }
+
+  private persistirSesion(usuario: UsuarioSesion): void {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(usuario));
+    if (this.token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, this.token);
     }
   }
 }

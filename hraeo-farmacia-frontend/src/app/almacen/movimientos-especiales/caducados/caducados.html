@@ -1,0 +1,124 @@
+<header class="screen-heading">
+  <p class="eyebrow">Movimientos especiales · HU19</p>
+  <h1>Caducados</h1>
+  <p>Aparta los lotes vencidos para que nunca se mezclen con el inventario disponible.</p>
+</header>
+
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+}
+
+<div class="stock-split">
+  <div>
+    <span>Inventario disponible</span>
+    <strong>{{ cajasDisponibles() }}</strong>
+    <small>cajas que se pueden despachar</small>
+  </div>
+  <div class="expired">
+    <span>Apartado de caducados</span>
+    <strong>{{ movimientos.cajasCaducadas() }}</strong>
+    <small>cajas separadas del inventario</small>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Por apartar</p>
+      <h2>Lotes vencidos en el inventario</h2>
+    </div>
+    <div class="counters">
+      <span class="danger">{{ movimientos.vencidosPorApartar().length }} lotes</span>
+    </div>
+  </div>
+
+  @if (movimientos.vencidosPorApartar().length) {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Clave</th>
+            <th>Lote</th>
+            <th>Caducó</th>
+            <th>Ubicaciones</th>
+            <th class="number">Cajas</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (lote of movimientos.vencidosPorApartar(); track llave(lote)) {
+            <tr>
+              <td><strong>{{ lote.clave }}</strong><small>{{ medicamento(lote.clave) || 'Sin nombre en catálogo' }}</small></td>
+              <td>{{ lote.lote }}</td>
+              <td>{{ formatoCaducidad(lote.caducidad) }}</td>
+              <td>
+                @for (item of lote.ubicaciones; track $index; let ultimo = $last) {
+                  {{ item.ubicacion }} ({{ item.cajas }}){{ ultimo ? '' : ', ' }}
+                }
+              </td>
+              <td class="number">{{ lote.cajas }}</td>
+              <td class="number">
+                @if (porConfirmar() === llave(lote)) {
+                  <span class="confirm">
+                    ¿Mover {{ lote.cajas }} cajas?
+                    <button type="button" class="danger-button small" [disabled]="guardando()" (click)="confirmar(lote)">{{ guardando() ? 'Moviendo…' : 'Sí, mover' }}</button>
+                    <button type="button" class="text-button" (click)="porConfirmar.set('')">Cancelar</button>
+                  </span>
+                } @else {
+                  <button type="button" class="secondary-button" (click)="porConfirmar.set(llave(lote))">Mover a caducados</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="card-help">El sistema solo sugiere estos lotes. Ninguno se mueve hasta que confirmes.</p>
+  } @else {
+    <p class="card-help">No hay lotes vencidos en el inventario disponible.</p>
+  }
+</section>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Apartado</p>
+      <h2>Medicamento caducado</h2>
+    </div>
+    <div class="counters">
+      <span>{{ movimientos.caducados().length }} registros</span>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Clave</th>
+          <th>Lote</th>
+          <th>Caducó</th>
+          <th>Venía de</th>
+          <th class="number">Cajas</th>
+          <th>Apartado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (lote of movimientos.caducados(); track lote.loteId) {
+          <tr>
+            <td><strong>{{ lote.clave }}</strong><small>{{ lote.nombreGenerico }}</small></td>
+            <td>{{ lote.numeroLote }}</td>
+            <td>{{ formatoCaducidad(lote.caducidad) }}</td>
+            <td>
+              @for (item of lote.ubicaciones; track $index; let ultimo = $last) {
+                {{ item.ubicacion }} ({{ item.cajas }}){{ ultimo ? '' : ', ' }}
+              }
+            </td>
+            <td class="number">{{ lote.cajas }}</td>
+            <td><strong>{{ lote.fechaApartado | date: 'dd/MM/yyyy' }}</strong><small>{{ lote.usuario || '—' }}</small></td>
+          </tr>
+        } @empty {
+          <tr><td colspan="6" class="empty">El apartado de caducados está vacío.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

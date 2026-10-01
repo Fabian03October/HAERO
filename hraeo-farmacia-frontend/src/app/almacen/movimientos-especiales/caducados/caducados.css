@@ -1,0 +1,51 @@
+.stock-split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+.stock-split > div {
+  display: grid;
+  gap: 2px;
+  padding: 16px 20px;
+  border: 1px solid #e4ddd3;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.stock-split span { color: #9f2241; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.stock-split strong { color: #611232; font-size: 28px; }
+.stock-split small { color: #6f7271; font-size: 12px; }
+.stock-split .expired { border-color: #efcdc8; background: #fffafa; }
+.stock-split .expired span,
+.stock-split .expired strong { color: #a9463e; }
+
+.counters span.danger { background: #fff1ef; color: #b64f47; }
+.card-help { margin-top: 14px; }
+
+.secondary-button {
+  padding: 7px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 8px;
+  background: #fff;
+  color: #9f2241;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:hover { background: #f6e9ed; }
+.confirm { display: inline-flex; align-items: center; gap: 8px; color: #9b443c; font-size: 12px; font-weight: 700; }
+.danger-button.small { padding: 6px 12px; font-size: 12px; }
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #6f7271;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .stock-split { grid-template-columns: minmax(0, 1fr); }
+}

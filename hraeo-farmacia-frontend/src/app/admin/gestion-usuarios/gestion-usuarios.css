@@ -12,8 +12,27 @@
 
 .main {
   flex-grow: 1;
+  min-width: 0;
   padding: 26px 30px;
   overflow: auto;
+}
+
+/* Mismo ancho y centrado que las pantallas de Almacén. */
+.main > * {
+  max-width: 1280px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* La tabla de usuarios se desplaza de lado en celular en lugar de salirse de la tarjeta. */
+.main .card {
+  overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+  .main { padding: 18px 14px 32px; }
+  .toolbar { flex-wrap: wrap; }
+  .search { max-width: none; }
 }
 
 .main .card h1 {
@@ -38,7 +57,7 @@
   flex-grow: 1;
   max-width: 280px;
   padding: 9px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #ddd4c8;
   border-radius: 7px;
   font-size: 13px;
   font-family: inherit;

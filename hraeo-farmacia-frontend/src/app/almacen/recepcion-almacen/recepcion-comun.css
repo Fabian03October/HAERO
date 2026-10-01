@@ -1,0 +1,91 @@
+/* Estilos compartidos por las páginas de Recepción (mismo diseño que Inventario). */
+/* minmax(0, 1fr) evita que una tabla ancha estire la página. */
+:host { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #a57f2c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.screen-heading h1 { margin: 0 0 6px; color: #611232; font-size: 28px; }
+.screen-heading p:last-child { margin: 0; color: #6f7271; font-size: 14px; }
+h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
+
+.message { padding: 12px 16px; border: 1px solid; border-radius: 10px; font-size: 13px; }
+.message.info { border-color: #cfe3ee; background: #edf7fb; color: #25627b; }
+.message.success { border-color: #cbe8d9; background: #edf9f3; color: #176a4b; }
+.message.error { border-color: #f1cdc8; background: #fff1ef; color: #98423b; }
+
+.card {
+  padding: 22px;
+  border: 1px solid #e4ddd3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgb(60 40 20 / 5%);
+}
+
+.card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.counters { display: flex; flex-wrap: wrap; gap: 8px; }
+.counters span { padding: 4px 10px; border-radius: 999px; background: #f6e9ed; color: #9f2241; font-size: 12px; font-weight: 800; }
+.card-help { margin: 0; color: #6f7271; font-size: 13px; line-height: 1.5; }
+
+.two-columns { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 18px; align-items: start; }
+
+.entry-form { display: grid; gap: 14px; }
+.entry-form label { display: grid; gap: 6px; color: #4a4a4a; font-size: 12px; font-weight: 700; }
+
+.entry-form input,
+.entry-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fdfcfa;
+  color: #2b2b2b;
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.entry-form input:focus,
+.entry-form select:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.entry-form input[readonly] { background: #f5f2ed; color: #6f7271; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.primary-button,
+.danger-button {
+  justify-self: end;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 10px;
+  background: #9f2241;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.danger-button { background: #b6483f; }
+.primary-button:hover:not(:disabled),
+.danger-button:hover { filter: brightness(0.92); }
+.primary-button:disabled, .danger-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.status { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.status.pendiente { background: #fff8ec; color: #9a651c; }
+.status.parcial { background: #edf7fb; color: #25627b; }
+.status.recibido { background: #edf9f3; color: #176a4b; }
+.status.cancelado { background: #fff1ef; color: #a9463e; }
+
+@media (max-width: 860px) {
+  .two-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: minmax(0, 1fr); }
+  .card-heading { flex-direction: column; }
+}

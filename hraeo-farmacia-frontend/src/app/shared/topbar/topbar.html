@@ -1,8 +1,23 @@
 <div class="topbar">
-  <div class="brand">Farmacia HRAEO</div>
+  <button
+    class="menu-button"
+    type="button"
+    [attr.aria-expanded]="menu.abierto()"
+    aria-label="Abrir menú"
+    (click)="menu.alternar()"
+  >
+    <span></span><span></span><span></span>
+  </button>
+  <div class="brand">
+    <strong>Farmacia HRAEO</strong>
+    <span>Servicio de Farmacia Hospitalaria</span>
+  </div>
   <div class="user">{{ nombreCompleto() }} · {{ rol() }}</div>
+  <a class="tlink secondary-link" routerLink="/politicas">Políticas</a>
   @if (rol() !== 'Administrador') {
-    <a class="tlink" routerLink="/cambiar-contrasena">Mi contraseña</a>
+    <a class="tlink secondary-link" routerLink="/cambiar-contrasena">Mi contraseña</a>
   }
-  <button class="tlink" type="button" (click)="cerrarSesion()">Cerrar sesión</button>
+  <button class="tlink" type="button" (click)="cerrarSesion()">
+    <span class="long">Cerrar sesión</span><span class="short">Salir</span>
+  </button>
 </div>

@@ -12,8 +12,20 @@
 
 .main {
   flex-grow: 1;
+  min-width: 0;
   padding: 26px 30px;
   overflow: auto;
+}
+
+/* Mismo ancho y centrado que las pantallas de Almacén. */
+.main > * {
+  max-width: 1280px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .main { padding: 18px 14px 32px; }
 }
 
 .main .card h1 {

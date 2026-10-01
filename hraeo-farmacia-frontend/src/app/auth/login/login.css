@@ -1,24 +1,178 @@
+/* Login en dos paneles: identidad guinda a la izquierda y formulario a la derecha. */
 .login-page {
-  min-height: 100dvh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+  min-height: 100dvh;
+  background: #fff;
 }
 
-.login-card {
+.login-brand {
+  position: relative;
+  display: flex;
+  flex: 1.1;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 56px;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--color-guinda) 0%, var(--color-guinda-medio) 100%);
+  color: #fff;
+}
+
+.login-brand::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  background: var(--color-dorado);
+}
+
+/* Motivo de greca, de fondo. */
+.greca {
+  position: absolute;
+  top: 40px;
+  right: -80px;
+  width: 420px;
+  height: 420px;
+  opacity: 0.12;
+}
+
+.brand-name {
+  position: relative;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brand-text {
+  position: relative;
+}
+
+.brand-text h2 {
+  margin: 0 0 10px;
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.brand-text p {
+  margin: 0;
+  font-size: 14px;
+  color: rgb(255 255 255 / 80%);
+}
+
+.modules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.modules li {
+  padding: 5px 12px;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.brand-foot {
+  position: relative;
+  margin: 0;
+  font-size: 12px;
+  color: rgb(255 255 255 / 75%);
+}
+
+.login-form {
+  display: grid;
+  flex: 0.9;
+  place-items: center;
+  padding: 32px 24px;
+}
+
+.login-box {
   width: 100%;
   max-width: 360px;
 }
 
-.login-card h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--color-dorado);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.login-box h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
 }
 
 .subtitle {
-  margin: 0 0 20px;
+  margin: 0 0 24px;
   font-size: 13px;
   color: var(--color-text-muted);
   line-height: 1.5;
+}
+
+.login-box .btn {
+  padding: 12px;
+  font-size: 14px;
+}
+
+.help {
+  margin: 18px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Campo de contraseña con botón de ojo para mostrarla u ocultarla. */
+.password {
+  position: relative;
+}
+
+.password input {
+  padding-right: 44px;
+}
+
+.eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.eye:hover {
+  background: var(--color-guinda-suave);
+  color: var(--color-guinda-medio);
+}
+
+.eye svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* En pantallas angostas el panel guinda se reduce a una franja arriba. */
+@media (max-width: 820px) {
+  .login-page { flex-direction: column; }
+  .login-brand { flex: none; padding: 28px 24px 32px; }
+  .brand-text h2 { font-size: 24px; }
+  .modules, .brand-foot, .greca { display: none; }
 }
