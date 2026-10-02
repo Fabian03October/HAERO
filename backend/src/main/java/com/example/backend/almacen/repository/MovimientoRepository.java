@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface MovimientoRepository extends JpaRepository<Movimiento, Long> {
 
@@ -13,4 +14,6 @@ public interface MovimientoRepository extends JpaRepository<Movimiento, Long> {
     List<Movimiento> findByExistenciaLoteIdAndTipo(Long loteId, String tipo);
 
     List<Movimiento> findByTipoInOrderByFechaDesc(List<String> tipos);
+
+    Optional<Movimiento> findFirstByTipoOrderByFechaAsc(String tipo);
 }
