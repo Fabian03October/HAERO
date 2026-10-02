@@ -104,12 +104,28 @@ public class ServicioCargaInicial {
             String proveedor = campos[3].trim();
             String ubicacion = campos[4].trim();
             String cantidadTexto = campos[5].trim();
+            // Columna opcional "CONSUMO PROM." de la hoja (HU16): respaldo del CPM
+            // mientras la clave no tenga salidas propias registradas en el sistema.
+            String consumoPromedioTexto = campos.length > 6 ? campos[6].trim() : "";
 
             Medicamento medicamento = medicamentoRepository.findById(clave).orElse(null);
             if (medicamento == null) {
                 errores.add(new ErrorRenglonCargaInicial(numeroFila,
                         "La clave " + clave + " no está registrada en el catálogo de medicamentos"));
                 continue;
+            }
+
+            Double consumoPromedio = null;
+            if (!consumoPromedioTexto.isBlank()) {
+                try {
+                    consumoPromedio = Double.parseDouble(consumoPromedioTexto);
+                    if (consumoPromedio <= 0) {
+                        consumoPromedio = null;
+                    }
+                } catch (NumberFormatException e) {
+                    errores.add(new ErrorRenglonCargaInicial(numeroFila, "El consumo promedio debe ser numérico"));
+                    continue;
+                }
             }
 
             LocalDate caducidad;
@@ -136,7 +152,7 @@ public class ServicioCargaInicial {
                 continue;
             }
 
-            validos.add(new RenglonValido(medicamento, numeroLote, caducidad, proveedor, ubicacion, cantidad));
+            validos.add(new RenglonValido(medicamento, numeroLote, caducidad, proveedor, ubicacion, cantidad, consumoPromedio));
         }
 
         if (!errores.isEmpty()) {
@@ -144,6 +160,10 @@ public class ServicioCargaInicial {
         }
 
         for (RenglonValido renglon : validos) {
+            if (renglon.consumoPromedioHoja() != null) {
+                renglon.medicamento().setConsumoPromedioHoja(renglon.consumoPromedioHoja());
+            }
+
             Lote lote = new Lote();
             lote.setMedicamento(renglon.medicamento());
             lote.setNumeroLote(renglon.numeroLote());
@@ -170,6 +190,6 @@ public class ServicioCargaInicial {
     }
 
     private record RenglonValido(Medicamento medicamento, String numeroLote, LocalDate caducidad,
-                                  String proveedor, String ubicacion, int cantidad) {
+                                  String proveedor, String ubicacion, int cantidad, Double consumoPromedioHoja) {
     }
 }

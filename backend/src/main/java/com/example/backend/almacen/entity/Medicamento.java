@@ -25,4 +25,9 @@ public class Medicamento {
 
     @Column(length = 200)
     private String descripcion;
+
+    // Columna "CONSUMO PROM." de la hoja de carga inicial. Respaldo del CPM
+    // (HU16) mientras la clave no tenga salidas propias registradas en el sistema.
+    @Column(name = "consumo_promedio_hoja")
+    private Double consumoPromedioHoja;
 }
