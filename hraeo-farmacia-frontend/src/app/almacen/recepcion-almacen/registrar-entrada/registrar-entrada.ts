@@ -5,6 +5,7 @@ import { InventarioAlmacen } from '../../inventario-almacen';
 import { PedidosAlmacen } from '../../pedidos-almacen';
 import { AlmacenApi, UbicacionCantidad, mensajeDeError } from '../../almacen-api';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
+import { RotacionAlmacen } from '../../rotacion-almacen';
 
 // Recepción · Registrar entrada (HU10). Recibe un lote contra una clave de un
 // pedido activo y lo reparte en una o varias ubicaciones del almacén.
@@ -18,6 +19,7 @@ export class RegistrarEntrada {
   protected readonly pedidos = inject(PedidosAlmacen);
   private readonly inventario = inject(InventarioAlmacen);
   private readonly api = inject(AlmacenApi);
+  private readonly rotacion = inject(RotacionAlmacen);
 
   readonly pedidoId = signal<number | null>(null);
   readonly pedido = computed(() => this.pedidos.pedidos().find((item) => item.id === this.pedidoId()));
@@ -160,6 +162,7 @@ export class RegistrarEntrada {
           this.ubicaciones = [{ ubicacion: '', cajas: 0 }];
           this.pedidos.recargar();
           this.inventario.recargar();
+          this.rotacion.recargar();
         },
         error: (error) => {
           this.guardando.set(false);
