@@ -27,6 +27,8 @@ export class RegistrarEntrada {
 
   readonly clave = signal('');
   readonly partida = computed(() => this.pedido()?.partidas.find((item) => item.clave === this.clave()));
+  // Solo las claves del pedido que todavía tienen cajas por recibir.
+  readonly partidasPendientes = computed(() => (this.pedido()?.partidas ?? []).filter((item) => item.cantidadRecibida < item.cantidadEsperada));
   readonly pendientePartida = computed(() => {
     const partida = this.partida();
     return partida ? Math.max(0, partida.cantidadEsperada - partida.cantidadRecibida) : 0;
@@ -49,8 +51,9 @@ export class RegistrarEntrada {
     const id = Number(valor) || null;
     this.pedidoId.set(id);
     const pedido = this.pedido();
-    // Si el pedido trae una sola clave se elige sola.
-    this.clave.set(pedido?.partidas.length === 1 ? pedido.partidas[0].clave : '');
+    // Si al pedido solo le queda una clave por recibir se elige sola.
+    const pendientes = this.partidasPendientes();
+    this.clave.set(pendientes.length === 1 ? pendientes[0].clave : '');
     if (this.cancelado()) this.mostrarMensaje(`El pedido ${pedido!.numero} está cancelado y no puede recibirse.`, 'error');
     else this.mensaje.set('');
   }
@@ -160,6 +163,17 @@ export class RegistrarEntrada {
           this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas en ${ubicaciones.map((fila) => fila.ubicacion).join(', ')}.`, 'success');
           this.entrada = { lote: '', caducidad: '' };
           this.ubicaciones = [{ ubicacion: '', cajas: 0 }];
+          // Si con esta entrada se completó la clave (o todo el pedido), ya no se deja elegida.
+          const completoClave = total >= this.pendientePartida();
+          const quedanOtras = this.partidasPendientes().some((item) => item.clave !== this.clave());
+          if (completoClave) {
+            if (quedanOtras) this.clave.set('');
+            else {
+              this.pedidoId.set(null);
+              this.clave.set('');
+              this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas. El pedido ${pedido.numero} quedó recibido completo.`, 'success');
+            }
+          }
           this.pedidos.recargar();
           this.inventario.recargar();
           this.rotacion.recargar();
