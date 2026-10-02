@@ -228,6 +228,42 @@ export interface MovimientoExternoRequest {
   ubicacion?: string;
 }
 
+// ---------- Rotación y alertas (HU16, HU17): el backend es la unica fuente de verdad ----------
+
+export interface ConsumoMes {
+  mes: string;
+  cajas: number;
+}
+
+export type OrigenCpm = 'SISTEMA' | 'HOJA';
+export type EstadoStock = 'DESABASTO' | 'SOBREABASTO' | 'NORMAL' | 'SIN_CONSUMO';
+
+export interface Rotacion {
+  clave: string;
+  nombreGenerico: string;
+  cpm: number;
+  origenCpm: OrigenCpm;
+  mesesHistorial: number;
+  existenciaActual: number;
+  stockMinimo: number;
+  stockMaximo: number;
+  estado: EstadoStock;
+  meses: ConsumoMes[];
+}
+
+export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO';
+
+export interface Alerta {
+  id: number;
+  clave: string;
+  nombreGenerico: string;
+  tipo: TipoAlerta;
+  fechaInicio: string;
+  fechaFin: string | null;
+  existencia: number;
+  limite: number;
+}
+
 export const ESTATUS_SOLICITUD_TEXTO: Record<EstatusSolicitud, string> = {
   PENDIENTE: 'Pendiente',
   PARCIAL: 'Parcial',
@@ -373,6 +409,15 @@ export class AlmacenApi {
 
   despachar(solicitudId: number, request: DespacharSolicitudRequest): Observable<DespacharSolicitudResponse> {
     return this.http.post<DespacharSolicitudResponse>(`${API_BASE_URL}/almacen/solicitudes/${solicitudId}/despachar`, request, this.cabeceras());
+  }
+
+  // ---------- Rotación y alertas (HU16, HU17) ----------
+  listarRotacion(): Observable<Rotacion[]> {
+    return this.http.get<Rotacion[]>(`${API_BASE_URL}/almacen/rotacion`, this.cabeceras());
+  }
+
+  listarAlertas(activas: boolean): Observable<Alerta[]> {
+    return this.http.get<Alerta[]>(`${API_BASE_URL}/almacen/alertas`, { ...this.cabeceras(), params: { activas } });
   }
 
   // ---------- Solicitudes: lado de Farmacia (HU13) ----------

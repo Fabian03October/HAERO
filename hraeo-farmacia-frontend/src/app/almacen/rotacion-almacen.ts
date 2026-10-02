@@ -1,12 +1,11 @@
-import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
-import { InventarioAlmacen } from './inventario-almacen';
-import { MovimientoSalida, SolicitudesAlmacen, estaVencido, fechaLocal, mesActual } from './solicitudes-almacen';
-import { sincronizarEntrePestanas } from './sincronizar-pestanas';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { Alerta as AlertaDto, AlmacenApi, Rotacion as RotacionDto } from './almacen-api';
+import { SolicitudesAlmacen, mesActual } from './solicitudes-almacen';
 
-// Meses de abasto que definen el stock mínimo y máximo (HU17 CA1).
+// Meses de abasto que definen el stock mínimo y máximo (HU17 CA1). El backend
+// usa los mismos valores para calcular stockMinimo/stockMaximo.
 export const MESES_STOCK_MINIMO = 3;
 export const MESES_STOCK_MAXIMO = 6;
-// Ventana del CPM: los últimos 6 meses cerrados (ajuste sugerido a HU16).
 const MESES_VENTANA_CPM = 6;
 
 export type EstadoStock = 'DESABASTO' | 'SOBREABASTO' | 'NORMAL' | 'SIN_CONSUMO';
@@ -41,8 +40,6 @@ export interface RotacionClave {
   estado: EstadoStock;
 }
 
-// Una alerta queda abierta desde que la clave cruza su límite hasta que vuelve
-// al rango (PU-12, PU-13). Así se sabe desde cuándo está en riesgo (HU17 CA5).
 export interface AlertaStock {
   clave: string;
   tipo: TipoAlerta;
@@ -52,22 +49,37 @@ export interface AlertaStock {
   limite: number;
 }
 
-const CLAVE_ALERTAS = 'hraeo.almacen.alertas.v2';
-
-// Rotación y alertas (HU16, HU17). El CPM se calcula con las salidas reales a
-// Farmacia; al registrar una salida o una entrada todo se recalcula solo (CA2).
+/**
+ * Rotación y alertas (HU16, HU17). El CPM y las alertas los calcula el
+ * backend (ServicioRotacion): es la única fuente de verdad, para que Almacén
+ * y Supervisión vean siempre el mismo número sin importar desde qué equipo
+ * consulten. Aquí solo se traduce la respuesta al formato que usan las
+ * pantallas y se agregan un par de datos de contexto (consumo del mes en
+ * curso, cajas excluidas) a partir de los movimientos que ya están cargados
+ * para otras pantallas — son solo informativos, no afectan el CPM ni las alertas.
+ */
 @Injectable({ providedIn: 'root' })
 export class RotacionAlmacen {
-  private readonly inventario = inject(InventarioAlmacen);
+  private readonly api = inject(AlmacenApi);
   private readonly solicitudes = inject(SolicitudesAlmacen);
 
-  private readonly _alertas = signal<AlertaStock[]>(this.cargar());
+  private readonly _rotacion = signal<RotacionDto[]>([]);
+  private readonly _alertasActivas = signal<AlertaDto[]>([]);
+  private readonly _alertasCerradas = signal<AlertaDto[]>([]);
 
-  readonly alertas = this._alertas.asReadonly();
-  readonly alertasActivas = computed(() => this._alertas().filter((alerta) => !alerta.fin).sort((a, b) => a.inicio.localeCompare(b.inicio)));
-  readonly alertasCerradas = computed(() => this._alertas().filter((alerta) => alerta.fin).sort((a, b) => b.fin!.localeCompare(a.fin!)));
+  constructor() {
+    this.recargar();
+  }
 
-  // Meses cerrados de la ventana, del más antiguo al más reciente (AAAA-MM).
+  /** Vuelve a leer el CPM y las alertas del backend. Llamar tras cualquier entrada, despacho o ajuste. */
+  recargar(): void {
+    this.api.listarRotacion().subscribe({ next: (lista) => this._rotacion.set(lista), error: () => {} });
+    this.api.listarAlertas(true).subscribe({ next: (lista) => this._alertasActivas.set(lista), error: () => {} });
+    this.api.listarAlertas(false).subscribe({ next: (lista) => this._alertasCerradas.set(lista), error: () => {} });
+  }
+
+  // Meses cerrados de la ventana, del más antiguo al más reciente (AAAA-MM). Solo
+  // para mostrar las etiquetas de la gráfica; los datos de cada mes vienen del backend.
   readonly ventana = computed(() => {
     const [anio, mes] = mesActual().split('-').map(Number);
     return Array.from({ length: MESES_VENTANA_CPM }, (_, indice) => {
@@ -77,116 +89,58 @@ export class RotacionAlmacen {
   });
 
   readonly rotacion = computed<RotacionClave[]>(() => {
-    const ventana = this.ventana();
     const actual = mesActual();
+    const ventana = this.ventana();
     const salidas = this.solicitudes.salidas();
-    const lotes = this.inventario.lotes();
-    const cpmHoja = this.inventario.cpmCarga();
 
-    // Meses cerrados desde que hay registros en el sistema, para no dividir entre 6
-    // cuando todavía no existen 6 meses de historial.
-    const primerMes = salidas.reduce((minimo, salida) => (salida.fecha.slice(0, 7) < minimo ? salida.fecha.slice(0, 7) : minimo), actual);
-    const mesesHistorial = ventana.filter((mes) => mes >= primerMes).length;
-
-    return this.solicitudes.clavesConocidas().map((clave) => {
-      const deLaClave = salidas.filter((salida) => salida.clave === clave);
-      const aFarmacia = deLaClave.filter((salida) => this.esConsumo(salida));
-      const meses = ventana.map((mes) => ({ mes, cajas: this.sumar(aFarmacia.filter((salida) => salida.fecha.startsWith(mes))) }));
-      const total = meses.reduce((suma, mes) => suma + mes.cajas, 0);
-      // Sin salidas propias todavía, se usa el consumo promedio que trae la hoja del Drive.
-      const usarHoja = !total && cpmHoja[clave] > 0;
-      const cpm = usarHoja ? cpmHoja[clave] : mesesHistorial ? Math.round((total / mesesHistorial) * 10) / 10 : 0;
-
-      const existencia = lotes.filter((lote) => lote.clave === clave && !estaVencido(lote.caducidad)).reduce((suma, lote) => suma + lote.cajas, 0);
-      const minimo = Math.ceil(cpm * MESES_STOCK_MINIMO);
-      const maximo = Math.ceil(cpm * MESES_STOCK_MAXIMO);
-      let estado: EstadoStock = 'NORMAL';
-      if (!cpm) estado = 'SIN_CONSUMO';
-      else if (existencia <= minimo) estado = 'DESABASTO';
-      else if (existencia >= maximo) estado = 'SOBREABASTO';
+    return this._rotacion().map((item) => {
+      const deLaClave = salidas.filter((salida) => salida.clave === item.clave);
+      const aFarmacia = deLaClave.filter((salida) => salida.tipo === 'FARMACIA');
 
       return {
-        clave,
-        medicamento: this.solicitudes.nombreMedicamento(clave),
-        cpm,
-        origenCpm: usarHoja ? 'HOJA' : 'SISTEMA',
-        meses,
-        mesesHistorial,
+        clave: item.clave,
+        medicamento: item.nombreGenerico,
+        cpm: item.cpm,
+        origenCpm: item.origenCpm,
+        meses: item.meses,
+        mesesHistorial: item.mesesHistorial,
         consumoMesActual: this.sumar(aFarmacia.filter((salida) => salida.fecha.startsWith(actual))),
-        cajasExcluidas: this.sumar(deLaClave.filter((salida) => !this.esConsumo(salida) && ventana.includes(salida.fecha.slice(0, 7)))),
-        existencia,
-        minimo,
-        maximo,
-        mesesAbasto: cpm ? Math.round((existencia / cpm) * 10) / 10 : null,
-        estado,
+        cajasExcluidas: this.sumar(deLaClave.filter((salida) => salida.tipo !== 'FARMACIA' && ventana.includes(salida.fecha.slice(0, 7)))),
+        existencia: item.existenciaActual,
+        minimo: item.stockMinimo,
+        maximo: item.stockMaximo,
+        mesesAbasto: item.cpm ? Math.round((item.existenciaActual / item.cpm) * 10) / 10 : null,
+        estado: item.estado,
       };
     });
   });
 
-  constructor() {
-    sincronizarEntrePestanas(CLAVE_ALERTAS, this._alertas);
-    // Abre o cierra alertas cada vez que cambia la rotación (salidas o existencias).
-    effect(() => {
-      const rotacion = this.rotacion();
-      untracked(() => this.sincronizarAlertas(rotacion));
-    });
-  }
+  readonly alertasActivas = computed<AlertaStock[]>(() =>
+    this._alertasActivas().map(aAlertaStock).sort((a, b) => a.inicio.localeCompare(b.inicio)),
+  );
+
+  readonly alertasCerradas = computed<AlertaStock[]>(() =>
+    this._alertasCerradas().map(aAlertaStock).sort((a, b) => (b.fin ?? '').localeCompare(a.fin ?? '')),
+  );
 
   buscar(clave: string): RotacionClave | undefined {
     return this.rotacion().find((item) => item.clave === clave);
   }
 
-  private sincronizarAlertas(rotacion: RotacionClave[]): void {
-    const ahora = fechaLocal();
-    let cambio = false;
-    const alertas = this._alertas().map((alerta) => {
-      if (alerta.fin) return alerta;
-      const estado = rotacion.find((item) => item.clave === alerta.clave)?.estado;
-      if (estado === alerta.tipo) return alerta;
-      cambio = true;
-      return { ...alerta, fin: ahora };
-    });
-
-    for (const item of rotacion) {
-      if (item.estado !== 'DESABASTO' && item.estado !== 'SOBREABASTO') continue;
-      if (alertas.some((alerta) => !alerta.fin && alerta.clave === item.clave && alerta.tipo === item.estado)) continue;
-      alertas.push({
-        clave: item.clave,
-        tipo: item.estado,
-        inicio: ahora,
-        existencia: item.existencia,
-        limite: item.estado === 'DESABASTO' ? item.minimo : item.maximo,
-      });
-      cambio = true;
-    }
-
-    if (!cambio) return;
-    this._alertas.set(alertas);
-    try {
-      localStorage.setItem(CLAVE_ALERTAS, JSON.stringify(alertas));
-    } catch {
-      // Sin localStorage las alertas solo se conservan mientras la pestaña esté abierta.
-    }
-  }
-
-  private esConsumo(salida: MovimientoSalida): boolean {
-    return (salida.tipo ?? 'FARMACIA') === 'FARMACIA';
-  }
-
-  private sumar(salidas: MovimientoSalida[]): number {
+  private sumar(salidas: { cajas: number }[]): number {
     return salidas.reduce((suma, salida) => suma + salida.cajas, 0);
   }
+}
 
-  private cargar(): AlertaStock[] {
-    try {
-      const guardado = localStorage.getItem(CLAVE_ALERTAS);
-      const alertas = guardado ? JSON.parse(guardado) : null;
-      if (Array.isArray(alertas)) return alertas;
-    } catch {
-      // Dato dañado o localStorage bloqueado: se empieza sin alertas.
-    }
-    return [];
-  }
+function aAlertaStock(alerta: AlertaDto): AlertaStock {
+  return {
+    clave: alerta.clave,
+    tipo: alerta.tipo,
+    inicio: alerta.fechaInicio,
+    fin: alerta.fechaFin ?? undefined,
+    existencia: alerta.existencia,
+    limite: alerta.limite,
+  };
 }
 
 // AAAA-MM → "abr 2026".

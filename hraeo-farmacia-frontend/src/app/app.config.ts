@@ -1,19 +1,16 @@
-import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 
 import { routes } from './app.routes';
-import { RotacionAlmacen } from './almacen/rotacion-almacen';
 
+// Las alertas de stock (HU17) las abre y cierra el backend (ServicioRotacion,
+// tarea programada cada hora + reevaluación en cada consulta), no el cliente;
+// no hace falta instanciar nada en el arranque de la app para eso.
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(),
-    // Se crea al arrancar para que las alertas de stock (HU17) se abran o cierren
-    // con cada movimiento, aunque nadie tenga abierta la pantalla de alertas.
-    provideAppInitializer(() => {
-      inject(RotacionAlmacen);
-    }),
   ]
 };

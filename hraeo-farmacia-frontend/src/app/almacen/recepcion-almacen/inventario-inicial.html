@@ -123,7 +123,7 @@
             </td>
             <td>{{ formatoFecha(lote.caducidad) }}</td>
             <td class="number"><strong>{{ lote.cajas }}</strong></td>
-            <td class="number">{{ inventario.cpmCarga()[lote.clave] || '—' }}</td>
+            <td class="number">{{ rotacion.buscar(lote.clave)?.cpm || '—' }}</td>
             <td>{{ lote.ubicacion }}</td>
             <td>{{ lote.fuente || '—' }}</td>
             <td>{{ lote.fechaIngreso ? formatoFecha(lote.fechaIngreso) : '—' }}</td>

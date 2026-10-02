@@ -11,6 +11,7 @@ import {
   mensajeDeError,
 } from '../../almacen-api';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../../solicitudes-almacen';
+import { RotacionAlmacen } from '../../rotacion-almacen';
 
 interface RenglonDespacho extends Existencia {
   aDespachar: number;
@@ -30,6 +31,7 @@ export class BandejaDespacho {
   private readonly api = inject(AlmacenApi);
   // Salidas registradas y CPM se vuelven a leer después de cada despacho.
   private readonly historial = inject(SolicitudesAlmacen);
+  private readonly rotacion = inject(RotacionAlmacen);
   protected readonly formatoCaducidad = formatoCaducidad;
   protected readonly estadoTexto = ESTATUS_SOLICITUD_TEXTO;
   protected readonly folio = folioSolicitud;
@@ -185,6 +187,7 @@ export class BandejaDespacho {
       next: (respuesta) => {
         this.enviando.set(false);
         this.historial.recargarSalidas();
+        this.rotacion.recargar();
         if (respuesta.estatus === 'ATENDIDA') {
           this.mostrarMensaje(`Solicitud ${folioSolicitud(solicitud.id)} atendida: se despacharon ${cajas} cajas de ${nombre}.`, 'success');
           this.recargarBandeja(true);

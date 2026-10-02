@@ -3,6 +3,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { AlmacenApi, Caducado, Canje, Movimiento, mensajeDeError, ultimoDiaDelMes } from './almacen-api';
 import { InventarioAlmacen, LoteInventario } from './inventario-almacen';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad, mesActual } from './solicitudes-almacen';
+import { RotacionAlmacen } from './rotacion-almacen';
 
 // Un lote se puede canjear cuando le quedan menos de estos meses de vida (HU18).
 export const MESES_PARA_CANJE = 9;
@@ -71,6 +72,7 @@ export class MovimientosEspecialesAlmacen {
   private readonly api = inject(AlmacenApi);
   private readonly inventario = inject(InventarioAlmacen);
   private readonly solicitudes = inject(SolicitudesAlmacen);
+  private readonly rotacion = inject(RotacionAlmacen);
 
   private readonly _canjes = signal<Canje[]>([]);
   private readonly _caducados = signal<Caducado[]>([]);
@@ -182,6 +184,7 @@ export class MovimientosEspecialesAlmacen {
     this.recargar();
     this.inventario.recargar();
     this.solicitudes.recargarSalidas();
+    this.rotacion.recargar();
     return null;
   }
 }

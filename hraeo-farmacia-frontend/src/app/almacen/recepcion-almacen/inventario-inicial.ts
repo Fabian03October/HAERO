@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { InventarioAlmacen, LoteInventario } from '../inventario-almacen';
 import { SolicitudesAlmacen, formatoCaducidad } from '../solicitudes-almacen';
 import { AlmacenApi, CargaInicialResponse, mensajeDeError } from '../almacen-api';
+import { RotacionAlmacen } from '../rotacion-almacen';
 
 interface RenglonInventario extends LoteInventario {
   cpm?: number;
@@ -61,6 +62,7 @@ const ENCABEZADOS_EXCEL = ['CLAVE', 'DESCRIPCION', 'LOTE', 'CADUCIDAD', 'CANTIDA
 })
 export class InventarioInicial {
   protected readonly inventario = inject(InventarioAlmacen);
+  protected readonly rotacion = inject(RotacionAlmacen);
   private readonly catalogo = inject(SolicitudesAlmacen);
   private readonly api = inject(AlmacenApi);
   protected readonly formatoFecha = formatoCaducidad;
@@ -185,8 +187,10 @@ export class InventarioInicial {
 
   /**
    * Envía los renglones correctos al backend como CSV (clave, lote, caducidad,
-   * proveedor, ubicacion, cajas). El backend guarda todo o nada: si rechaza algún
-   * renglón, se marca en la vista previa y no se guarda ninguno.
+   * proveedor, ubicacion, cajas, consumo_promedio). El backend guarda todo o
+   * nada: si rechaza algún renglón, se marca en la vista previa y no se guarda
+   * ninguno. El consumo promedio (columna opcional) lo guarda el backend en el
+   * medicamento y sirve de respaldo del CPM mientras no haya salidas propias (HU16).
    */
   guardarDatos(): void {
     const validos = this.renglones().filter((renglon) => !renglon.error);
@@ -196,9 +200,11 @@ export class InventarioInicial {
     }
 
     const csv = [
-      'clave,lote,caducidad,proveedor,ubicacion,cajas',
+      'clave,lote,caducidad,proveedor,ubicacion,cajas,consumo_promedio',
       ...validos.map((renglon) =>
-        [renglon.clave, renglon.lote, fechaCompleta(renglon.caducidad), renglon.proveedor, renglon.ubicacion, renglon.cajas].map(sinComas).join(','),
+        [renglon.clave, renglon.lote, fechaCompleta(renglon.caducidad), renglon.proveedor, renglon.ubicacion, renglon.cajas, renglon.cpm ?? '']
+          .map(sinComas)
+          .join(','),
       ),
     ].join('\n');
 
@@ -233,17 +239,12 @@ export class InventarioInicial {
       return;
     }
 
-    // El consumo promedio es por clave: se guarda el de la hoja para el cálculo del CPM (HU16).
-    const cpm: Record<string, number> = {};
-    enviados.forEach((renglon) => {
-      if (renglon.cpm) cpm[renglon.clave] = renglon.cpm;
-    });
-    if (Object.keys(cpm).length) this.inventario.guardarCpmCarga(cpm);
-
     const omitidos = this.errores();
     this.renglones.set([]);
     this.archivoNombre.set('');
     this.inventario.recargar();
+    // El consumo promedio de la hoja ya lo guardó el backend por clave (HU16); refresca el CPM.
+    this.rotacion.recargar();
     this.mostrarMensaje(
       `Datos guardados: ${respuesta.lotesCreados} lote(s) registrados en el inventario.` + (omitidos ? ` Se omitieron ${omitidos} renglón(es) con error.` : ''),
       'success',
@@ -252,14 +253,13 @@ export class InventarioInicial {
 
   // Descarga lo que se ve en la tabla (respeta la búsqueda), con las columnas de la hoja del Drive.
   descargarInventario(): void {
-    const cpm = this.inventario.cpmCarga();
     const filas = this.lotesFiltrados().map((lote) => [
       lote.clave,
       lote.descripcion ?? '',
       lote.lote,
       formatoCaducidad(lote.caducidad),
       lote.cajas,
-      cpm[lote.clave] ?? '',
+      this.rotacion.buscar(lote.clave)?.cpm ?? '',
       lote.ubicacion,
       lote.fuente ?? '',
       lote.fechaIngreso ? formatoCaducidad(lote.fechaIngreso) : '',
