@@ -21,7 +21,19 @@
           <span class="has-errors">{{ errores() }} con error</span>
         }
       </div>
+      <div class="preview-tools">
+        <button type="button" class="tool-button" [disabled]="!hayCambios()" (click)="restaurar()" title="Deshace las correcciones y vuelve a los datos del archivo">↺ Restaurar</button>
+        <button type="button" class="tool-button" (click)="descartarVistaPrevia()" title="Cierra la vista previa sin guardar">✕ Descartar</button>
+      </div>
     </div>
+    <datalist id="claves-carga">
+      @for (clave of clavesCatalogo(); track clave) {
+        <option [value]="clave"></option>
+      }
+    </datalist>
+    @if (errores()) {
+      <p class="card-help">Los renglones con error se pueden corregir aquí mismo: cambia el dato y sal del campo para volver a revisarlo.</p>
+    }
     <div class="table-wrap">
       <table>
         <thead>
@@ -40,19 +52,47 @@
           </tr>
         </thead>
         <tbody>
-          @for (renglon of renglones(); track $index) {
-            <tr [class.invalid]="renglon.error">
-              <td>{{ renglon.clave || '—' }}</td>
-              <td class="description"><span class="clamp" [title]="renglon.descripcion ?? ''">{{ renglon.descripcion || '—' }}</span></td>
-              <td>{{ renglon.lote || '—' }}</td>
-              <td>{{ renglon.caducidad ? formatoFecha(renglon.caducidad) : '—' }}</td>
-              <td class="number">{{ renglon.cajas || '—' }}</td>
-              <td class="number">{{ renglon.cpm ?? '—' }}</td>
-              <td>{{ renglon.ubicacion || '—' }}</td>
-              <td>{{ renglon.fuente || '—' }}</td>
-              <td>{{ renglon.fechaIngreso ? formatoFecha(renglon.fechaIngreso) : '—' }}</td>
-              <td class="wrap">{{ renglon.proveedor || '—' }}</td>
-              <td>{{ renglon.error || '✓ Correcto' }}</td>
+          @for (renglon of renglones(); track renglon.id) {
+            <tr [class.invalid]="renglon.error" [class.editing]="renglon.editable">
+              @if (renglon.editable) {
+                <td>
+                  <input class="cell-input" list="claves-carga" [value]="renglon.clave" (change)="corregir(renglon.id, 'clave', $any($event.target).value)" [class.missing]="!renglon.clave" aria-label="Clave" />
+                </td>
+                <td class="description"><span class="clamp" [title]="renglon.descripcion ?? ''">{{ renglon.descripcion || '—' }}</span></td>
+                <td>
+                  <input class="cell-input" [value]="renglon.lote" (change)="corregir(renglon.id, 'lote', $any($event.target).value)" [class.missing]="!renglon.lote" aria-label="Lote" />
+                </td>
+                <td>
+                  <input class="cell-input date" [value]="renglon.caducidad ? formatoFecha(renglon.caducidad) : ''" (change)="corregir(renglon.id, 'caducidad', $any($event.target).value)" placeholder="DD/MM/AAAA" [class.missing]="!renglon.caducidad" aria-label="Caducidad" />
+                </td>
+                <td class="number">
+                  <input class="cell-input number" type="number" min="1" [value]="renglon.cajas || ''" (change)="corregir(renglon.id, 'cajas', $any($event.target).value)" [class.missing]="!(renglon.cajas > 0)" aria-label="Cantidad" />
+                </td>
+                <td class="number">{{ renglon.cpm ?? '—' }}</td>
+                <td>
+                  <input class="cell-input" [value]="renglon.ubicacion" (change)="corregir(renglon.id, 'ubicacion', $any($event.target).value)" [class.missing]="!renglon.ubicacion" aria-label="Ubicación" />
+                </td>
+                <td>{{ renglon.fuente || '—' }}</td>
+                <td>{{ renglon.fechaIngreso ? formatoFecha(renglon.fechaIngreso) : '—' }}</td>
+                <td>
+                  <input class="cell-input" [value]="renglon.proveedor" (change)="corregir(renglon.id, 'proveedor', $any($event.target).value)" [class.missing]="!renglon.proveedor" aria-label="Proveedor" />
+                </td>
+              } @else {
+                <td>{{ renglon.clave || '—' }}</td>
+                <td class="description"><span class="clamp" [title]="renglon.descripcion ?? ''">{{ renglon.descripcion || '—' }}</span></td>
+                <td>{{ renglon.lote || '—' }}</td>
+                <td>{{ renglon.caducidad ? formatoFecha(renglon.caducidad) : '—' }}</td>
+                <td class="number">{{ renglon.cajas || '—' }}</td>
+                <td class="number">{{ renglon.cpm ?? '—' }}</td>
+                <td>{{ renglon.ubicacion || '—' }}</td>
+                <td>{{ renglon.fuente || '—' }}</td>
+                <td>{{ renglon.fechaIngreso ? formatoFecha(renglon.fechaIngreso) : '—' }}</td>
+                <td class="wrap">{{ renglon.proveedor || '—' }}</td>
+              }
+              <td class="review">
+                <span [class.ok]="!renglon.error">{{ renglon.error || '✓ Correcto' }}</span>
+                <button type="button" class="row-remove" title="Quitar este renglón" (click)="quitarRenglon(renglon.id)">Quitar</button>
+              </td>
             </tr>
           }
         </tbody>

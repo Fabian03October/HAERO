@@ -106,3 +106,48 @@ tr.invalid td:first-child { background: #fff5f4; }
 .description { min-width: 220px; max-width: 260px; white-space: normal; }
 .clamp { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.35; }
 .wrap { min-width: 150px; max-width: 190px; white-space: normal; line-height: 1.35; }
+
+/* Vista previa editable */
+.preview-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool-button {
+  padding: 6px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fff;
+  color: #9f2241;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tool-button:hover:not(:disabled) { background: #f6e9ed; }
+.tool-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.cell-input {
+  width: 100%;
+  min-width: 90px;
+  padding: 5px 7px;
+  border: 1px solid #ddd4c8;
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+.cell-input.date { min-width: 100px; }
+.cell-input.number { min-width: 64px; text-align: right; }
+.cell-input:focus { outline: none; border-color: #9f2241; box-shadow: 0 0 0 2px #f3dde4; }
+.cell-input.missing { border-color: #b6483f; background: #fdf3f2; }
+
+.review { white-space: nowrap; }
+.review .ok { color: #2f7a4a; }
+.row-remove {
+  margin-left: 8px;
+  border: 0;
+  background: none;
+  color: #9f2241;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}

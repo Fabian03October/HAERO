@@ -8,9 +8,16 @@ import { AlmacenApi, CargaInicialResponse, mensajeDeError } from '../almacen-api
 import { RotacionAlmacen } from '../rotacion-almacen';
 
 interface RenglonInventario extends LoteInventario {
+  // Identificador del renglón en la vista previa (no cambia al editarlo).
+  id: number;
   cpm?: number;
   error?: string;
+  // Se puede corregir en la tabla: tuvo un error al leerlo o el backend lo rechazó.
+  editable?: boolean;
 }
+
+// Campos que se pueden corregir en la vista previa.
+type CampoEditable = 'clave' | 'lote' | 'caducidad' | 'cajas' | 'ubicacion' | 'proveedor';
 
 type Campo = 'clave' | 'descripcion' | 'lote' | 'caducidad' | 'cantidad' | 'consumo' | 'ubicacion' | 'fuente' | 'fechaIngreso' | 'proveedor';
 
@@ -80,6 +87,11 @@ export class InventarioInicial {
 
   readonly archivoNombre = signal('');
   readonly renglones = signal<RenglonInventario[]>([]);
+  // Renglones tal como venían en el archivo, para "Restaurar".
+  private readonly originales = signal<RenglonInventario[]>([]);
+  readonly hayCambios = computed(() => JSON.stringify(this.renglones()) !== JSON.stringify(this.originales()));
+  // Claves del catálogo para sugerir al corregir una clave.
+  readonly clavesCatalogo = computed(() => this.catalogo.catalogo().map((medicamento) => medicamento.clave));
   readonly mensaje = signal('');
   readonly tipoMensaje = signal<TipoMensaje>('info');
   readonly errores = computed(() => this.renglones().filter((renglon) => renglon.error).length);
@@ -93,6 +105,7 @@ export class InventarioInicial {
     if (!archivo) return;
     this.archivoNombre.set(archivo.name);
     this.renglones.set([]);
+    this.originales.set([]);
     const lector = new FileReader();
     const nombre = archivo.name.toLowerCase();
     if (nombre.endsWith('.csv') || nombre.endsWith('.txt')) {
@@ -117,6 +130,7 @@ export class InventarioInicial {
       this.validarFilas(filas);
     } catch {
       this.renglones.set([]);
+      this.originales.set([]);
       this.mostrarMensaje('No se pudo leer el archivo. Verifica que sea un Excel (.xlsx o .xls) válido.', 'error');
     }
   }
@@ -144,15 +158,13 @@ export class InventarioInicial {
       return;
     }
 
-    // Si el catálogo no se pudo leer, la clave la valida el backend al guardar.
-    const claves = new Set(this.catalogo.catalogo().map((medicamento) => medicamento.clave));
-    this.renglones.set(
-      datos.slice(1).map((fila) => {
+    const leidos = datos.slice(1).map((fila, indice) => {
         const leer = (campo: Campo) => (indices[campo] < 0 ? '' : this.texto(fila[indices[campo]]));
         const fecha = (campo: Campo) => (indices[campo] < 0 ? '' : this.fecha(fila[indices[campo]]));
         const cajas = Number(leer('cantidad').replace(/[\s,]/g, ''));
         const consumo = Number(leer('consumo').replace(/[\s,]/g, ''));
         const renglon: RenglonInventario = {
+          id: indice + 1,
           clave: leer('clave'),
           descripcion: leer('descripcion') || undefined,
           lote: leer('lote'),
@@ -164,22 +176,78 @@ export class InventarioInicial {
           fechaIngreso: fecha('fechaIngreso') || undefined,
           proveedor: leer('proveedor'),
         };
-        const faltan = [
-          !renglon.clave && 'clave',
-          !renglon.lote && 'lote',
-          !renglon.caducidad && 'caducidad',
-          !renglon.ubicacion && 'ubicación',
-          !renglon.proveedor && 'proveedor',
-        ].filter(Boolean);
-        if (faltan.length) renglon.error = `Falta ${faltan.join(', ')}`;
-        else if (!Number.isInteger(cajas) || cajas <= 0) renglon.error = 'Cantidad no válida';
-        else if (claves.size && !claves.has(renglon.clave)) renglon.error = 'Clave no registrada en el catálogo';
+        renglon.error = this.validarRenglon(renglon);
+        renglon.editable = !!renglon.error;
         return renglon;
+      });
+    this.renglones.set(leidos);
+    this.originales.set(leidos.map((renglon) => ({ ...renglon })));
+    this.avisarRevision();
+  }
+
+  /** Error del renglón, o undefined si está bien. Se usa al leer el archivo y al corregir en la tabla. */
+  private validarRenglon(renglon: RenglonInventario): string | undefined {
+    const faltan = [
+      !renglon.clave && 'clave',
+      !renglon.lote && 'lote',
+      !renglon.caducidad && 'caducidad',
+      !renglon.ubicacion && 'ubicación',
+      !renglon.proveedor && 'proveedor',
+    ].filter(Boolean);
+    if (faltan.length) return `Falta ${faltan.join(', ')}`;
+    if (!Number.isInteger(renglon.cajas) || renglon.cajas <= 0) return 'Cantidad no válida';
+    // Si el catálogo no se pudo leer, la clave la valida el backend al guardar.
+    const claves = this.clavesCatalogo();
+    if (claves.length && !claves.includes(renglon.clave)) return 'Clave no registrada en el catálogo';
+    return undefined;
+  }
+
+  /** Corrige un dato de un renglón en la vista previa y lo vuelve a validar. */
+  corregir(id: number, campo: CampoEditable, valor: string): void {
+    this.renglones.update((renglones) =>
+      renglones.map((renglon) => {
+        if (renglon.id !== id) return renglon;
+        const texto = String(valor ?? '').trim();
+        const corregido: RenglonInventario = { ...renglon };
+        if (campo === 'cajas') corregido.cajas = Number(texto.replace(/[\s,]/g, ''));
+        // La caducidad se acepta como DD/MM/AAAA, MM/AAAA o AAAA-MM(-DD), igual que en el archivo.
+        else if (campo === 'caducidad') corregido.caducidad = this.fecha(texto);
+        else corregido[campo] = texto;
+        corregido.error = campo === 'caducidad' && texto && !corregido.caducidad ? 'Caducidad no válida (usa DD/MM/AAAA o MM/AAAA)' : this.validarRenglon(corregido);
+        return corregido;
       }),
     );
+    this.avisarRevision();
+  }
+
+  /** Quita un renglón de la vista previa para no cargarlo. */
+  quitarRenglon(id: number): void {
+    this.renglones.update((renglones) => renglones.filter((renglon) => renglon.id !== id));
+    if (!this.renglones().length) {
+      this.descartarVistaPrevia();
+      return;
+    }
+    this.avisarRevision();
+  }
+
+  /** Regresa la vista previa a como venía en el archivo (deshace correcciones y renglones quitados). */
+  restaurar(): void {
+    this.renglones.set(this.originales().map((renglon) => ({ ...renglon })));
+    this.avisarRevision();
+  }
+
+  /** Cierra la vista previa sin guardar nada. */
+  descartarVistaPrevia(): void {
+    this.renglones.set([]);
+    this.originales.set([]);
+    this.archivoNombre.set('');
+    this.mostrarMensaje('', 'info');
+  }
+
+  private avisarRevision(): void {
     this.mostrarMensaje(
       this.errores()
-        ? `Revisa la vista previa: ${this.errores()} renglón(es) tienen errores y no se guardarán. Los ${this.validos()} renglón(es) correctos sí se pueden guardar.`
+        ? `Revisa la vista previa: ${this.errores()} renglón(es) tienen errores. Corrígelos en la tabla o quítalos; si no, no se guardarán. Los ${this.validos()} renglón(es) correctos sí se pueden guardar.`
         : `Revisa la vista previa. Si todo está bien, presiona "Guardar datos".`,
       this.errores() ? 'error' : 'info',
     );
@@ -231,9 +299,9 @@ export class InventarioInicial {
     if (!respuesta.exito) {
       // La fila 2 del CSV es el primer renglón enviado.
       const errores = new Map(respuesta.errores.map((error) => [enviados[error.fila - 2], error.mensaje]));
-      this.renglones.set(this.renglones().map((renglon) => (errores.has(renglon) ? { ...renglon, error: errores.get(renglon) } : renglon)));
+      this.renglones.set(this.renglones().map((renglon) => (errores.has(renglon) ? { ...renglon, error: errores.get(renglon), editable: true } : renglon)));
       this.mostrarMensaje(
-        `El servidor rechazó ${respuesta.errores.length} renglón(es) y no guardó nada. Corrígelos en el archivo (o quítalos) y vuelve a guardar.`,
+        `El servidor rechazó ${respuesta.errores.length} renglón(es) y no guardó nada. Corrígelos en la tabla (o quítalos) y vuelve a guardar.`,
         'error',
       );
       return;
@@ -241,6 +309,7 @@ export class InventarioInicial {
 
     const omitidos = this.errores();
     this.renglones.set([]);
+    this.originales.set([]);
     this.archivoNombre.set('');
     this.inventario.recargar();
     // El consumo promedio de la hoja ya lo guardó el backend por clave (HU16); refresca el CPM.

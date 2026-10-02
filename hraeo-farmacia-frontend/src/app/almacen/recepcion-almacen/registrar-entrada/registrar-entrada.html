@@ -29,9 +29,9 @@
   <div class="entry-form">
     <label>Pedido
       <select [ngModel]="pedidoId() ?? ''" (ngModelChange)="seleccionarPedido($event)">
-        <option value="">Selecciona un pedido activo</option>
-        @for (item of pedidos.pedidos(); track item.id) {
-          <option [value]="item.id">{{ item.numero }} · {{ item.proveedor }}{{ item.estado === 'CANCELADO' ? ' (cancelado)' : '' }}</option>
+        <option value="">{{ pedidos.pendientes().length ? 'Selecciona un pedido activo' : 'No hay pedidos pendientes por recibir' }}</option>
+        @for (item of pedidos.pendientes(); track item.id) {
+          <option [value]="item.id">{{ item.numero }} · {{ item.proveedor }} · {{ item.cajasRecibidas }}/{{ item.cajasEsperadas }} cajas</option>
         }
       </select>
     </label>
@@ -63,7 +63,7 @@
       <label>Clave
         <select [ngModel]="clave()" (ngModelChange)="clave.set($event)" [disabled]="!pedido() || cancelado()">
           <option value="">{{ pedido() ? 'Elige la clave que recibes' : 'Se llena al elegir pedido' }}</option>
-          @for (item of pedido()?.partidas ?? []; track item.clave) {
+          @for (item of partidasPendientes(); track item.clave) {
             <option [value]="item.clave">{{ item.clave }} · {{ item.nombreGenerico }} ({{ item.cantidadRecibida }}/{{ item.cantidadEsperada }})</option>
           }
         </select>
