@@ -5,10 +5,12 @@ import com.example.backend.almacen.dto.ConsumoMesResponse;
 import com.example.backend.almacen.dto.RotacionResponse;
 import com.example.backend.almacen.entity.Alerta;
 import com.example.backend.almacen.entity.Existencia;
+import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.entity.Movimiento;
 import com.example.backend.almacen.repository.AlertaRepository;
 import com.example.backend.almacen.repository.ExistenciaRepository;
+import com.example.backend.almacen.repository.LoteRepository;
 import com.example.backend.almacen.repository.MedicamentoRepository;
 import com.example.backend.almacen.repository.MovimientoRepository;
 import org.springframework.http.HttpStatus;
@@ -41,21 +43,29 @@ public class ServicioRotacion {
     private static final int MESES_VENTANA_CPM = 6;
     private static final int MESES_STOCK_MINIMO = 3;
     private static final int MESES_STOCK_MAXIMO = 6;
+    // Mismo umbral que el frontend usa para ofrecer el canje (HU18): si a un
+    // lote vigente le quedan menos de 9 meses, ademas de aparecer en la
+    // pantalla de canje, ahora dispara una alerta proactiva (HU15/HU19 ajuste).
+    private static final int MESES_ALERTA_CADUCIDAD = 9;
     private static final String TIPO_SALIDA_FARMACIA = "SALIDA";
+    private static final String ESTATUS_LOTE_DISPONIBLE = "DISPONIBLE";
     private static final DateTimeFormatter FORMATO_MES = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final MedicamentoRepository medicamentoRepository;
     private final ExistenciaRepository existenciaRepository;
     private final MovimientoRepository movimientoRepository;
+    private final LoteRepository loteRepository;
     private final AlertaRepository alertaRepository;
 
     public ServicioRotacion(MedicamentoRepository medicamentoRepository,
                              ExistenciaRepository existenciaRepository,
                              MovimientoRepository movimientoRepository,
+                             LoteRepository loteRepository,
                              AlertaRepository alertaRepository) {
         this.medicamentoRepository = medicamentoRepository;
         this.existenciaRepository = existenciaRepository;
         this.movimientoRepository = movimientoRepository;
+        this.loteRepository = loteRepository;
         this.alertaRepository = alertaRepository;
     }
 
@@ -176,10 +186,14 @@ public class ServicioRotacion {
                 ? alertaRepository.findByFechaFinIsNullOrderByFechaInicioDesc()
                 : alertaRepository.findByFechaFinIsNotNullOrderByFechaFinDesc();
 
-        return alertas.stream()
-                .map(a -> new AlertaResponse(a.getId(), a.getMedicamento().getClave(), a.getMedicamento().getNombreGenerico(),
-                        a.getTipo(), a.getFechaInicio(), a.getFechaFin(), a.getExistenciaAlInicio(), a.getLimiteAlInicio()))
-                .toList();
+        return alertas.stream().map(this::aAlertaResponse).toList();
+    }
+
+    private AlertaResponse aAlertaResponse(Alerta alerta) {
+        return new AlertaResponse(alerta.getId(), alerta.getMedicamento().getClave(), alerta.getMedicamento().getNombreGenerico(),
+                alerta.getTipo(), alerta.getFechaInicio(), alerta.getFechaFin(), alerta.getExistenciaAlInicio(), alerta.getLimiteAlInicio(),
+                alerta.getLote() != null ? alerta.getLote().getNumeroLote() : null,
+                alerta.getLote() != null ? alerta.getLote().getCaducidad() : null);
     }
 
     /**
@@ -205,6 +219,8 @@ public class ServicioRotacion {
             actualizarAlerta(medicamento, "SOBREABASTO", "SOBREABASTO".equals(rotacion.getEstado()),
                     rotacion.getExistenciaActual(), rotacion.getStockMaximo());
         }
+
+        evaluarAlertasCaducidad();
     }
 
     private void actualizarAlerta(Medicamento medicamento, String tipo, boolean debeEstarActiva, int existenciaActual, double limite) {
@@ -216,6 +232,49 @@ public class ServicioRotacion {
             alerta.setTipo(tipo);
             alerta.setExistenciaAlInicio(existenciaActual);
             alerta.setLimiteAlInicio(limite);
+            alertaRepository.save(alerta);
+        } else if (!debeEstarActiva && alertaAbierta.isPresent()) {
+            Alerta alerta = alertaAbierta.get();
+            alerta.setFechaFin(LocalDateTime.now());
+            alertaRepository.save(alerta);
+        }
+    }
+
+    // ---------- Ajuste: alerta de caducidad proxima (por lote, no por clave) ----------
+
+    /**
+     * Revisa cada lote DISPONIBLE y abre o cierra su alerta de caducidad
+     * proxima segun le queden menos de MESES_ALERTA_CADUCIDAD meses. Un lote
+     * ya vencido no entra aqui: ese caso lo bloquea ServicioDespacho y lo
+     * atiende HU19 (apartar caducados), no esta alerta.
+     */
+    private void evaluarAlertasCaducidad() {
+        LocalDate hoy = LocalDate.now();
+        LocalDate limite = hoy.plusMonths(MESES_ALERTA_CADUCIDAD);
+
+        for (Lote lote : loteRepository.findByEstatus(ESTATUS_LOTE_DISPONIBLE)) {
+            boolean porVencer = !lote.getCaducidad().isBefore(hoy) && lote.getCaducidad().isBefore(limite);
+            int existenciaDelLote = existenciaDelLote(lote.getId());
+
+            // Un lote sin existencia (ya se despacho/canjeo todo) no amerita alerta.
+            actualizarAlertaCaducidad(lote, porVencer && existenciaDelLote > 0, existenciaDelLote);
+        }
+    }
+
+    private int existenciaDelLote(Long loteId) {
+        return existenciaRepository.findByLoteId(loteId).stream().mapToInt(Existencia::getCantidadCajas).sum();
+    }
+
+    private void actualizarAlertaCaducidad(Lote lote, boolean debeEstarActiva, int existenciaActual) {
+        var alertaAbierta = alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(lote.getId(), "CADUCIDAD_PROXIMA");
+
+        if (debeEstarActiva && alertaAbierta.isEmpty()) {
+            Alerta alerta = new Alerta();
+            alerta.setMedicamento(lote.getMedicamento());
+            alerta.setLote(lote);
+            alerta.setTipo("CADUCIDAD_PROXIMA");
+            alerta.setExistenciaAlInicio(existenciaActual);
+            alerta.setLimiteAlInicio(MESES_ALERTA_CADUCIDAD);
             alertaRepository.save(alerta);
         } else if (!debeEstarActiva && alertaAbierta.isPresent()) {
             Alerta alerta = alertaAbierta.get();

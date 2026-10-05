@@ -251,7 +251,7 @@ export interface Rotacion {
   meses: ConsumoMes[];
 }
 
-export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO';
+export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO' | 'CADUCIDAD_PROXIMA';
 
 export interface Alerta {
   id: number;
@@ -262,6 +262,9 @@ export interface Alerta {
   fechaFin: string | null;
   existencia: number;
   limite: number;
+  // Solo para CADUCIDAD_PROXIMA: el lote especifico que esta por vencer.
+  numeroLote: string | null;
+  caducidad: string | null;
 }
 
 export const ESTATUS_SOLICITUD_TEXTO: Record<EstatusSolicitud, string> = {

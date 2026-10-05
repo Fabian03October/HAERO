@@ -10,6 +10,8 @@ public interface AlertaRepository extends JpaRepository<Alerta, Long> {
 
     Optional<Alerta> findByMedicamentoClaveAndTipoAndFechaFinIsNull(String medicamentoClave, String tipo);
 
+    Optional<Alerta> findByLoteIdAndTipoAndFechaFinIsNull(Long loteId, String tipo);
+
     List<Alerta> findByFechaFinIsNullOrderByFechaInicioDesc();
 
     List<Alerta> findByFechaFinIsNotNullOrderByFechaFinDesc();

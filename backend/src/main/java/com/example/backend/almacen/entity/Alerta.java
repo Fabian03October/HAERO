@@ -20,7 +20,13 @@ public class Alerta {
     @JoinColumn(name = "medicamento_clave", nullable = false)
     private Medicamento medicamento;
 
-    @Column(nullable = false, length = 12)
+    // Solo para CADUCIDAD_PROXIMA: el lote especifico que esta por vencer.
+    // DESABASTO/SOBREABASTO son por clave, no por lote, y lo dejan en null.
+    @ManyToOne
+    @JoinColumn(name = "lote_id")
+    private Lote lote;
+
+    @Column(nullable = false, length = 20)
     private String tipo;
 
     @Column(name = "fecha_inicio", nullable = false)

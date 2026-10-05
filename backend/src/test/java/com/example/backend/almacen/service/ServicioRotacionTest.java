@@ -8,6 +8,7 @@ import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.entity.Movimiento;
 import com.example.backend.almacen.repository.AlertaRepository;
 import com.example.backend.almacen.repository.ExistenciaRepository;
+import com.example.backend.almacen.repository.LoteRepository;
 import com.example.backend.almacen.repository.MedicamentoRepository;
 import com.example.backend.almacen.repository.MovimientoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,8 @@ class ServicioRotacionTest {
     @Mock
     private MovimientoRepository movimientoRepository;
     @Mock
+    private LoteRepository loteRepository;
+    @Mock
     private AlertaRepository alertaRepository;
 
     private ServicioRotacion servicioRotacion;
@@ -53,7 +56,7 @@ class ServicioRotacionTest {
 
     @BeforeEach
     void configurar() {
-        servicioRotacion = new ServicioRotacion(medicamentoRepository, existenciaRepository, movimientoRepository, alertaRepository);
+        servicioRotacion = new ServicioRotacion(medicamentoRepository, existenciaRepository, movimientoRepository, loteRepository, alertaRepository);
 
         medicamento = new Medicamento();
         medicamento.setClave("0134");
@@ -269,5 +272,84 @@ class ServicioRotacionTest {
 
         verify(alertaRepository, never()).findByMedicamentoClaveAndTipoAndFechaFinIsNull(any(), any());
         verify(alertaRepository, never()).save(any());
+    }
+
+    // ---------- Ajuste: alerta de caducidad proxima (por lote) ----------
+
+    private Lote lote(Long id, String clave, LocalDate caducidad) {
+        Lote lote = new Lote();
+        lote.setId(id);
+        lote.setMedicamento(medicamento);
+        lote.setNumeroLote(clave);
+        lote.setCaducidad(caducidad);
+        lote.setEstatus("DISPONIBLE");
+        return lote;
+    }
+
+    @Test
+    void evaluarAlertas_conLoteAMenosDeNueveMesesDeCaducar_abreAlertaCaducidadProxima() {
+        sinSalidasPrevias();
+        when(medicamentoRepository.findAll()).thenReturn(List.of());
+        Lote lote = lote(1L, "L-0001", LocalDate.now().plusMonths(3));
+        when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
+        when(existenciaRepository.findByLoteId(1L)).thenReturn(existenciaVigente("0134", 40, lote.getCaducidad()));
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(1L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.empty());
+
+        servicioRotacion.evaluarAlertas();
+
+        ArgumentCaptor<Alerta> captor = ArgumentCaptor.forClass(Alerta.class);
+        verify(alertaRepository).save(captor.capture());
+        assertThat(captor.getValue().getTipo()).isEqualTo("CADUCIDAD_PROXIMA");
+        assertThat(captor.getValue().getLote()).isEqualTo(lote);
+        assertThat(captor.getValue().getExistenciaAlInicio()).isEqualTo(40);
+    }
+
+    @Test
+    void evaluarAlertas_conLoteAMasDeNueveMesesDeCaducar_noAbreAlerta() {
+        sinSalidasPrevias();
+        when(medicamentoRepository.findAll()).thenReturn(List.of());
+        Lote lote = lote(2L, "L-0002", LocalDate.now().plusMonths(12));
+        when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
+        when(existenciaRepository.findByLoteId(2L)).thenReturn(existenciaVigente("0134", 40, lote.getCaducidad()));
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(2L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.empty());
+
+        servicioRotacion.evaluarAlertas();
+
+        verify(alertaRepository, never()).save(any());
+    }
+
+    @Test
+    void evaluarAlertas_conLoteYaVencido_noLoEvaluaAqui() {
+        // Un lote vencido lo bloquea ServicioDespacho y lo atiende HU19 (apartar
+        // caducados); esta alerta es solo para lotes TODAVIA vigentes.
+        sinSalidasPrevias();
+        when(medicamentoRepository.findAll()).thenReturn(List.of());
+        Lote lote = lote(3L, "L-0003", LocalDate.now().minusDays(1));
+        when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(3L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.empty());
+
+        servicioRotacion.evaluarAlertas();
+
+        verify(alertaRepository, never()).save(any());
+    }
+
+    @Test
+    void evaluarAlertas_conLoteQueYaNoTieneExistencia_cierraLaAlertaAbierta() {
+        sinSalidasPrevias();
+        when(medicamentoRepository.findAll()).thenReturn(List.of());
+        Lote lote = lote(4L, "L-0004", LocalDate.now().plusMonths(3));
+        when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
+        when(existenciaRepository.findByLoteId(4L)).thenReturn(List.of()); // ya se despacho/canjeo todo
+
+        Alerta alertaAbierta = new Alerta();
+        alertaAbierta.setMedicamento(medicamento);
+        alertaAbierta.setLote(lote);
+        alertaAbierta.setTipo("CADUCIDAD_PROXIMA");
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(4L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.of(alertaAbierta));
+
+        servicioRotacion.evaluarAlertas();
+
+        assertThat(alertaAbierta.getFechaFin()).isNotNull();
+        verify(alertaRepository).save(alertaAbierta);
     }
 }
