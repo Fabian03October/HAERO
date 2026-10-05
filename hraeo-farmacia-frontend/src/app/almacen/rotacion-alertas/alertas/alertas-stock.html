@@ -66,6 +66,35 @@
       <p class="empty-state">Ninguna clave está en riesgo de sobreabasto.</p>
     }
   </section>
+
+  <section class="card alert-card low">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Lotes vigentes a menos de 9 meses de caducar</p>
+        <h2>Caducidad próxima</h2>
+      </div>
+      <span class="alert-count">{{ porVencer().length }}</span>
+    </div>
+    <p class="card-help">Conviene despacharlos primero (FEFO ya lo prioriza) o mandarlos a canje antes de que venzan.</p>
+
+    @if (porVencer().length) {
+      <ul class="alert-list">
+        @for (alerta of porVencer(); track alerta.clave + alerta.numeroLote) {
+          <li class="low">
+            <div class="alert-main">
+              <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+              <span>Lote <b>{{ alerta.numeroLote }}</b> · {{ alerta.existencia }} cajas · caduca {{ alerta.caducidad | date: 'dd/MM/yyyy' }}</span>
+            </div>
+            <div class="alert-since">
+              <span>{{ alerta.caducidad ? diasHasta(alerta.caducidad) : '' }}</span>
+            </div>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty-state">Ningún lote vigente está por caducar.</p>
+    }
+  </section>
 </div>
 
 <section class="card">
@@ -129,7 +158,7 @@
           @for (alerta of rotacion.alertasCerradas(); track alerta.clave + alerta.inicio) {
             <tr>
               <td><strong>{{ alerta.clave }}</strong><small>{{ medicamento(alerta.clave) }}</small></td>
-              <td>{{ alerta.tipo === 'DESABASTO' ? 'Desabasto' : 'Sobreabasto' }}</td>
+              <td>{{ alerta.tipo === 'DESABASTO' ? 'Desabasto' : alerta.tipo === 'SOBREABASTO' ? 'Sobreabasto' : 'Caducidad próxima' }}</td>
               <td>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</td>
               <td>{{ alerta.fin | date: 'dd/MM/yyyy HH:mm' }}</td>
             </tr>

@@ -18,9 +18,11 @@ export class AlertasStock {
   protected readonly mesesMinimo = MESES_STOCK_MINIMO;
   protected readonly mesesMaximo = MESES_STOCK_MAXIMO;
 
-  // Se muestran por separado: desabasto (hay que pedir) y sobreabasto (hay de más).
+  // Se muestran por separado: desabasto (hay que pedir), sobreabasto (hay de
+  // más) y caducidad próxima (hay que canjear o despachar primero ese lote).
   readonly desabasto = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'DESABASTO'));
   readonly sobreabasto = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'SOBREABASTO'));
+  readonly porVencer = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'CADUCIDAD_PROXIMA'));
 
   // Primero las claves en riesgo, luego las que están en rango.
   readonly niveles = computed(() => {
@@ -40,5 +42,11 @@ export class AlertasStock {
     const dias = Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000);
     if (dias <= 0) return 'hoy';
     return dias === 1 ? 'hace 1 día' : `hace ${dias} días`;
+  }
+
+  diasHasta(fecha: string): string {
+    const dias = Math.ceil((new Date(fecha).getTime() - Date.now()) / 86400000);
+    if (dias <= 0) return 'vence hoy';
+    return dias === 1 ? 'falta 1 día' : `faltan ${dias} días`;
   }
 }

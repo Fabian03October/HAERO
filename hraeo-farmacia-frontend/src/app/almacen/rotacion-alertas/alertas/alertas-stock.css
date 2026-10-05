@@ -46,8 +46,8 @@
   .alert-since { justify-items: start; text-align: left; }
 }
 
-/* Desabasto y sobreabasto en dos tarjetas separadas. */
-.alert-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+/* Desabasto, sobreabasto y caducidad próxima en tarjetas separadas. */
+.alert-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
 .alert-card .card-heading { margin-bottom: 6px; }
 .alert-card > .card-help { margin: 0 0 14px; }
 .alert-card.low .eyebrow { color: #a9463e; }

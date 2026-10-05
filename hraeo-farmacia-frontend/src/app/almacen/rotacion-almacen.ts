@@ -9,7 +9,7 @@ export const MESES_STOCK_MAXIMO = 6;
 const MESES_VENTANA_CPM = 6;
 
 export type EstadoStock = 'DESABASTO' | 'SOBREABASTO' | 'NORMAL' | 'SIN_CONSUMO';
-export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO';
+export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO' | 'CADUCIDAD_PROXIMA';
 
 export const ESTADO_STOCK_TEXTO: Record<EstadoStock, string> = {
   DESABASTO: 'Riesgo de desabasto',
@@ -47,6 +47,9 @@ export interface AlertaStock {
   fin?: string;
   existencia: number;
   limite: number;
+  // Solo para CADUCIDAD_PROXIMA.
+  numeroLote?: string;
+  caducidad?: string;
 }
 
 /**
@@ -140,6 +143,8 @@ function aAlertaStock(alerta: AlertaDto): AlertaStock {
     fin: alerta.fechaFin ?? undefined,
     existencia: alerta.existencia,
     limite: alerta.limite,
+    numeroLote: alerta.numeroLote ?? undefined,
+    caducidad: alerta.caducidad ?? undefined,
   };
 }
 

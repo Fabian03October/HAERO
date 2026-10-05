@@ -3,6 +3,7 @@ package com.example.backend.almacen.dto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -16,4 +17,7 @@ public class AlertaResponse {
     private LocalDateTime fechaFin;
     private int existencia;
     private double limite;
+    // Solo para CADUCIDAD_PROXIMA: el lote especifico que esta por vencer.
+    private String numeroLote;
+    private LocalDate caducidad;
 }
