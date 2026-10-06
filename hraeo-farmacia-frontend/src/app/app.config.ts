@@ -1,8 +1,9 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
+import { sesionInterceptor } from './auth/sesion-interceptor';
 
 // Las alertas de stock (HU17) las abre y cierra el backend (ServicioRotacion,
 // tarea programada cada hora + reevaluación en cada consulta), no el cliente;
@@ -11,6 +12,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(),
+    // Avisa y manda al login cuando la sesión dejó de ser válida (servidor reiniciado, inactividad…).
+    provideHttpClient(withInterceptors([sesionInterceptor])),
   ]
 };

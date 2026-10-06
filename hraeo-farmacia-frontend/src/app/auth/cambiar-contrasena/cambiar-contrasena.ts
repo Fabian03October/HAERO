@@ -28,9 +28,12 @@ export class CambiarContrasena {
     this.guardando.set(true);
 
     this.usuariosApi.cambiarMiContrasena({ contrasenaActual, contrasenaNueva }).subscribe({
-      next: () => {
-        this.session.contrasenaCambiada();
-        const usuario = this.session.usuarioActual();
+      next: async () => {
+        // El backend invalida el token anterior al cambiar la contraseña; se pide
+        // uno nuevo con la contraseña nueva para no sacar al usuario de inmediato.
+        const nombreUsuario = this.session.usuarioActual()?.nombreUsuario ?? '';
+        const usuario = await this.session.iniciarSesion(nombreUsuario, contrasenaNueva);
+        if (!usuario) this.session.cerrarSesion();
         this.router.navigateByUrl(usuario ? RUTA_POR_ROL[usuario.rol] : '/login');
       },
       error: (err) => {

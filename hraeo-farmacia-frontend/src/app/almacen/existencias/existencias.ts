@@ -2,6 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { InventarioAlmacen } from '../inventario-almacen';
+import { MovimientosEspecialesAlmacen } from '../movimientos-especiales-almacen';
+import { Session } from '../../auth/session';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../solicitudes-almacen';
 
 interface GrupoLote {
@@ -28,6 +30,11 @@ export class Existencias {
   protected readonly inventario = inject(InventarioAlmacen);
   private readonly solicitudes = inject(SolicitudesAlmacen);
   protected readonly formatoCaducidad = formatoCaducidad;
+  // Lote nuevo de un canje → lote al que sustituye (HU18 CA3, PA-I2-13).
+  private readonly especiales = inject(MovimientosEspecialesAlmacen);
+  private readonly origenPorLote = computed(() => new Map(this.especiales.canjes().map((canje) => [canje.loteNuevoId, canje.loteOrigen])));
+  // Supervisión usa esta misma consulta sin acciones de Almacén (solo lectura).
+  protected readonly soloLectura = inject(Session).usuarioActual()?.rol === 'SUPERVISION';
 
   readonly filtroClave = signal('');
   readonly filtroLote = signal('');
@@ -62,7 +69,7 @@ export class Existencias {
           total: 0,
           fefo: fefoPorClave.get(lote.clave) === lote.caducidad,
           vencido: estaVencido(lote.caducidad),
-          loteOrigen: lote.loteOrigen,
+          loteOrigen: lote.loteId ? this.origenPorLote().get(lote.loteId) : undefined,
           ubicaciones: [],
         };
         grupos.set(llave, grupo);

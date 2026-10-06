@@ -6,6 +6,10 @@
     "start": "ng serve",
     "start:red": "ng serve --host 0.0.0.0",
     "start:celular": "ng serve --host 0.0.0.0 --ssl",
+    "start:iphone": "ng serve --host 0.0.0.0 --ssl --ssl-cert certs/haero.pem --ssl-key certs/haero-key.pem",
+    "start:pc-http": "ng serve --host 0.0.0.0 --port 4200",
+    "start:iphone-https": "ng serve --host 0.0.0.0 --port 4201 --ssl --ssl-cert certs/haero.pem --ssl-key certs/haero-key.pem",
+    "start:ambos": "concurrently -n PC-HTTP,IPHONE-HTTPS -c cyan,magenta \"npm:start:pc-http\" \"npm:start:iphone-https\"",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
@@ -29,6 +33,7 @@
     "@angular/build": "^21.2.24",
     "@angular/cli": "^21.2.24",
     "@angular/compiler-cli": "^21.2.0",
+    "concurrently": "^10.0.5",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",

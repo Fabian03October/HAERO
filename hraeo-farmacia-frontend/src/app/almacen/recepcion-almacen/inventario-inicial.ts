@@ -247,7 +247,7 @@ export class InventarioInicial {
   private avisarRevision(): void {
     this.mostrarMensaje(
       this.errores()
-        ? `Revisa la vista previa: ${this.errores()} renglón(es) tienen errores. Corrígelos en la tabla o quítalos; si no, no se guardarán. Los ${this.validos()} renglón(es) correctos sí se pueden guardar.`
+        ? `Revisa la vista previa: ${this.errores()} renglón(es) tienen errores. No se importa nada hasta que los corrijas en la tabla o los quites.`
         : `Revisa la vista previa. Si todo está bien, presiona "Guardar datos".`,
       this.errores() ? 'error' : 'info',
     );
@@ -261,6 +261,11 @@ export class InventarioInicial {
    * medicamento y sirve de respaldo del CPM mientras no haya salidas propias (HU16).
    */
   guardarDatos(): void {
+    // HU21 CA2 / PA-I2-05: no se importa nada mientras haya renglones con error.
+    if (this.errores()) {
+      this.mostrarMensaje(`No se guardó nada: ${this.errores()} renglón(es) tienen errores. Corrígelos en la tabla o quítalos para poder guardar.`, 'error');
+      return;
+    }
     const validos = this.renglones().filter((renglon) => !renglon.error);
     if (!validos.length) {
       this.mostrarMensaje('No hay renglones correctos para guardar. Corrige el archivo y vuelve a subirlo.', 'error');
