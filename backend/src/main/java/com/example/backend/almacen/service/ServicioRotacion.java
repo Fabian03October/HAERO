@@ -224,17 +224,18 @@ public class ServicioRotacion {
     }
 
     private void actualizarAlerta(Medicamento medicamento, String tipo, boolean debeEstarActiva, int existenciaActual, double limite) {
-        var alertaAbierta = alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull(medicamento.getClave(), tipo);
+        List<Alerta> abiertas = cerrarDuplicadas(
+                alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(medicamento.getClave(), tipo));
 
-        if (debeEstarActiva && alertaAbierta.isEmpty()) {
+        if (debeEstarActiva && abiertas.isEmpty()) {
             Alerta alerta = new Alerta();
             alerta.setMedicamento(medicamento);
             alerta.setTipo(tipo);
             alerta.setExistenciaAlInicio(existenciaActual);
             alerta.setLimiteAlInicio(limite);
             alertaRepository.save(alerta);
-        } else if (!debeEstarActiva && alertaAbierta.isPresent()) {
-            Alerta alerta = alertaAbierta.get();
+        } else if (!debeEstarActiva && !abiertas.isEmpty()) {
+            Alerta alerta = abiertas.get(0);
             alerta.setFechaFin(LocalDateTime.now());
             alertaRepository.save(alerta);
         }
@@ -266,9 +267,10 @@ public class ServicioRotacion {
     }
 
     private void actualizarAlertaCaducidad(Lote lote, boolean debeEstarActiva, int existenciaActual) {
-        var alertaAbierta = alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(lote.getId(), "CADUCIDAD_PROXIMA");
+        List<Alerta> abiertas = cerrarDuplicadas(
+                alertaRepository.findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(lote.getId(), "CADUCIDAD_PROXIMA"));
 
-        if (debeEstarActiva && alertaAbierta.isEmpty()) {
+        if (debeEstarActiva && abiertas.isEmpty()) {
             Alerta alerta = new Alerta();
             alerta.setMedicamento(lote.getMedicamento());
             alerta.setLote(lote);
@@ -276,10 +278,28 @@ public class ServicioRotacion {
             alerta.setExistenciaAlInicio(existenciaActual);
             alerta.setLimiteAlInicio(MESES_ALERTA_CADUCIDAD);
             alertaRepository.save(alerta);
-        } else if (!debeEstarActiva && alertaAbierta.isPresent()) {
-            Alerta alerta = alertaAbierta.get();
+        } else if (!debeEstarActiva && !abiertas.isEmpty()) {
+            Alerta alerta = abiertas.get(0);
             alerta.setFechaFin(LocalDateTime.now());
             alertaRepository.save(alerta);
         }
+    }
+
+    /**
+     * Autocuracion: si por una carrera entre dos evaluaciones concurrentes
+     * llegaran a quedar varias alertas abiertas para la misma clave/lote y
+     * tipo, se cierran todas menos la mas antigua, para que el sistema se
+     * recupere solo sin intervencion manual en la base de datos.
+     */
+    private List<Alerta> cerrarDuplicadas(List<Alerta> abiertasOrdenadas) {
+        if (abiertasOrdenadas.size() <= 1) {
+            return abiertasOrdenadas;
+        }
+        List<Alerta> sobrantes = abiertasOrdenadas.subList(1, abiertasOrdenadas.size());
+        for (Alerta duplicada : sobrantes) {
+            duplicada.setFechaFin(LocalDateTime.now());
+        }
+        alertaRepository.saveAll(sobrantes);
+        return abiertasOrdenadas.subList(0, 1);
     }
 }

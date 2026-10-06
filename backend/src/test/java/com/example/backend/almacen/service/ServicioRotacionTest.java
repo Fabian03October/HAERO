@@ -211,8 +211,8 @@ class ServicioRotacionTest {
         when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any()))
                 .thenReturn(List.of(salida(60, "0134", LocalDateTime.now().minusMonths(1))));
         when(existenciaRepository.findAll()).thenReturn(existenciaVigente("0134", 20, LocalDate.now().plusYears(1))); // por debajo de 30
-        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull("0134", "DESABASTO")).thenReturn(Optional.empty());
-        lenient().when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull("0134", "SOBREABASTO")).thenReturn(Optional.empty());
+        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc("0134", "DESABASTO")).thenReturn(List.of());
+        lenient().when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc("0134", "SOBREABASTO")).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
 
@@ -231,8 +231,8 @@ class ServicioRotacionTest {
         when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any()))
                 .thenReturn(List.of(salida(60, "0134", LocalDateTime.now().minusMonths(1))));
         when(existenciaRepository.findAll()).thenReturn(existenciaVigente("0134", 200, LocalDate.now().plusYears(1))); // por encima de 60
-        lenient().when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull("0134", "DESABASTO")).thenReturn(Optional.empty());
-        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull("0134", "SOBREABASTO")).thenReturn(Optional.empty());
+        lenient().when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc("0134", "DESABASTO")).thenReturn(List.of());
+        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc("0134", "SOBREABASTO")).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
 
@@ -252,8 +252,8 @@ class ServicioRotacionTest {
         Alerta alertaAbierta = new Alerta();
         alertaAbierta.setMedicamento(medicamento);
         alertaAbierta.setTipo("DESABASTO");
-        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull("0134", "DESABASTO")).thenReturn(Optional.of(alertaAbierta));
-        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNull("0134", "SOBREABASTO")).thenReturn(Optional.empty());
+        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc("0134", "DESABASTO")).thenReturn(List.of(alertaAbierta));
+        when(alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc("0134", "SOBREABASTO")).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
 
@@ -270,7 +270,7 @@ class ServicioRotacionTest {
 
         servicioRotacion.evaluarAlertas();
 
-        verify(alertaRepository, never()).findByMedicamentoClaveAndTipoAndFechaFinIsNull(any(), any());
+        verify(alertaRepository, never()).findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(any(), any());
         verify(alertaRepository, never()).save(any());
     }
 
@@ -293,7 +293,7 @@ class ServicioRotacionTest {
         Lote lote = lote(1L, "L-0001", LocalDate.now().plusMonths(3));
         when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
         when(existenciaRepository.findByLoteId(1L)).thenReturn(existenciaVigente("0134", 40, lote.getCaducidad()));
-        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(1L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.empty());
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(1L, "CADUCIDAD_PROXIMA")).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
 
@@ -311,7 +311,7 @@ class ServicioRotacionTest {
         Lote lote = lote(2L, "L-0002", LocalDate.now().plusMonths(12));
         when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
         when(existenciaRepository.findByLoteId(2L)).thenReturn(existenciaVigente("0134", 40, lote.getCaducidad()));
-        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(2L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.empty());
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(2L, "CADUCIDAD_PROXIMA")).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
 
@@ -326,7 +326,7 @@ class ServicioRotacionTest {
         when(medicamentoRepository.findAll()).thenReturn(List.of());
         Lote lote = lote(3L, "L-0003", LocalDate.now().minusDays(1));
         when(loteRepository.findByEstatus("DISPONIBLE")).thenReturn(List.of(lote));
-        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(3L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.empty());
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(3L, "CADUCIDAD_PROXIMA")).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
 
@@ -345,7 +345,7 @@ class ServicioRotacionTest {
         alertaAbierta.setMedicamento(medicamento);
         alertaAbierta.setLote(lote);
         alertaAbierta.setTipo("CADUCIDAD_PROXIMA");
-        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNull(4L, "CADUCIDAD_PROXIMA")).thenReturn(Optional.of(alertaAbierta));
+        when(alertaRepository.findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(4L, "CADUCIDAD_PROXIMA")).thenReturn(List.of(alertaAbierta));
 
         servicioRotacion.evaluarAlertas();
 

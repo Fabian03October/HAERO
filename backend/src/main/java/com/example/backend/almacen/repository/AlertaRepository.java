@@ -4,13 +4,16 @@ import com.example.backend.almacen.entity.Alerta;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface AlertaRepository extends JpaRepository<Alerta, Long> {
 
-    Optional<Alerta> findByMedicamentoClaveAndTipoAndFechaFinIsNull(String medicamentoClave, String tipo);
+    // List, no Optional: no hay restriccion unica en la base que impida que
+    // existan dos alertas abiertas para la misma clave/lote+tipo (p. ej. por
+    // una carrera entre dos instancias evaluando al mismo tiempo); el
+    // servicio se queda con la mas antigua y cierra el resto (autocuracion).
+    List<Alerta> findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(String medicamentoClave, String tipo);
 
-    Optional<Alerta> findByLoteIdAndTipoAndFechaFinIsNull(Long loteId, String tipo);
+    List<Alerta> findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(Long loteId, String tipo);
 
     List<Alerta> findByFechaFinIsNullOrderByFechaInicioDesc();
 
