@@ -1,4 +1,4 @@
-package com.example.backend.controller;
+package com.example.backend.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
