@@ -45,6 +45,16 @@
 .fefo-callout strong { color: #611232; font-size: 13px; }
 .fefo-callout span:not(.tag) { color: #4a4a4a; }
 
+.fefo-override {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #4a4a4a;
+  cursor: pointer;
+}
+.fefo-override input { width: 15px; height: 15px; cursor: pointer; }
+
 tr.selected td { background: #fcf4f6; }
 tr.locked td { color: #a3a09a; }
 tr.locked td strong { color: #a3a09a; }

@@ -142,6 +142,10 @@ export interface DespacharSolicitudRequest {
   partidas: { existenciaId: number; cajas: number }[];
   // true para confirmar una entrega menor a lo pendiente (HU14).
   parcial: boolean;
+  // Ajuste HU15: true cuando el despachador confirmó explícitamente que
+  // quiere tomar un lote fuera del orden FEFO. El bloqueo de lote vencido
+  // nunca se salta con esto.
+  confirmarFueraDeFefo?: boolean;
 }
 
 export interface DespacharSolicitudResponse {

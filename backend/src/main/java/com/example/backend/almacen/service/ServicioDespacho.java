@@ -36,6 +36,12 @@ import java.util.Map;
  * Cubre HU12 (existencias por ubicacion), HU13 (solicitud de Farmacia),
  * HU14 (validacion y despacho) y HU15 (bloqueo FEFO), tal como lo agrupa
  * la carta CRC de ServicioDespacho en el documento de diseno.
+ *
+ * Ajuste HU15: el bloqueo FEFO (tomar primero el lote que caduca antes) se
+ * puede saltar si el despachador lo confirma explicitamente en pantalla
+ * (DespacharSolicitudRequest.confirmarFueraDeFefo). El bloqueo de lote YA
+ * vencido nunca se puede saltar; eso no es una preferencia de orden, es
+ * que no se dispensa medicamento caducado.
  */
 @Service
 public class ServicioDespacho {
@@ -221,7 +227,8 @@ public class ServicioDespacho {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad excede la existencia disponible en esa ubicación");
             }
 
-            if (existeLoteConCaducidadMasProxima(clave, lote.getCaducidad(), restantePorExistencia, lote.getId())) {
+            if (!request.isConfirmarFueraDeFefo()
+                    && existeLoteConCaducidadMasProxima(clave, lote.getCaducidad(), restantePorExistencia, lote.getId())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Existe un lote con caducidad más próxima");
             }
 

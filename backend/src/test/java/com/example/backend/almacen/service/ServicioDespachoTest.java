@@ -275,4 +275,56 @@ class ServicioDespachoTest {
 
         verify(existenciaRepository, never()).save(any());
     }
+
+    // ---------- Ajuste HU15: confirmarFueraDeFefo ----------
+
+    @Test
+    void despachar_conLoteLejanoYConfirmarFueraDeFefo_permiteElDespacho() {
+        Solicitud solicitud = solicitudPendiente(20);
+        Lote loteProximo = lote(1L, "L-7940", LocalDate.of(2027, 2, 1));
+        Lote loteLejano = lote(2L, "L-8821", LocalDate.of(2028, 7, 1));
+        Existencia existenciaLejana = existencia(20L, loteLejano, "Sector 5", 40);
+
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(existenciaRepository.findById(20L)).thenReturn(Optional.of(existenciaLejana));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DespacharSolicitudRequest request = new DespacharSolicitudRequest();
+        PartidaDespacho partida = new PartidaDespacho();
+        partida.setExistenciaId(20L);
+        partida.setCajas(20);
+        request.setPartidas(List.of(partida));
+        request.setConfirmarFueraDeFefo(true);
+
+        DespacharSolicitudResponse respuesta = servicioDespacho.despachar(1L, request, "despachador1");
+
+        assertThat(respuesta.getEstatus()).isEqualTo("ATENDIDA");
+        verify(existenciaRepository).save(existenciaLejana);
+        verify(loteRepository, never()).findByMedicamentoClaveAndEstatus(any(), any());
+    }
+
+    @Test
+    void despachar_conLoteVencidoAunConfirmarFueraDeFefo_siguelanzando400() {
+        // El bloqueo de vencido NUNCA se salta, ni confirmando fuera de FEFO:
+        // no es una preferencia de orden, es que no se dispensa lo caducado.
+        Solicitud solicitud = solicitudPendiente(20);
+        Lote loteVencido = lote(1L, "L-0001", LocalDate.now().minusDays(1));
+        Existencia existencia = existencia(10L, loteVencido, "Sector 5", 40);
+
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(existencia));
+
+        DespacharSolicitudRequest request = new DespacharSolicitudRequest();
+        PartidaDespacho partida = new PartidaDespacho();
+        partida.setExistenciaId(10L);
+        partida.setCajas(20);
+        request.setPartidas(List.of(partida));
+        request.setConfirmarFueraDeFefo(true);
+
+        assertThatThrownBy(() -> servicioDespacho.despachar(1L, request, "despachador1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("vencido");
+
+        verify(existenciaRepository, never()).save(any());
+    }
 }

@@ -75,6 +75,18 @@
           <div class="message info">Solo hay {{ disponibleTotal() }} cajas disponibles de esta clave. Puedes registrar una entrega parcial y completar después.</div>
         }
 
+        <label class="fefo-override">
+          <input
+            type="checkbox"
+            [ngModel]="fueraDeFefo()"
+            (ngModelChange)="alternarFueraDeFefo($event)"
+          />
+          Elegir medicamento de otro lote o ubicación, fuera del orden FEFO
+        </label>
+        @if (fueraDeFefo()) {
+          <div class="message info">Confirmado: puedes elegir cualquier lote vigente, sin respetar el orden de caducidad. Los lotes ya vencidos siguen bloqueados.</div>
+        }
+
         <div class="table-wrap">
           <table>
             <thead>
@@ -102,12 +114,14 @@
                       class="qty-input"
                       [ngModel]="renglon.aDespachar"
                       (ngModelChange)="asignar(renglon, $event)"
-                      [disabled]="renglon.bloqueado && !renglon.aDespachar"
+                      [disabled]="renglon.bloqueado && !renglon.aDespachar && !fueraDeFefo()"
                       [attr.aria-label]="'Cajas a despachar del lote ' + renglon.numeroLote + ' en ' + renglon.ubicacion"
                     />
                   </td>
                   <td>
-                    @if (renglon.bloqueado) {
+                    @if (renglon.bloqueado && fueraDeFefo()) {
+                      <span class="tag bloqueado" title="Fuera del orden FEFO, confirmado por el despachador">Fuera de FEFO</span>
+                    } @else if (renglon.bloqueado) {
                       <span class="tag bloqueado" title="Hay un lote con caducidad más próxima con existencia">Bloqueado</span>
                     } @else if (renglon.fefo) {
                       <span class="tag fefo">FEFO</span>
