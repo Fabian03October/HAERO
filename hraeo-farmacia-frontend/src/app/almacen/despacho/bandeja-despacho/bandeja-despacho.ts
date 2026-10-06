@@ -52,6 +52,9 @@ export class BandejaDespacho {
   private readonly sugeridas = signal<Record<number, number>>({});
   // Cajas que el despachador va a tomar de cada existencia, por existenciaId.
   readonly asignaciones = signal<Record<number, number>>({});
+  // Ajuste HU15: el despachador puede elegir salirse del orden FEFO, pero
+  // solo si lo confirma explícitamente. Se reinicia con cada solicitud.
+  readonly fueraDeFefo = signal(false);
 
   readonly renglones = computed<RenglonDespacho[]>(() => {
     const filas = this.existencias();
@@ -88,7 +91,7 @@ export class BandejaDespacho {
     for (const fila of renglones) {
       if (!Number.isInteger(fila.aDespachar) || fila.aDespachar < 0) return 'Las cantidades deben ser números enteros mayores a cero.';
       if (fila.aDespachar > fila.cajas) return `Existencia insuficiente: el lote ${fila.numeroLote} en ${fila.ubicacion} solo tiene ${fila.cajas} cajas.`;
-      if (fila.bloqueado) {
+      if (fila.bloqueado && !this.fueraDeFefo()) {
         const anterior = this.renglones().find((otra) => otra.caducidad < fila.caducidad && otra.aDespachar < otra.cajas)!;
         return `Existe un lote con caducidad más próxima: ${anterior.numeroLote} (${formatoCaducidad(anterior.caducidad)}) en ${anterior.ubicacion}. Despáchalo primero.`;
       }
@@ -135,6 +138,7 @@ export class BandejaDespacho {
     this.porSurtir.set(solicitud.cantidadSolicitada - solicitud.cantidadAtendida);
     this.existencias.set([]);
     this.asignaciones.set({});
+    this.fueraDeFefo.set(false);
     this.cargandoDetalle.set(true);
 
     forkJoin({
@@ -172,6 +176,19 @@ export class BandejaDespacho {
     this.asignaciones.update((actual) => ({ ...actual, [renglon.existenciaId]: cajas }));
   }
 
+  /** HU15 (ajuste): salirse del orden FEFO requiere confirmación explícita del despachador. */
+  alternarFueraDeFefo(marcado: boolean): void {
+    if (!marcado) {
+      this.fueraDeFefo.set(false);
+      return;
+    }
+    const confirmado = confirm(
+      'Confirma que quieres elegir medicamento de otro lote o ubicación que no es el más próximo a caducar. ' +
+        'El sistema seguirá bloqueando cualquier lote ya vencido.',
+    );
+    this.fueraDeFefo.set(confirmado);
+  }
+
   confirmar(): void {
     const solicitud = this.solicitud();
     if (!solicitud || this.errorPartidas() || this.enviando()) return;
@@ -183,7 +200,7 @@ export class BandejaDespacho {
     const nombre = solicitud.nombreGenerico || solicitud.clave;
 
     this.enviando.set(true);
-    this.api.despachar(solicitud.id, { partidas, parcial: this.esParcial() }).subscribe({
+    this.api.despachar(solicitud.id, { partidas, parcial: this.esParcial(), confirmarFueraDeFefo: this.fueraDeFefo() }).subscribe({
       next: (respuesta) => {
         this.enviando.set(false);
         this.historial.recargarSalidas();
