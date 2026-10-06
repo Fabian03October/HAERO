@@ -11,6 +11,13 @@
   max-width: 380px;
 }
 
+.logo {
+  display: block;
+  width: 130px;
+  height: auto;
+  margin: 0 0 18px;
+}
+
 .ccontrasena-card h1 {
   margin: 0 0 4px;
   font-size: 22px;

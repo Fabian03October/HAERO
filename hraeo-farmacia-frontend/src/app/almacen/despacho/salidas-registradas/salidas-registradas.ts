@@ -1,11 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { SolicitudesAlmacen, TIPO_SALIDA_TEXTO, fechaLocal, formatoCaducidad } from '../../solicitudes-almacen';
+import { MovimientoSalida, SolicitudesAlmacen, TIPO_SALIDA_TEXTO, fechaLocal, formatoCaducidad } from '../../solicitudes-almacen';
+import { Session } from '../../../auth/session';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 // Despacho · Salidas registradas (HU14 CA5). Cada despacho deja un movimiento
 // con fecha, usuario, lote, cantidad y ubicación de origen. Se consulta por día:
-// abre en el día de hoy y se puede elegir cualquier fecha anterior.
+// abre en el día de hoy y se puede elegir cualquier fecha anterior. Las salidas
+// marcadas se descargan como comprobante en PDF (quién pidió, quién despachó y cuándo).
 @Component({
   selector: 'app-salidas-registradas',
   imports: [FormsModule, DatePipe],
@@ -14,6 +17,8 @@ import { SolicitudesAlmacen, TIPO_SALIDA_TEXTO, fechaLocal, formatoCaducidad } f
 })
 export class SalidasRegistradas {
   protected readonly solicitudes = inject(SolicitudesAlmacen);
+  private readonly session = inject(Session);
+  private readonly notificaciones = inject(Notificaciones);
   protected readonly formatoCaducidad = formatoCaducidad;
   protected readonly tipoTexto = TIPO_SALIDA_TEXTO;
 
@@ -37,6 +42,46 @@ export class SalidasRegistradas {
     return salidas.filter((salida) => `${salida.folio} ${salida.clave} ${salida.lote} ${salida.ubicacion} ${salida.usuario} ${salida.institucion ?? ''}`.toLowerCase().includes(texto));
   });
   readonly totalCajas = computed(() => this.salidas().reduce((total, salida) => total + salida.cajas, 0));
+
+  // Salidas marcadas para el PDF, por id de movimiento. Se conservan al cambiar de día.
+  readonly elegidas = signal<ReadonlySet<number>>(new Set());
+  readonly todasElegidas = computed(() => this.salidas().length > 0 && this.salidas().every((salida) => this.elegidas().has(salida.id)));
+  readonly generando = signal(false);
+
+  alternar(salida: MovimientoSalida): void {
+    const elegidas = new Set(this.elegidas());
+    if (!elegidas.delete(salida.id)) elegidas.add(salida.id);
+    this.elegidas.set(elegidas);
+  }
+
+  alternarTodas(marcar: boolean): void {
+    const elegidas = new Set(this.elegidas());
+    for (const salida of this.salidas()) {
+      if (marcar) elegidas.add(salida.id);
+      else elegidas.delete(salida.id);
+    }
+    this.elegidas.set(elegidas);
+  }
+
+  quitarMarcas(): void {
+    this.elegidas.set(new Set());
+  }
+
+  async descargarPdf(): Promise<void> {
+    const historial = this.solicitudes.salidas();
+    const elegidas = historial.filter((salida) => this.elegidas().has(salida.id));
+    if (!elegidas.length || this.generando()) return;
+    this.generando.set(true);
+    try {
+      // La librería de PDF se carga solo cuando se usa.
+      const { cargarLogo, descargarComprobante } = await import('./comprobante-salidas');
+      descargarComprobante(elegidas, historial, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+    } catch {
+      this.notificaciones.error('No se pudo generar el PDF. Intenta de nuevo.');
+    } finally {
+      this.generando.set(false);
+    }
+  }
 
   cambiarDia(dias: number): void {
     const [anio, mes, dia] = this.dia().split('-').map(Number);

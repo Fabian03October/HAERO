@@ -48,6 +48,9 @@
                 </li>
               }
             </ul>
+            @if (alertasRestantes()) {
+              <a class="more-link" routerLink="/supervision/alertas">Ver {{ alertasRestantes() === 1 ? 'la alerta restante' : 'las ' + alertasRestantes() + ' alertas restantes' }} →</a>
+            }
           } @else {
             <p class="empty-box">No hay claves en riesgo. Todas están entre su stock mínimo ({{ mesesMinimo }} meses) y máximo ({{ mesesMaximo }} meses) o aún no tienen consumo.</p>
           }

@@ -3,6 +3,7 @@ package com.example.backend.almacen.service;
 import com.example.backend.almacen.dto.MovimientoResponse;
 import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Movimiento;
+import com.example.backend.almacen.entity.Solicitud;
 import com.example.backend.almacen.repository.MovimientoRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,12 +40,13 @@ public class ServicioMovimientos {
 
     MovimientoResponse aRespuesta(Movimiento m) {
         Lote lote = m.getExistencia().getLote();
+        Solicitud solicitud = m.getSolicitud();
         return new MovimientoResponse(
                 m.getId(),
                 m.getTipo(),
                 m.getFecha(),
                 m.getUsuario().getNombreCompleto(),
-                m.getSolicitud() != null ? m.getSolicitud().getId() : null,
+                solicitud != null ? solicitud.getId() : null,
                 lote.getMedicamento().getClave(),
                 lote.getMedicamento().getNombreGenerico(),
                 lote.getNumeroLote(),
@@ -52,7 +54,10 @@ public class ServicioMovimientos {
                 m.getExistencia().getUbicacion(),
                 m.getCantidadCajas(),
                 m.getSentido(),
-                m.getInstitucionExterna()
+                m.getInstitucionExterna(),
+                solicitud != null ? solicitud.getUsuario().getNombreCompleto() : null,
+                solicitud != null ? solicitud.getFecha() : null,
+                solicitud != null ? solicitud.getCantidadSolicitada() : null
         );
     }
 }

@@ -22,4 +22,8 @@ public class MovimientoResponse {
     private Integer cajas;
     private String sentido;
     private String institucion;
+    // Solo salidas a Farmacia: quien de Farmacia hizo la solicitud, cuando y cuanto pidio.
+    private String solicitadoPor;
+    private LocalDateTime fechaSolicitud;
+    private Integer cantidadSolicitada;
 }

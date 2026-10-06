@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { SolicitudesAlmacen } from '../../solicitudes-almacen';
 import { AlmacenApi, CrearMedicamentoRequest, mensajeDeError } from '../../almacen-api';
 import { RenglonCatalogo, descargarPlantilla, interpretarFilas, leerFilas, revalidar } from './carga-catalogo';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 // Altas simultáneas al guardar la carga masiva (no saturar el servidor).
 const ALTAS_EN_PARALELO = 4;
@@ -22,6 +23,7 @@ type CampoEditable = 'clave' | 'nombreGenerico' | 'presentacion' | 'piezasPorCaj
 })
 export class CatalogoMedicamentos {
   protected readonly datos = inject(SolicitudesAlmacen);
+  private readonly notificaciones = inject(Notificaciones);
   private readonly api = inject(AlmacenApi);
   protected readonly descargarPlantilla = descargarPlantilla;
 
@@ -70,7 +72,7 @@ export class CatalogoMedicamentos {
     this.api.crearMedicamento(datos).subscribe({
       next: (medicamento) => {
         this.guardando.set(false);
-        this.mostrarMensaje(`Medicamento ${medicamento.clave} · ${medicamento.nombreGenerico} agregado al catálogo.`, 'success');
+        this.mostrarMensaje(`Medicamento ${medicamento.clave} · ${medicamento.nombreGenerico} agregado al catálogo.`, 'success', 'Medicamento agregado');
         this.nuevo = this.vacio();
         this.datos.recargar();
       },
@@ -186,7 +188,7 @@ export class CatalogoMedicamentos {
       this.descartar();
       this.mostrarMensaje(
         `Catálogo actualizado: ${guardados} medicamento(s) dado(s) de alta.` + (omitidas ? ` ${omitidas} clave(s) ya existían y se omitieron.` : ''),
-        'success',
+        'success', 'Catálogo actualizado'
       );
     } else {
       this.mostrarMensaje(`Se dieron de alta ${guardados} medicamento(s); ${fallidos} no se pudieron guardar. Corrígelos en la tabla y vuelve a guardar.`, 'error');
@@ -208,7 +210,13 @@ export class CatalogoMedicamentos {
     this.mostrarMensaje(`Revisa la vista previa: ${partes.join(', ')}.`, this.conError() ? 'error' : 'info');
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error' | 'info'): void {
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error' | 'info', titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje.set('');
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje.set(texto);
     this.tipoMensaje.set(tipo);
   }

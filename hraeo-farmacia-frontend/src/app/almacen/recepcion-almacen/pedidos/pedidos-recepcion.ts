@@ -1,8 +1,12 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { PedidosAlmacen } from '../../pedidos-almacen';
+import { DatePipe } from '@angular/common';
+import { Pedido, PedidosAlmacen } from '../../pedidos-almacen';
 import { SolicitudesAlmacen } from '../../solicitudes-almacen';
 import { mensajeDeError } from '../../almacen-api';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
+
+type FiltroPedidos = 'TODOS' | 'POR_RECIBIR' | 'RECIBIDOS' | 'CANCELADOS';
 
 interface PartidaCaptura {
   clave: string;
@@ -14,16 +18,70 @@ interface PartidaCaptura {
 // clave exista en el catálogo de medicamentos.
 @Component({
   selector: 'app-pedidos-recepcion',
-  imports: [FormsModule],
+  imports: [FormsModule, DatePipe],
+  host: { '(document:keydown.escape)': 'cerrarDetalle()' },
   templateUrl: './pedidos-recepcion.html',
   styleUrls: ['../recepcion-comun.css', './pedidos-recepcion.css'],
 })
 export class PedidosRecepcion {
   protected readonly pedidos = inject(PedidosAlmacen);
+  private readonly notificaciones = inject(Notificaciones);
   protected readonly catalogo = inject(SolicitudesAlmacen);
 
   mensaje = '';
   tipoMensaje: 'success' | 'error' = 'success';
+
+  // Lista de pedidos: los más recientes primero (así llegan del servicio),
+  // filtrables por estado y con búsqueda por número, proveedor, clave o medicamento.
+  readonly filtroEstado = signal<FiltroPedidos>('TODOS');
+  readonly busqueda = signal('');
+
+  // Pedido abierto en el detalle (botón "Ver").
+  readonly detalleId = signal<number | null>(null);
+  readonly detalle = computed(() => this.pedidos.pedidos().find((pedido) => pedido.id === this.detalleId()) ?? null);
+
+  verDetalle(pedido: Pedido): void {
+    this.detalleId.set(pedido.id);
+  }
+
+  cerrarDetalle(): void {
+    this.detalleId.set(null);
+  }
+
+  avance(pedido: Pedido): number {
+    return pedido.cajasEsperadas ? Math.min(100, Math.round((pedido.cajasRecibidas / pedido.cajasEsperadas) * 100)) : 0;
+  }
+
+  readonly filtros = computed(() => {
+    const todos = this.pedidos.pedidos();
+    const contar = (filtro: FiltroPedidos) => todos.filter((pedido) => this.cumpleEstado(pedido, filtro)).length;
+    return [
+      { valor: 'TODOS' as const, etiqueta: 'Todos', total: todos.length },
+      { valor: 'POR_RECIBIR' as const, etiqueta: 'Por recibir', total: contar('POR_RECIBIR') },
+      { valor: 'RECIBIDOS' as const, etiqueta: 'Recibidos', total: contar('RECIBIDOS') },
+      { valor: 'CANCELADOS' as const, etiqueta: 'Cancelados', total: contar('CANCELADOS') },
+    ];
+  });
+
+  readonly pedidosFiltrados = computed(() => {
+    const texto = this.busqueda().trim().toLowerCase();
+    return this.pedidos.pedidos().filter((pedido) => {
+      if (!this.cumpleEstado(pedido, this.filtroEstado())) return false;
+      if (!texto) return true;
+      const partidas = pedido.partidas.map((partida) => `${partida.clave} ${partida.nombreGenerico}`).join(' ');
+      // La fecha se busca como se ve en la tabla (06/10/2026) y como AAAA-MM-DD.
+      const [anio, mes, dia] = pedido.fecha.slice(0, 10).split('-');
+      return `${pedido.numero} ${dia}/${mes}/${anio} ${pedido.fecha} ${pedido.proveedor} ${partidas}`.toLowerCase().includes(texto);
+    });
+  });
+
+  private cumpleEstado(pedido: Pedido, filtro: FiltroPedidos): boolean {
+    const estado = this.pedidos.estadoTexto(pedido);
+    if (filtro === 'POR_RECIBIR') return estado === 'Pendiente' || estado === 'Parcial';
+    if (filtro === 'RECIBIDOS') return estado === 'Recibido';
+    if (filtro === 'CANCELADOS') return estado === 'Cancelado';
+    return true;
+  }
   readonly guardando = signal(false);
 
   numero = '';
@@ -70,7 +128,7 @@ export class PedidosRecepcion {
     this.pedidos.registrar({ numeroPedido: numero, fecha: this.fecha, proveedor: this.proveedor.trim(), partidas }).subscribe({
       next: () => {
         this.guardando.set(false);
-        this.mostrarMensaje(`Pedido ${numero} registrado y disponible para recepción.`, 'success');
+        this.mostrarMensaje(`Pedido ${numero} registrado y disponible para recepción.`, 'success', 'Pedido registrado');
         this.numero = '';
         this.proveedor = '';
         this.partidas = [this.partidaVacia()];
@@ -82,7 +140,13 @@ export class PedidosRecepcion {
     });
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error'): void {
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error', titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje = '';
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje = texto;
     this.tipoMensaje = tipo;
   }

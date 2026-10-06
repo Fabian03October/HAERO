@@ -70,12 +70,34 @@
       <h2>CPM de todas las claves</h2>
     </div>
     <div class="counters">
-      <span>{{ rotacion.rotacion().length }} claves</span>
+      <span>{{ listado().length }} de {{ rotacion.rotacion().length }} claves</span>
     </div>
   </div>
 
-  <div class="filters single">
-    <input [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar por clave o medicamento" />
+  <div class="filter-tabs" role="group" aria-label="Filtrar claves">
+    @for (opcion of filtros(); track opcion.valor) {
+      <button
+        type="button"
+        [class.active]="tipoFiltro() === opcion.valor"
+        [attr.aria-pressed]="tipoFiltro() === opcion.valor"
+        (click)="tipoFiltro.set(opcion.valor)"
+      >
+        {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="filters cpm-filters">
+    <input [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar por clave o medicamento" aria-label="Buscar clave" />
+    <label class="orden">
+      Ordenar por
+      <select [ngModel]="orden()" (ngModelChange)="orden.set($event)">
+        <option value="clave">Clave</option>
+        <option value="cpm">Mayor CPM</option>
+        <option value="abasto">Menos meses de abasto</option>
+        <option value="mes">Más salidas este mes</option>
+      </select>
+    </label>
   </div>
 
   <div class="table-wrap">
@@ -95,16 +117,29 @@
           <tr class="clickable" [class.selected]="fila.clave === claveSeleccionada()" (click)="claveSeleccionada.set(fila.clave)">
             <td><strong>{{ fila.clave }}</strong><small>{{ fila.medicamento || 'Sin nombre en catálogo' }}</small></td>
             <td class="number"><strong>{{ fila.cpm }}</strong>@if (fila.origenCpm === 'HOJA') {<small>de la hoja</small>}</td>
-            <td class="number">{{ fila.consumoMesActual }}</td>
+            <td class="number">
+              {{ fila.consumoMesActual }}
+              @if (fila.cpm && fila.consumoMesActual > fila.cpm) {
+                <small class="trend up">▲ arriba del CPM</small>
+              } @else if (fila.cpm && !fila.consumoMesActual) {
+                <small class="trend none">sin salidas</small>
+              }
+            </td>
             <td class="number">{{ fila.existencia }}</td>
-            <td class="number">{{ fila.mesesAbasto ?? '—' }}</td>
+            <td class="number">
+              @if (fila.mesesAbasto === null) {
+                —
+              } @else {
+                <span class="abasto" [class.bajo]="fila.mesesAbasto < mesesMinimo" [class.alto]="fila.mesesAbasto > mesesMaximo">{{ fila.mesesAbasto }}</span>
+              }
+            </td>
             <td class="number">{{ fila.cajasExcluidas }}</td>
           </tr>
         } @empty {
-          <tr><td colspan="6" class="empty">No hay claves que coincidan con la búsqueda.</td></tr>
+          <tr><td colspan="6" class="empty">Ninguna clave coincide con el filtro o la búsqueda.</td></tr>
         }
       </tbody>
     </table>
   </div>
-  <p class="card-help">CPM = cajas despachadas a Farmacia en los últimos 6 meses cerrados ÷ 6. Se recalcula solo con cada salida registrada.</p>
+  <p class="card-help">CPM = cajas despachadas a Farmacia en los últimos 6 meses cerrados ÷ 6. Se recalcula solo con cada salida registrada. Meses de abasto = existencia ÷ CPM: en rojo si es menos de {{ mesesMinimo }}, en ámbar si pasa de {{ mesesMaximo }}.</p>
 </section>

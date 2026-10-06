@@ -58,6 +58,22 @@ class ServicioMovimientosTest {
         assertThat(respuesta.getCajas()).isEqualTo(30);
         assertThat(respuesta.getSolicitudId()).isEqualTo(7L);
         assertThat(respuesta.getUsuario()).isEqualTo("Usuario Almacén");
+        assertThat(respuesta.getSolicitadoPor()).isEqualTo("Usuario Farmacia");
+        assertThat(respuesta.getFechaSolicitud()).isEqualTo(LocalDateTime.of(2026, 10, 5, 9, 12));
+        assertThat(respuesta.getCantidadSolicitada()).isEqualTo(50);
+    }
+
+    @Test
+    void listar_movimientoSinSolicitud_dejaVaciosLosDatosDeFarmacia() {
+        when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any()))
+                .thenReturn(List.of(movimiento("ENTRADA", 100, null)));
+
+        MovimientoResponse respuesta = servicioMovimientos.listar(null, null, null).get(0);
+
+        assertThat(respuesta.getSolicitudId()).isNull();
+        assertThat(respuesta.getSolicitadoPor()).isNull();
+        assertThat(respuesta.getFechaSolicitud()).isNull();
+        assertThat(respuesta.getCantidadSolicitada()).isNull();
     }
 
     @Test
@@ -104,6 +120,11 @@ class ServicioMovimientosTest {
         if (solicitudId != null) {
             Solicitud solicitud = new Solicitud();
             solicitud.setId(solicitudId);
+            Usuario farmacia = new Usuario();
+            farmacia.setNombreCompleto("Usuario Farmacia");
+            solicitud.setUsuario(farmacia);
+            solicitud.setFecha(LocalDateTime.of(2026, 10, 5, 9, 12));
+            solicitud.setCantidadSolicitada(50);
             movimiento.setSolicitud(solicitud);
         }
         return movimiento;

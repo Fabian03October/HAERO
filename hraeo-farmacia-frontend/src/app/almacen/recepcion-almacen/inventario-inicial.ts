@@ -6,6 +6,7 @@ import { InventarioAlmacen, LoteInventario } from '../inventario-almacen';
 import { SolicitudesAlmacen, formatoCaducidad } from '../solicitudes-almacen';
 import { AlmacenApi, CargaInicialResponse, mensajeDeError } from '../almacen-api';
 import { RotacionAlmacen } from '../rotacion-almacen';
+import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 interface RenglonInventario extends LoteInventario {
   // Identificador del renglón en la vista previa (no cambia al editarlo).
@@ -69,6 +70,7 @@ const ENCABEZADOS_EXCEL = ['CLAVE', 'DESCRIPCION', 'LOTE', 'CADUCIDAD', 'CANTIDA
 })
 export class InventarioInicial {
   protected readonly inventario = inject(InventarioAlmacen);
+  private readonly notificaciones = inject(Notificaciones);
   protected readonly rotacion = inject(RotacionAlmacen);
   private readonly catalogo = inject(SolicitudesAlmacen);
   private readonly api = inject(AlmacenApi);
@@ -321,7 +323,7 @@ export class InventarioInicial {
     this.rotacion.recargar();
     this.mostrarMensaje(
       `Datos guardados: ${respuesta.lotesCreados} lote(s) registrados en el inventario.` + (omitidos ? ` Se omitieron ${omitidos} renglón(es) con error.` : ''),
-      'success',
+      'success', 'Inventario guardado'
     );
   }
 
@@ -385,7 +387,13 @@ export class InventarioInicial {
     return String(valor ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
   }
 
-  private mostrarMensaje(texto: string, tipo: TipoMensaje): void {
+  private mostrarMensaje(texto: string, tipo: TipoMensaje, titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje.set('');
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje.set(texto);
     this.tipoMensaje.set(tipo);
   }

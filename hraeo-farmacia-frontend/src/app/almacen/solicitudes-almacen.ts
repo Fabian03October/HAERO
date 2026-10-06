@@ -16,17 +16,24 @@ export const TIPO_SALIDA_TEXTO: Record<TipoSalida, string> = {
 
 // Movimiento de salida de Almacén (HU14 CA5).
 export interface MovimientoSalida {
+  id: number;
   tipo: TipoSalida;
   fecha: string;
   usuario: string;
   folio: string;
+  solicitudId: number | null;
   clave: string;
+  nombreGenerico: string;
   lote: string;
   caducidad: string;
   ubicacion: string;
   cajas: number;
   // Solo préstamos y transferencias (HU20 CA4).
   institucion?: string;
+  // Solo salidas a Farmacia: quién de Farmacia la pidió, cuándo y cuánto.
+  solicitadoPor?: string;
+  fechaSolicitud?: string;
+  cantidadSolicitada?: number;
 }
 
 // Datos de Almacén compartidos por varias pantallas, todos leídos del backend:
@@ -125,15 +132,21 @@ function aSalida(movimiento: Movimiento): MovimientoSalida | null {
   else if (movimiento.sentido === 'SALIDA' && movimiento.tipo in FOLIO_POR_TIPO) tipo = movimiento.tipo as TipoSalida;
   else return null;
   return {
+    id: movimiento.id,
     tipo,
     fecha: movimiento.fecha,
     usuario: movimiento.usuario,
     folio: movimiento.solicitudId ? folioSolicitud(movimiento.solicitudId) : FOLIO_POR_TIPO[movimiento.tipo] ?? '—',
+    solicitudId: movimiento.solicitudId,
     clave: movimiento.clave,
+    nombreGenerico: movimiento.nombreGenerico,
     lote: movimiento.numeroLote,
     caducidad: movimiento.caducidad,
     ubicacion: movimiento.ubicacion,
     cajas: movimiento.cajas,
     institucion: movimiento.institucion ?? undefined,
+    solicitadoPor: movimiento.solicitadoPor ?? undefined,
+    fechaSolicitud: movimiento.fechaSolicitud ?? undefined,
+    cantidadSolicitada: movimiento.cantidadSolicitada ?? undefined,
   };
 }

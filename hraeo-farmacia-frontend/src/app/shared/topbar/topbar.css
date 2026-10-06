@@ -12,10 +12,26 @@
 }
 
 .brand {
-  display: grid;
+  display: flex;
   flex-grow: 1;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
   line-height: 1.2;
+}
+
+.brand-logo {
+  display: block;
+  height: 38px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: grid;
+  min-width: 0;
+  padding-left: 14px;
+  border-left: 1px solid rgb(255 255 255 / 28%);
 }
 
 .brand strong {
@@ -54,9 +70,10 @@
   display: none;
 }
 
-/* Botón ☰: solo aparece cuando el menú lateral está oculto (pantallas angostas). */
+/* Botón ☰: en computadora oculta o muestra el menú lateral; en celular lo abre encima. */
 .menu-button {
-  display: none;
+  display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
@@ -69,6 +86,10 @@
   cursor: pointer;
 }
 
+.menu-button:hover {
+  background: rgb(255 255 255 / 18%);
+}
+
 .menu-button span {
   display: block;
   height: 2px;
@@ -79,11 +100,12 @@
 /* Tabletas y celulares: el menú se abre con ☰ y Políticas / Mi contraseña pasan al menú. */
 @media (max-width: 900px) {
   .topbar { gap: 10px; padding: 0 12px; }
-  .menu-button { display: flex; }
   .secondary-link { display: none; }
 }
 
 @media (max-width: 640px) {
+  .brand-logo { height: 32px; }
+  .brand-text { display: none; }
   .brand strong { font-size: 15px; }
   .brand span,
   .user,

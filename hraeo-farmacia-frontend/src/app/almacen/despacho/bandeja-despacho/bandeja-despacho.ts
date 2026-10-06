@@ -12,6 +12,7 @@ import {
 } from '../../almacen-api';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../../solicitudes-almacen';
 import { RotacionAlmacen } from '../../rotacion-almacen';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 interface RenglonDespacho extends Existencia {
   aDespachar: number;
@@ -32,6 +33,7 @@ export class BandejaDespacho {
   // Salidas registradas y CPM se vuelven a leer después de cada despacho.
   private readonly historial = inject(SolicitudesAlmacen);
   private readonly rotacion = inject(RotacionAlmacen);
+  private readonly notificaciones = inject(Notificaciones);
   protected readonly formatoCaducidad = formatoCaducidad;
   protected readonly estadoTexto = ESTATUS_SOLICITUD_TEXTO;
   protected readonly folio = folioSolicitud;
@@ -78,6 +80,17 @@ export class BandejaDespacho {
       ubicaciones: mismos.map((fila) => fila.ubicacion).join(', '),
       cajas: mismos.reduce((total, fila) => total + fila.cajas, 0),
     };
+  });
+
+  // Salirse de FEFO solo tiene sentido si hay existencias con caducidad posterior a la
+  // sugerida; si todas caducan igual, nada se bloquea y se explica por qué no hay opción.
+  readonly sinOtroLote = computed(() => {
+    const filas = this.existencias();
+    if (!filas.length || filas.some((fila) => fila.caducidad !== filas[0].caducidad)) return '';
+    if (filas.length === 1) {
+      return `No hay otro lote para elegir: esta clave solo tiene el lote ${filas[0].numeroLote} en ${filas[0].ubicacion}.`;
+    }
+    return `No hay un lote con caducidad posterior para elegir: todas las existencias de esta clave caducan el ${formatoCaducidad(filas[0].caducidad)}, así que puedes tomar de cualquiera sin salirte del orden FEFO.`;
   });
 
   readonly disponibleTotal = computed(() => this.existencias().reduce((total, fila) => total + fila.cajas, 0));
@@ -177,16 +190,21 @@ export class BandejaDespacho {
   }
 
   /** HU15 (ajuste): salirse del orden FEFO requiere confirmación explícita del despachador. */
-  alternarFueraDeFefo(marcado: boolean): void {
+  async alternarFueraDeFefo(marcado: boolean, casilla: HTMLInputElement): Promise<void> {
     if (!marcado) {
       this.fueraDeFefo.set(false);
       return;
     }
-    const confirmado = confirm(
-      'Confirma que quieres elegir medicamento de otro lote o ubicación que no es el más próximo a caducar. ' +
-        'El sistema seguirá bloqueando cualquier lote ya vencido.',
-    );
+    const confirmado = await this.notificaciones.confirmar({
+      titulo: '¿Despachar fuera del orden FEFO?',
+      mensaje:
+        'Vas a poder elegir medicamento de otro lote o ubicación que no es el más próximo a caducar. ' +
+        'Los lotes ya vencidos seguirán bloqueados.',
+      textoAceptar: 'Sí, elegir otro lote',
+    });
     this.fueraDeFefo.set(confirmado);
+    // Si cancela, el signal no cambia (ya era false) y ngModel no desmarca la casilla solo.
+    casilla.checked = confirmado;
   }
 
   confirmar(): void {
@@ -206,11 +224,11 @@ export class BandejaDespacho {
         this.historial.recargarSalidas();
         this.rotacion.recargar();
         if (respuesta.estatus === 'ATENDIDA') {
-          this.mostrarMensaje(`Solicitud ${folioSolicitud(solicitud.id)} atendida: se despacharon ${cajas} cajas de ${nombre}.`, 'success');
+          this.mostrarMensaje(`Solicitud ${folioSolicitud(solicitud.id)} atendida: se despacharon ${cajas} cajas de ${nombre}.`, 'success', 'Solicitud atendida');
           this.recargarBandeja(true);
         } else {
           const faltan = respuesta.cantidadSolicitada - respuesta.cantidadAtendida;
-          this.mostrarMensaje(`Entrega parcial de ${folioSolicitud(solicitud.id)}: se despacharon ${cajas} cajas; faltan ${faltan}.`, 'success');
+          this.mostrarMensaje(`Entrega parcial de ${folioSolicitud(solicitud.id)}: se despacharon ${cajas} cajas; faltan ${faltan}.`, 'success', 'Entrega parcial registrada');
           this.recargarBandeja();
         }
       },
@@ -230,7 +248,13 @@ export class BandejaDespacho {
     this.porSurtir.set(0);
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error' | 'info'): void {
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error' | 'info', titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje.set('');
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje.set(texto);
     this.tipoMensaje.set(tipo);
   }

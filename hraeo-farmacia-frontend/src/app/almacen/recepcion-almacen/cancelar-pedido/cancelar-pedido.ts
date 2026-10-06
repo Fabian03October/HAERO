@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PedidosAlmacen } from '../../pedidos-almacen';
 import { mensajeDeError } from '../../almacen-api';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 // Recepción · Cancelar pedido (HU11). Un pedido cancelado ya no puede recibirse;
 // el backend rechaza cualquier entrada contra él.
@@ -13,6 +14,7 @@ import { mensajeDeError } from '../../almacen-api';
 })
 export class CancelarPedido {
   protected readonly pedidos = inject(PedidosAlmacen);
+  private readonly notificaciones = inject(Notificaciones);
 
   mensaje = '';
   tipoMensaje: 'success' | 'error' = 'success';
@@ -37,7 +39,7 @@ export class CancelarPedido {
     this.pedidos.cancelar(pedido.id, motivo).subscribe({
       next: () => {
         this.guardando.set(false);
-        this.mostrarMensaje(`Pedido ${pedido.numero} cancelado (${motivo}). Ya no puede seleccionarse para recepción.`, 'success');
+        this.mostrarMensaje(`Pedido ${pedido.numero} cancelado (${motivo}). Ya no puede seleccionarse para recepción.`, 'success', 'Pedido cancelado');
         this.pedidoACancelar = '';
         this.motivoCancelacion = '';
       },
@@ -48,7 +50,13 @@ export class CancelarPedido {
     });
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error'): void {
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error', titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje = '';
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje = texto;
     this.tipoMensaje = tipo;
   }

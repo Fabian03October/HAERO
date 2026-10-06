@@ -2,7 +2,28 @@
 :host {
   display: block;
   flex-shrink: 0;
+  width: 232px;
+  /* clip (no hidden) para no romper el position: sticky del menú. */
+  overflow: clip;
   background: #4a0d26;
+  transition: width 0.22s ease;
+}
+
+/* Computadora: con ☰ el menú se desliza a la izquierda y la página usa todo el ancho. */
+:host(.oculto) {
+  width: 0;
+}
+
+/* Ya escondido, que tampoco se alcance con el tabulador. */
+:host(.oculto) .sidebar {
+  visibility: hidden;
+  transition: visibility 0s 0.22s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    transition: none;
+  }
 }
 
 /* El menú se queda fijo al hacer scroll para que no "desaparezca" en páginas largas. */
@@ -170,14 +191,22 @@
 
 /* Tabletas y celulares: el menú se esconde a la izquierda y se abre con ☰. */
 @media (max-width: 900px) {
-  :host {
+  :host,
+  :host(.oculto) {
     position: fixed;
     top: 0;
     bottom: 0;
     left: 0;
     z-index: 50;
+    width: auto;
+    overflow: visible;
     transform: translateX(-100%);
     transition: transform 0.22s ease;
+  }
+
+  /* La preferencia de computadora (menú oculto) no aplica aquí. */
+  :host(.oculto) .sidebar {
+    visibility: visible;
   }
 
   /* La sombra solo cuando está abierto; cerrado no debe asomarse nada. */

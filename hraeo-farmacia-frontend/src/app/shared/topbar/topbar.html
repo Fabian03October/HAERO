@@ -2,15 +2,19 @@
   <button
     class="menu-button"
     type="button"
-    [attr.aria-expanded]="menu.abierto()"
-    aria-label="Abrir menú"
+    [attr.aria-expanded]="menu.visible()"
+    [attr.aria-label]="menu.visible() ? 'Ocultar menú' : 'Mostrar menú'"
+    [attr.title]="menu.visible() ? 'Ocultar menú' : 'Mostrar menú'"
     (click)="menu.alternar()"
   >
     <span></span><span></span><span></span>
   </button>
   <div class="brand">
-    <strong>Farmacia HRAEO</strong>
-    <span>Servicio de Farmacia Hospitalaria</span>
+    <img class="brand-logo" src="logo-hraeo-blanco.png" alt="HRAEO · Hospital Regional de Alta Especialidad de Oaxaca" />
+    <div class="brand-text">
+      <strong>Servicio de Farmacia</strong>
+      <span>Control de medicamentos</span>
+    </div>
   </div>
   <div class="user">{{ nombreCompleto() }} · {{ rol() }}</div>
   <a class="tlink secondary-link" routerLink="/politicas">Políticas</a>

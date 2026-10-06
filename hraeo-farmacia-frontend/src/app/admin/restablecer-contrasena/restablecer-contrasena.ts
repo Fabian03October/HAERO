@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { UsuariosApi } from '../usuarios-api';
+import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 @Component({
   selector: 'app-restablecer-contrasena',
@@ -12,6 +13,7 @@ export class RestablecerContrasena {
   private readonly usuariosApi = inject(UsuariosApi);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly notificaciones = inject(Notificaciones);
 
   private readonly id = Number(this.route.snapshot.paramMap.get('id'));
 
@@ -43,7 +45,10 @@ export class RestablecerContrasena {
     this.guardando.set(true);
 
     this.usuariosApi.restablecerContrasena(this.id, contrasenaTemporal).subscribe({
-      next: () => this.router.navigateByUrl('/admin/usuarios'),
+      next: () => {
+        this.notificaciones.exito('Contraseña restablecida', `${this.nombreUsuario()} deberá cambiarla al entrar con la contraseña temporal.`);
+        this.router.navigateByUrl('/admin/usuarios');
+      },
       error: (err) => {
         this.guardando.set(false);
         this.error.set(err?.error?.mensaje ?? 'No se pudo restablecer la contraseña.');

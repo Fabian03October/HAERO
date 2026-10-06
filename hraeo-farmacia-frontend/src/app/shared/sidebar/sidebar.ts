@@ -19,7 +19,7 @@ export interface ItemMenu {
   imports: [RouterLink, RouterLinkActive],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
-  host: { '[class.abierto]': 'menu.abierto()' },
+  host: { '[class.abierto]': 'menu.abierto()', '[class.oculto]': 'menu.oculto()' },
 })
 export class Sidebar {
   readonly items = input.required<ItemMenu[]>();

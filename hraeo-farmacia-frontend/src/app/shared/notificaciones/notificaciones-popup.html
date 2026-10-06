@@ -1,0 +1,62 @@
+@if (notificaciones.aviso(); as aviso) {
+  <div class="fondo" (click)="notificaciones.cerrarAviso()">
+    <div
+      class="popup"
+      [class.error]="aviso.tipo === 'error'"
+      [attr.role]="aviso.tipo === 'error' ? 'alertdialog' : 'status'"
+      aria-live="polite"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="icono" aria-hidden="true">
+        @if (aviso.tipo === 'exito') {
+          <svg viewBox="0 0 52 52">
+            <circle class="circulo" cx="26" cy="26" r="24" />
+            <path class="trazo" d="M15 27 l7 7 l15 -16" />
+          </svg>
+        } @else {
+          <svg viewBox="0 0 52 52">
+            <circle class="circulo" cx="26" cy="26" r="24" />
+            <path class="trazo" d="M18 18 l16 16 M34 18 l-16 16" />
+          </svg>
+        }
+      </div>
+      <h2>{{ aviso.titulo }}</h2>
+      @if (aviso.mensaje) {
+        <p>{{ aviso.mensaje }}</p>
+      }
+      <button #botonAviso type="button" class="btn" (click)="notificaciones.cerrarAviso()">Aceptar</button>
+      @if (aviso.tipo === 'exito') {
+        <span class="barra" aria-hidden="true"></span>
+      }
+    </div>
+  </div>
+}
+
+@if (notificaciones.confirmacion(); as confirmacion) {
+  <div class="fondo" (click)="notificaciones.responder(false)">
+    <div
+      class="popup confirmacion"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="titulo-confirmacion"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="icono pregunta" aria-hidden="true">
+        <svg viewBox="0 0 52 52">
+          <circle class="circulo" cx="26" cy="26" r="24" />
+          <path class="trazo" d="M26 14 v16 M26 37 v1" />
+        </svg>
+      </div>
+      <h2 id="titulo-confirmacion">{{ confirmacion.titulo }}</h2>
+      <p>{{ confirmacion.mensaje }}</p>
+      <div class="acciones">
+        <button type="button" class="btn secondary" (click)="notificaciones.responder(false)">
+          {{ confirmacion.textoCancelar ?? 'Cancelar' }}
+        </button>
+        <button #botonAceptar type="button" class="btn" (click)="notificaciones.responder(true)">
+          {{ confirmacion.textoAceptar ?? 'Aceptar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
