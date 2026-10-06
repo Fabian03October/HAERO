@@ -1,3 +1,8 @@
 .env
 .vscode/
 *.log
+
+# Archivos locales que no van al repositorio
+datos-prueba/
+prototipos-diseno/
+*.pdf
