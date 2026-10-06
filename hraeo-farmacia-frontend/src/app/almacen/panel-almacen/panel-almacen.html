@@ -90,7 +90,7 @@
             </div>
             @if (pedidos.pendientes().length) {
               <ul class="order-list">
-                @for (pedido of pedidos.pendientes(); track pedido.numero) {
+                @for (pedido of pedidosEnInicio(); track pedido.numero) {
                   <li>
                     <div class="order-top">
                       <strong>{{ pedido.numero }}</strong>
@@ -101,6 +101,9 @@
                   </li>
                 }
               </ul>
+              @if (pedidosRestantes()) {
+                <a class="more-link" routerLink="/almacen/recepcion/pedidos">Ver {{ pedidosRestantes() === 1 ? 'el pedido restante' : 'los ' + pedidosRestantes() + ' pedidos restantes' }} →</a>
+              }
             } @else {
               <p class="empty-box">No hay pedidos pendientes. Todo lo pedido ya se recibió.</p>
             }

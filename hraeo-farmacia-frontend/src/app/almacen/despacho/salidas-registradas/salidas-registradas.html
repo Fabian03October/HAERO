@@ -28,11 +28,28 @@
     <input class="search" [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar en este día por folio, clave, lote o usuario" />
   </div>
 
+  <div class="pdf-bar">
+    <span>
+      @if (elegidas().size) {
+        <strong>{{ elegidas().size }}</strong> salida(s) marcada(s) para el comprobante.
+        <button type="button" class="link-button inline" (click)="quitarMarcas()">Quitar marcas</button>
+      } @else {
+        Marca las salidas que quieres en el comprobante PDF.
+      }
+    </span>
+    <button type="button" class="btn" [disabled]="!elegidas().size || generando()" (click)="descargarPdf()">
+      {{ generando() ? 'Generando…' : 'Descargar PDF' }}
+    </button>
+  </div>
+
   @if (salidas().length) {
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th class="check">
+              <input type="checkbox" [checked]="todasElegidas()" (change)="alternarTodas($any($event.target).checked)" aria-label="Marcar todas las salidas de este día" />
+            </th>
             <th>Fecha</th>
             <th>Tipo</th>
             <th>Referencia</th>
@@ -40,12 +57,16 @@
             <th>Lote</th>
             <th>Ubicación origen</th>
             <th class="number">Cajas</th>
-            <th>Usuario</th>
+            <th>Solicitó (Farmacia)</th>
+            <th>Despachó / registró</th>
           </tr>
         </thead>
         <tbody>
           @for (salida of salidas(); track $index) {
-            <tr>
+            <tr [class.elegida]="elegidas().has(salida.id)">
+              <td class="check">
+                <input type="checkbox" [checked]="elegidas().has(salida.id)" (change)="alternar(salida)" [attr.aria-label]="'Marcar salida ' + salida.folio + ' del lote ' + salida.lote" />
+              </td>
               <td><strong>{{ salida.fecha | date: 'dd/MM/yyyy' }}</strong><small>{{ salida.fecha | date: 'HH:mm' }}</small></td>
               <td><span class="tag" [class.fefo]="salida.tipo === 'FARMACIA'" [class.bloqueado]="salida.tipo !== 'FARMACIA'">{{ tipoTexto[salida.tipo] }}</span></td>
               <td><strong>{{ salida.folio }}</strong>@if (salida.institucion) {<small>{{ salida.institucion }}</small>}</td>
@@ -53,6 +74,16 @@
               <td><strong>{{ salida.lote }}</strong><small>Cad. {{ formatoCaducidad(salida.caducidad) }}</small></td>
               <td>{{ salida.ubicacion }}</td>
               <td class="number">{{ salida.cajas }}</td>
+              <td>
+                @if (salida.solicitadoPor) {
+                  <strong>{{ salida.solicitadoPor }}</strong>
+                  @if (salida.fechaSolicitud) {
+                    <small>{{ salida.fechaSolicitud | date: 'dd/MM/yyyy HH:mm' }}</small>
+                  }
+                } @else {
+                  —
+                }
+              </td>
               <td>{{ salida.usuario || '—' }}</td>
             </tr>
           }

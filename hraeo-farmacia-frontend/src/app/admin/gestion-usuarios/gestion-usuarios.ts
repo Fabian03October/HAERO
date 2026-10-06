@@ -4,6 +4,7 @@ import { ROL_ETIQUETA, Session } from '../../auth/session';
 import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar, ItemMenu } from '../../shared/sidebar/sidebar';
 import { Usuario, UsuariosApi } from '../usuarios-api';
+import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 @Component({
   selector: 'app-gestion-usuarios',
@@ -13,6 +14,7 @@ import { Usuario, UsuariosApi } from '../usuarios-api';
 })
 export class GestionUsuarios {
   private readonly usuariosApi = inject(UsuariosApi);
+  private readonly notificaciones = inject(Notificaciones);
 
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
@@ -33,20 +35,29 @@ export class GestionUsuarios {
     this.cargarUsuarios(nombre);
   }
 
-  desactivar(id: number): void {
-    if (!confirm('¿Desactivar a este usuario?')) {
-      return;
-    }
-    this.usuariosApi.desactivar(id).subscribe({
-      next: () => this.cargarUsuarios(),
-      error: (err) => alert(err?.error?.mensaje ?? 'No se pudo desactivar el usuario.'),
+  async desactivar(usuario: Usuario): Promise<void> {
+    const confirmado = await this.notificaciones.confirmar({
+      titulo: '¿Desactivar a este usuario?',
+      mensaje: `${usuario.nombreCompleto} ya no podrá entrar al sistema. Puedes reactivarlo después.`,
+      textoAceptar: 'Sí, desactivar',
+    });
+    if (!confirmado) return;
+    this.usuariosApi.desactivar(usuario.id).subscribe({
+      next: () => {
+        this.notificaciones.exito('Usuario desactivado', `${usuario.nombreCompleto} ya no puede entrar al sistema.`);
+        this.cargarUsuarios();
+      },
+      error: (err) => this.notificaciones.error(err?.error?.mensaje ?? 'No se pudo desactivar el usuario.'),
     });
   }
 
-  reactivar(id: number): void {
-    this.usuariosApi.reactivar(id).subscribe({
-      next: () => this.cargarUsuarios(),
-      error: (err) => alert(err?.error?.mensaje ?? 'No se pudo reactivar el usuario.'),
+  reactivar(usuario: Usuario): void {
+    this.usuariosApi.reactivar(usuario.id).subscribe({
+      next: () => {
+        this.notificaciones.exito('Usuario reactivado', `${usuario.nombreCompleto} puede volver a entrar al sistema.`);
+        this.cargarUsuarios();
+      },
+      error: (err) => this.notificaciones.error(err?.error?.mensaje ?? 'No se pudo reactivar el usuario.'),
     });
   }
 

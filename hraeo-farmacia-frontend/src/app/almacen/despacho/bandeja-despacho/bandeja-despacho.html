@@ -22,7 +22,7 @@
     </div>
 
     @if (porAtender().length) {
-      <ul class="request-list">
+      <ul class="request-list lista-scroll">
         @for (item of porAtender(); track item.id) {
           <li>
             <button type="button" class="request" [class.active]="item.id === seleccionada()" (click)="seleccionar(item.id)">
@@ -75,16 +75,21 @@
           <div class="message info">Solo hay {{ disponibleTotal() }} cajas disponibles de esta clave. Puedes registrar una entrega parcial y completar después.</div>
         }
 
-        <label class="fefo-override">
-          <input
-            type="checkbox"
-            [ngModel]="fueraDeFefo()"
-            (ngModelChange)="alternarFueraDeFefo($event)"
-          />
-          Elegir medicamento de otro lote o ubicación, fuera del orden FEFO
-        </label>
-        @if (fueraDeFefo()) {
-          <div class="message info">Confirmado: puedes elegir cualquier lote vigente, sin respetar el orden de caducidad. Los lotes ya vencidos siguen bloqueados.</div>
+        @if (sinOtroLote(); as aviso) {
+          <div class="message info">{{ aviso }}</div>
+        } @else {
+          <label class="fefo-override">
+            <input
+              #casillaFefo
+              type="checkbox"
+              [ngModel]="fueraDeFefo()"
+              (ngModelChange)="alternarFueraDeFefo($event, casillaFefo)"
+            />
+            Elegir medicamento de otro lote o ubicación, fuera del orden FEFO
+          </label>
+          @if (fueraDeFefo()) {
+            <div class="message info">Confirmado: puedes elegir cualquier lote vigente, sin respetar el orden de caducidad. Los lotes ya vencidos siguen bloqueados.</div>
+          }
         }
 
         <div class="table-wrap">

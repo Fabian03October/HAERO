@@ -10,6 +10,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.Map;
 
@@ -46,6 +49,20 @@ public class GlobalExceptionHandler {
         log.warn("Violación de integridad de datos: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("mensaje", "Los datos enviados entran en conflicto con información existente"));
+    }
+
+    // Archivo adjunto más grande que el límite de ArchivosConfig.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> manejarArchivoMuyGrande(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(Map.of("mensaje", "El archivo es demasiado grande: el máximo es 10 MB"));
+    }
+
+    // Petición multipart sin la parte "datos" o con un JSON que no se pudo leer.
+    @ExceptionHandler({MissingServletRequestPartException.class, HttpMessageNotReadableException.class})
+    public ResponseEntity<Map<String, String>> manejarPeticionIncompleta(Exception ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("mensaje", "Faltan datos o no tienen el formato esperado"));
     }
 
     @ExceptionHandler(Exception.class)

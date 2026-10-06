@@ -71,6 +71,30 @@
         <span>{{ pedidos.pendientes().length }} por recibir</span>
       </div>
     </div>
+
+    <div class="list-tools">
+      <div class="filter-tabs" role="group" aria-label="Filtrar pedidos por estado">
+        @for (filtro of filtros(); track filtro.valor) {
+          <button
+            type="button"
+            [class.active]="filtroEstado() === filtro.valor"
+            [attr.aria-pressed]="filtroEstado() === filtro.valor"
+            (click)="filtroEstado.set(filtro.valor)"
+          >
+            {{ filtro.etiqueta }} <span>{{ filtro.total }}</span>
+          </button>
+        }
+      </div>
+      <input
+        class="search"
+        type="search"
+        [ngModel]="busqueda()"
+        (ngModelChange)="busqueda.set($event)"
+        placeholder="Buscar por número, fecha, proveedor, clave o medicamento"
+        aria-label="Buscar pedidos"
+      />
+    </div>
+
     <div class="table-wrap">
       <table>
         <thead>
@@ -83,9 +107,12 @@
           </tr>
         </thead>
         <tbody>
-          @for (pedido of pedidos.pedidos(); track pedido.id) {
-            <tr>
-              <td><strong>{{ pedido.numero }}</strong><small>{{ pedido.fecha }}</small></td>
+          @for (pedido of pedidosFiltrados(); track pedido.id) {
+            <tr class="fila-pedido" (click)="verDetalle(pedido)">
+              <td>
+                <button type="button" class="pedido-link" (click)="$event.stopPropagation(); verDetalle(pedido)" [attr.aria-label]="'Ver detalle del pedido ' + pedido.numero">{{ pedido.numero }}</button>
+                <small>{{ pedido.fecha | date: 'dd/MM/yyyy' }}</small>
+              </td>
               <td>{{ pedido.proveedor }}</td>
               <td>
                 @for (partida of pedido.partidas; track partida.clave) {
@@ -93,13 +120,84 @@
                 }
               </td>
               <td class="number">{{ pedido.cajasRecibidas }} / {{ pedido.cajasEsperadas }}</td>
-              <td><span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span></td>
+              <td>
+                <span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span>
+                @if (pedido.motivoCancelacion) {
+                  <small class="motivo" [title]="pedido.motivoCancelacion">{{ pedido.motivoCancelacion }}</small>
+                }
+              </td>
             </tr>
           } @empty {
-            <tr><td colspan="5" class="empty">{{ pedidos.cargando() ? 'Cargando…' : pedidos.error() || 'Aún no hay pedidos registrados.' }}</td></tr>
+            <tr>
+              <td colspan="5" class="empty">
+                @if (pedidos.cargando()) {
+                  Cargando…
+                } @else if (pedidos.error()) {
+                  {{ pedidos.error() }}
+                } @else if (pedidos.pedidos().length) {
+                  Ningún pedido coincide con el filtro o la búsqueda.
+                } @else {
+                  Aún no hay pedidos registrados.
+                }
+              </td>
+            </tr>
           }
         </tbody>
       </table>
     </div>
   </section>
 </div>
+
+<!-- Detalle de un pedido (botón "Ver"). -->
+@if (detalle(); as pedido) {
+  <div class="detalle-fondo" (click)="cerrarDetalle()">
+    <section class="detalle" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo" (click)="$event.stopPropagation()">
+      <header class="detalle-header">
+        <div>
+          <p class="eyebrow">Pedido</p>
+          <h2 id="detalle-titulo">{{ pedido.numero }}</h2>
+        </div>
+        <button type="button" class="detalle-cerrar" (click)="cerrarDetalle()" aria-label="Cerrar detalle">✕</button>
+      </header>
+
+      <dl class="detalle-datos">
+        <div><dt>Fecha</dt><dd>{{ pedido.fecha | date: 'dd/MM/yyyy' }}</dd></div>
+        <div><dt>Proveedor</dt><dd>{{ pedido.proveedor }}</dd></div>
+        <div>
+          <dt>Estado</dt>
+          <dd><span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span></dd>
+        </div>
+        <div><dt>Cajas recibidas</dt><dd>{{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} ({{ avance(pedido) }}%)</dd></div>
+      </dl>
+      <div class="detalle-avance" aria-hidden="true"><span [style.width.%]="avance(pedido)"></span></div>
+
+      @if (pedido.motivoCancelacion) {
+        <p class="message error">Cancelado: {{ pedido.motivoCancelacion }}</p>
+      }
+
+      <h3>Claves del pedido</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Clave</th>
+              <th class="number">Esperadas</th>
+              <th class="number">Recibidas</th>
+              <th class="number">Faltan</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (partida of pedido.partidas; track partida.clave) {
+              <tr>
+                <td><strong>{{ partida.clave }}</strong><small>{{ partida.nombreGenerico }}</small></td>
+                <td class="number">{{ partida.cantidadEsperada }}</td>
+                <td class="number">{{ partida.cantidadRecibida }}</td>
+                <td class="number">{{ partida.cantidadEsperada - partida.cantidadRecibida > 0 ? partida.cantidadEsperada - partida.cantidadRecibida : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+}

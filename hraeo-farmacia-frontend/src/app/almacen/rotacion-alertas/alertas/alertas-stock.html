@@ -4,98 +4,192 @@
   <p>Mínimo = {{ mesesMinimo }} meses de CPM y máximo = {{ mesesMaximo }} meses. Las alertas se generan solas al cruzar esos niveles.</p>
 </header>
 
+<!-- Resumen de alertas: cada tarjeta abre su lista debajo; solo una a la vez. -->
 <div class="alert-columns">
-  <section class="card alert-card low">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">Existencia en su mínimo o por debajo</p>
-        <h2>Alertas de desabasto</h2>
-      </div>
+  <button
+    type="button"
+    class="card alert-card low"
+    [class.active]="abierta() === 'desabasto'"
+    [attr.aria-expanded]="abierta() === 'desabasto'"
+    aria-controls="lista-alertas"
+    (click)="alternar('desabasto')"
+  >
+    <span class="alert-top">
+      <span class="eyebrow">Mínimo o por debajo</span>
       <span class="alert-count">{{ desabasto().length }}</span>
-    </div>
-    <p class="card-help">Claves en riesgo de agotarse: conviene pedirlas o darles seguimiento.</p>
+    </span>
+    <span class="alert-title">Desabasto</span>
+    <span class="alert-desc">Claves en riesgo de agotarse: conviene pedirlas o darles seguimiento.</span>
+    <span class="alert-toggle">{{ abierta() === 'desabasto' ? 'Ocultar lista' : 'Ver lista' }}<span class="chevron" aria-hidden="true"></span></span>
+  </button>
 
-    @if (desabasto().length) {
-      <ul class="alert-list">
-        @for (alerta of desabasto(); track alerta.clave + alerta.inicio) {
-          <li class="low">
-            <div class="alert-main">
-              <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
-              <span>Hay <b>{{ existenciaActual(alerta.clave) }}</b> · mínimo {{ alerta.limite }}</span>
-            </div>
-            <div class="alert-since">
-              <span>Desde</span>
-              <strong>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</strong>
-              <small>{{ diasDesde(alerta.inicio) }}</small>
-            </div>
-          </li>
-        }
-      </ul>
-    } @else {
-      <p class="empty-state">Ninguna clave está en riesgo de desabasto.</p>
-    }
-  </section>
-
-  <section class="card alert-card high">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">Existencia en su máximo o por encima</p>
-        <h2>Alertas de sobreabasto</h2>
-      </div>
+  <button
+    type="button"
+    class="card alert-card high"
+    [class.active]="abierta() === 'sobreabasto'"
+    [attr.aria-expanded]="abierta() === 'sobreabasto'"
+    aria-controls="lista-alertas"
+    (click)="alternar('sobreabasto')"
+  >
+    <span class="alert-top">
+      <span class="eyebrow">Máximo o por encima</span>
       <span class="alert-count">{{ sobreabasto().length }}</span>
-    </div>
-    <p class="card-help">Claves con más de lo que se consume en {{ mesesMaximo }} meses: revisar antes de volver a pedir.</p>
+    </span>
+    <span class="alert-title">Sobreabasto</span>
+    <span class="alert-desc">Claves con más de lo que se consume en {{ mesesMaximo }} meses: revisar antes de volver a pedir.</span>
+    <span class="alert-toggle">{{ abierta() === 'sobreabasto' ? 'Ocultar lista' : 'Ver lista' }}<span class="chevron" aria-hidden="true"></span></span>
+  </button>
 
-    @if (sobreabasto().length) {
-      <ul class="alert-list">
-        @for (alerta of sobreabasto(); track alerta.clave + alerta.inicio) {
-          <li class="high">
-            <div class="alert-main">
-              <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
-              <span>Hay <b>{{ existenciaActual(alerta.clave) }}</b> · máximo {{ alerta.limite }}</span>
-            </div>
-            <div class="alert-since">
-              <span>Desde</span>
-              <strong>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</strong>
-              <small>{{ diasDesde(alerta.inicio) }}</small>
-            </div>
-          </li>
-        }
-      </ul>
-    } @else {
-      <p class="empty-state">Ninguna clave está en riesgo de sobreabasto.</p>
+  <button
+    type="button"
+    class="card alert-card expiry"
+    [class.active]="abierta() === 'caducidad'"
+    [attr.aria-expanded]="abierta() === 'caducidad'"
+    aria-controls="lista-alertas"
+    (click)="alternar('caducidad')"
+  >
+    <span class="alert-top">
+      <span class="eyebrow">A menos de 9 meses</span>
+      <span class="alert-count">{{ porVencer().length }}</span>
+    </span>
+    <span class="alert-title">Caducidad próxima</span>
+    <span class="alert-desc">Lotes vigentes que conviene despachar primero o mandar a canje.</span>
+    <span class="alert-toggle">{{ abierta() === 'caducidad' ? 'Ocultar lista' : 'Ver lista' }}<span class="chevron" aria-hidden="true"></span></span>
+  </button>
+</div>
+
+<!-- Avisos de rotación: se calculan con el CPM, el consumo del mes y los lotes por caducar. -->
+<section class="avisos" aria-labelledby="titulo-avisos">
+  <div class="avisos-heading">
+    <h2 id="titulo-avisos">Avisos de rotación</h2>
+    <p>Calculados con el CPM, las salidas del mes y los lotes por caducar. Son informativos: no se guardan como alertas.</p>
+  </div>
+  <div class="avisos-grid">
+    @for (grupo of avisos(); track grupo.id) {
+      <button
+        type="button"
+        [class]="'aviso-card ' + grupo.tono"
+        [class.active]="abierta() === grupo.id"
+        [class.vacio]="!grupo.items.length"
+        [attr.aria-expanded]="abierta() === grupo.id"
+        aria-controls="lista-alertas"
+        (click)="alternar(grupo.id)"
+      >
+        <span class="aviso-top">
+          <span class="aviso-title">{{ grupo.titulo }}</span>
+          <span class="aviso-count">{{ grupo.items.length }}</span>
+        </span>
+        <span class="aviso-desc">{{ grupo.descripcion }}</span>
+      </button>
     }
-  </section>
+  </div>
+</section>
 
-  <section class="card alert-card low">
+@if (abierta(); as grupo) {
+  <section id="lista-alertas" [class]="'card alert-detail ' + (avisoAbierto()?.tono ?? grupo)">
     <div class="card-heading">
       <div>
-        <p class="eyebrow">Lotes vigentes a menos de 9 meses de caducar</p>
-        <h2>Caducidad próxima</h2>
+        <p class="eyebrow">{{ avisoAbierto() ? 'Aviso de rotación' : 'Lista de alertas' }}</p>
+        <h2>{{ avisoAbierto()?.titulo ?? (grupo === 'desabasto' ? 'Desabasto' : grupo === 'sobreabasto' ? 'Sobreabasto' : 'Caducidad próxima') }}</h2>
       </div>
-      <span class="alert-count">{{ porVencer().length }}</span>
+      <div class="detail-tools">
+        <input
+          class="search"
+          type="search"
+          [value]="filtro()"
+          (input)="filtro.set($any($event.target).value)"
+          [placeholder]="grupo === 'caducidad' || grupo === 'merma' ? 'Buscar clave, medicamento o lote' : 'Buscar clave o medicamento'"
+          aria-label="Buscar en la lista"
+        />
+        <button type="button" class="close-button" (click)="abierta.set(null)" aria-label="Cerrar lista">✕</button>
+      </div>
     </div>
-    <p class="card-help">Conviene despacharlos primero (FEFO ya lo prioriza) o mandarlos a canje antes de que venzan.</p>
 
-    @if (porVencer().length) {
-      <ul class="alert-list">
-        @for (alerta of porVencer(); track alerta.clave + alerta.numeroLote) {
-          <li class="low">
-            <div class="alert-main">
-              <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
-              <span>Lote <b>{{ alerta.numeroLote }}</b> · {{ alerta.existencia }} cajas · caduca {{ alerta.caducidad | date: 'dd/MM/yyyy' }}</span>
-            </div>
-            <div class="alert-since">
-              <span>{{ alerta.caducidad ? diasHasta(alerta.caducidad) : '' }}</span>
-            </div>
-          </li>
+    @switch (grupo) {
+      @case ('desabasto') {
+        @if (desabastoFiltrado().length) {
+          <ul class="alert-list">
+            @for (alerta of desabastoFiltrado(); track alerta.clave + alerta.inicio) {
+              <li class="low">
+                <div class="alert-main">
+                  <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+                  <span>Hay <b>{{ existenciaActual(alerta.clave) }}</b> · mínimo {{ alerta.limite }}</span>
+                </div>
+                <div class="alert-since">
+                  <span>Desde {{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</span>
+                  <small>{{ diasDesde(alerta.inicio) }}</small>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="empty-state">{{ filtro() ? 'Ninguna alerta coincide con la búsqueda.' : 'Ninguna clave está en riesgo de desabasto.' }}</p>
         }
-      </ul>
-    } @else {
-      <p class="empty-state">Ningún lote vigente está por caducar.</p>
+      }
+      @case ('sobreabasto') {
+        @if (sobreabastoFiltrado().length) {
+          <ul class="alert-list">
+            @for (alerta of sobreabastoFiltrado(); track alerta.clave + alerta.inicio) {
+              <li class="high">
+                <div class="alert-main">
+                  <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+                  <span>Hay <b>{{ existenciaActual(alerta.clave) }}</b> · máximo {{ alerta.limite }}</span>
+                </div>
+                <div class="alert-since">
+                  <span>Desde {{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</span>
+                  <small>{{ diasDesde(alerta.inicio) }}</small>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="empty-state">{{ filtro() ? 'Ninguna alerta coincide con la búsqueda.' : 'Ninguna clave está en riesgo de sobreabasto.' }}</p>
+        }
+      }
+      @case ('caducidad') {
+        @if (porVencerFiltrado().length) {
+          <ul class="alert-list">
+            @for (alerta of porVencerFiltrado(); track alerta.clave + alerta.numeroLote) {
+              <li class="expiry">
+                <div class="alert-main">
+                  <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+                  <span>Lote <b>{{ alerta.numeroLote }}</b> · {{ alerta.existencia }} cajas · caduca {{ alerta.caducidad | date: 'dd/MM/yyyy' }}</span>
+                </div>
+                <div class="alert-since">
+                  <span>{{ alerta.caducidad ? diasHasta(alerta.caducidad) : '' }}</span>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="empty-state">{{ filtro() ? 'Ningún lote coincide con la búsqueda.' : 'Ningún lote vigente está por caducar.' }}</p>
+        }
+      }
+      @default {
+        @if (avisoAbierto(); as aviso) {
+          <p class="card-help aviso-help">{{ aviso.descripcion }}</p>
+          @if (avisoFiltrado().length) {
+            <ul class="alert-list">
+              @for (item of avisoFiltrado(); track item.clave + item.detalle) {
+                <li [class]="aviso.tono">
+                  <div class="alert-main">
+                    <strong>{{ item.clave }} · {{ medicamento(item.clave) || 'Sin nombre en catálogo' }}</strong>
+                    <span>{{ item.detalle }}</span>
+                  </div>
+                  @if (item.extra) {
+                    <div class="alert-since"><span>{{ item.extra }}</span></div>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty-state">{{ filtro() ? 'Ninguna clave coincide con la búsqueda.' : 'No hay claves en este aviso.' }}</p>
+          }
+        }
+      }
     }
   </section>
-</div>
+}
 
 <section class="card">
   <div class="card-heading">
@@ -104,8 +198,30 @@
       <h2>Stock mínimo y máximo</h2>
     </div>
     <div class="counters">
-      <span>{{ niveles().length }} claves</span>
+      <span>{{ niveles().length }} de {{ rotacion.rotacion().length }} claves</span>
     </div>
+  </div>
+  <div class="list-tools">
+    <div class="filter-tabs" role="group" aria-label="Filtrar claves por estado">
+      @for (opcion of filtrosNivel(); track opcion.valor) {
+        <button
+          type="button"
+          [class.active]="estadoNivel() === opcion.valor"
+          [attr.aria-pressed]="estadoNivel() === opcion.valor"
+          (click)="estadoNivel.set(opcion.valor)"
+        >
+          {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
+        </button>
+      }
+    </div>
+    <input
+      class="search"
+      type="search"
+      [value]="buscarNivel()"
+      (input)="buscarNivel.set($any($event.target).value)"
+      placeholder="Buscar clave o medicamento"
+      aria-label="Buscar en niveles por clave"
+    />
   </div>
   <div class="table-wrap">
     <table>
@@ -129,6 +245,8 @@
             <td class="number">{{ fila.cpm ? fila.maximo : '—' }}</td>
             <td><span [class]="'level ' + fila.estado.toLowerCase()">{{ estadoTexto[fila.estado] }}</span></td>
           </tr>
+        } @empty {
+          <tr><td colspan="6" class="empty">Ninguna clave coincide con el filtro o la búsqueda.</td></tr>
         }
       </tbody>
     </table>

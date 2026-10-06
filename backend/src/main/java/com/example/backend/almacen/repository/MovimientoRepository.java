@@ -4,6 +4,7 @@ import com.example.backend.almacen.entity.Movimiento;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,4 +17,6 @@ public interface MovimientoRepository extends JpaRepository<Movimiento, Long> {
     List<Movimiento> findByTipoInOrderByFechaDesc(List<String> tipos);
 
     Optional<Movimiento> findFirstByTipoOrderByFechaAsc(String tipo);
+
+    List<Movimiento> findByExpedienteIdInOrderByFechaAsc(Collection<Long> expedientes);
 }

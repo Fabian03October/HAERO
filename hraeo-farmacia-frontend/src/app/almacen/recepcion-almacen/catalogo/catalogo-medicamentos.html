@@ -9,18 +9,33 @@
 }
 
 <section class="card bulk-card">
-  <div class="card-heading">
-    <div>
+  <div class="bulk-layout">
+    <div class="bulk-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13l2.5 3.5M11.5 13L9 16.5M14 13h2M14 16.5h2" /></svg>
+    </div>
+    <div class="bulk-text">
       <p class="eyebrow">Carga masiva</p>
       <h2>Subir catálogo desde Excel</h2>
-      <p class="card-help">Columnas: CLAVE, NOMBRE GENERICO, PRESENTACION, PIEZAS POR CAJA (opcional) y DESCRIPCION (opcional). También acepta la hoja de inventario del Drive: toma nombre y presentación de la descripción. Las claves que ya existen se omiten.</p>
+      <p class="card-help">Sube un Excel (.xlsx, .xls) o CSV con estas columnas. Las claves que ya existen se omiten.</p>
+      <ul class="column-chips" aria-label="Columnas del archivo">
+        <li>Clave</li>
+        <li>Nombre genérico</li>
+        <li>Presentación</li>
+        <li class="optional">Piezas por caja <span>opcional</span></li>
+        <li class="optional">Descripción <span>opcional</span></li>
+      </ul>
+      <p class="card-help note">También acepta la hoja de inventario del Drive: toma el nombre y la presentación de la descripción.</p>
     </div>
     <div class="bulk-actions">
-      <button type="button" class="download-button" (click)="descargarPlantilla()">Descargar plantilla</button>
       <label class="file-button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>
         Subir Excel
         <input type="file" accept=".xlsx,.xls,.csv" (change)="seleccionarArchivo($event)" />
       </label>
+      <button type="button" class="download-button" (click)="descargarPlantilla()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14" /></svg>
+        Descargar plantilla
+      </button>
     </div>
   </div>
 

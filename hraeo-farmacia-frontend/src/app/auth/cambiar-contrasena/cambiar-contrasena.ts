@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { RUTA_POR_ROL, Session } from '../session';
 import { UsuariosApi } from '../../admin/usuarios-api';
+import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 @Component({
   selector: 'app-cambiar-contrasena',
@@ -13,6 +14,7 @@ export class CambiarContrasena {
   private readonly session = inject(Session);
   private readonly usuariosApi = inject(UsuariosApi);
   private readonly router = inject(Router);
+  private readonly notificaciones = inject(Notificaciones);
 
   readonly esTemporal = computed(() => this.session.usuarioActual()?.debeCambiarContrasena ?? false);
   readonly error = signal<string | null>(null);
@@ -33,7 +35,8 @@ export class CambiarContrasena {
         // uno nuevo con la contraseña nueva para no sacar al usuario de inmediato.
         const nombreUsuario = this.session.usuarioActual()?.nombreUsuario ?? '';
         const usuario = await this.session.iniciarSesion(nombreUsuario, contrasenaNueva);
-        if (!usuario) this.session.cerrarSesion();
+        if (usuario) this.notificaciones.exito('Contraseña actualizada', 'Usa tu nueva contraseña la próxima vez que entres.');
+        else this.session.cerrarSesion();
         this.router.navigateByUrl(usuario ? RUTA_POR_ROL[usuario.rol] : '/login');
       },
       error: (err) => {

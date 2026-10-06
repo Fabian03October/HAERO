@@ -7,6 +7,7 @@ import com.example.backend.almacen.dto.MovimientoExternoRequest;
 import com.example.backend.almacen.dto.MovimientoResponse;
 import com.example.backend.almacen.dto.UbicacionCantidad;
 import com.example.backend.almacen.entity.Existencia;
+import com.example.backend.almacen.entity.ExpedienteExterno;
 import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.entity.Movimiento;
@@ -28,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -243,6 +245,17 @@ public class ServicioMovimientosEspeciales {
 
     @Transactional
     public MovimientoResponse registrarExterno(MovimientoExternoRequest request, String nombreUsuario) {
+        return servicioMovimientos.aRespuesta(aplicarExterno(request, () -> buscarUsuario(nombreUsuario), null));
+    }
+
+    /**
+     * Valida y aplica al inventario un movimiento de préstamo o transferencia, y lo
+     * deja ligado al expediente si se indica (lo usa ServicioExpedientesExternos para
+     * el movimiento inicial y las devoluciones). El usuario se busca después de
+     * validar los datos, para responder primero el error de captura.
+     */
+    @Transactional
+    public Movimiento aplicarExterno(MovimientoExternoRequest request, Supplier<Usuario> buscarUsuario, ExpedienteExterno expediente) {
         String tipo = request.getTipo() == null ? "" : request.getTipo().trim().toUpperCase();
         String sentido = request.getSentido() == null ? "" : request.getSentido().trim().toUpperCase();
         if (!tipo.equals("PRESTAMO") && !tipo.equals("TRANSFERENCIA")) {
@@ -258,7 +271,7 @@ public class ServicioMovimientosEspeciales {
         if (request.getCajas() == null || request.getCajas() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad debe ser un número entero mayor a cero");
         }
-        Usuario usuario = buscarUsuario(nombreUsuario);
+        Usuario usuario = buscarUsuario.get();
         LocalDate hoy = LocalDate.now();
 
         Existencia existencia;
@@ -328,7 +341,11 @@ public class ServicioMovimientosEspeciales {
 
         // CA3 y CA4: queda con su propio tipo y la institucion en el historial.
         Movimiento movimiento = registrarMovimiento(existencia, tipo, sentido, request.getCajas(), usuario, institucion);
-        return servicioMovimientos.aRespuesta(movimiento);
+        if (expediente != null) {
+            movimiento.setExpediente(expediente);
+            movimiento = movimientoRepository.save(movimiento);
+        }
+        return movimiento;
     }
 
     public List<MovimientoResponse> listarExternos() {

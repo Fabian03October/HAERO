@@ -4,7 +4,6 @@ import com.example.backend.almacen.dto.CaducadoResponse;
 import com.example.backend.almacen.dto.CanjeRequest;
 import com.example.backend.almacen.dto.CanjeResponse;
 import com.example.backend.almacen.dto.MoverCaducadoRequest;
-import com.example.backend.almacen.dto.MovimientoExternoRequest;
 import com.example.backend.almacen.dto.MovimientoResponse;
 import com.example.backend.almacen.service.ServicioMovimientosEspeciales;
 import org.springframework.http.HttpStatus;
@@ -58,8 +57,6 @@ public class MovimientosEspecialesController {
         return ResponseEntity.ok(servicio.listarExternos());
     }
 
-    @PostMapping("/movimientos-externos")
-    public ResponseEntity<MovimientoResponse> registrarExterno(@RequestBody MovimientoExternoRequest request, Authentication authentication) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(servicio.registrarExterno(request, authentication.getName()));
-    }
+    // El alta de préstamos y transferencias ahora pide su documento PDF y va por
+    // ExpedientesExternosController (POST /api/almacen/expedientes-externos).
 }

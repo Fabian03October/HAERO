@@ -45,4 +45,9 @@ public class Movimiento {
     // Institucion del prestamo o transferencia (HU20 CA4).
     @Column(name = "institucion_externa", length = 120)
     private String institucionExterna;
+
+    // Expediente del prestamo o transferencia al que pertenece (salida/entrada inicial o devolucion).
+    @ManyToOne
+    @JoinColumn(name = "expediente_id")
+    private ExpedienteExterno expediente;
 }

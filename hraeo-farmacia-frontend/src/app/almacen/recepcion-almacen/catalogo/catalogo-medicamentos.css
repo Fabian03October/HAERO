@@ -1,6 +1,45 @@
-:host { display: block; }
-.bulk-card { margin-bottom: 18px; }
-.bulk-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* Carga masiva: icono, explicación con las columnas y acciones a la derecha. */
+.bulk-layout { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: start; }
+
+.bulk-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f4ebd5;
+}
+
+.bulk-icon svg { width: 26px; height: 26px; fill: none; stroke: #a57f2c; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.bulk-text h2 { margin-bottom: 4px; }
+
+.column-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; padding: 0; list-style: none; }
+.column-chips li { padding: 4px 10px; border: 1px solid #e8c9d2; border-radius: 999px; background: #fbf1f4; color: #611232; font-size: 12px; font-weight: 700; }
+.column-chips li.optional { border-style: dashed; border-color: #ddd4c8; background: #fdfcfa; color: #6f7271; }
+.column-chips li span { margin-left: 4px; color: #8c8a86; font-size: 10.5px; font-weight: 600; }
+.card-help.note { color: #8c8a86; font-size: 12px; }
+
+.bulk-actions { display: grid; gap: 8px; min-width: 200px; }
+
+.bulk-actions .file-button,
+.bulk-actions .download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+}
+
+.bulk-actions svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
 .preview-heading { margin-top: 14px; }
 .review .muted { color: #8c8a86; }
 .row-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 760px) {
+  .bulk-layout { grid-template-columns: minmax(0, 1fr); }
+  .bulk-icon { display: none; }
+  .bulk-actions { grid-template-columns: 1fr 1fr; min-width: 0; }
+}

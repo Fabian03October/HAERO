@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Rol } from '../../auth/session';
 import { UsuariosApi } from '../usuarios-api';
+import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 @Component({
   selector: 'app-formulario-usuario',
@@ -13,6 +14,7 @@ export class FormularioUsuario {
   private readonly usuariosApi = inject(UsuariosApi);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly notificaciones = inject(Notificaciones);
 
   private readonly idParam = this.route.snapshot.paramMap.get('id');
   readonly modoEdicion = this.idParam !== null;
@@ -59,7 +61,11 @@ export class FormularioUsuario {
         : this.usuariosApi.crear({ nombreCompleto, nombreUsuario, correo, contrasenaTemporal, rol: rol as Rol });
 
     peticion.subscribe({
-      next: () => this.router.navigateByUrl('/admin/usuarios'),
+      next: () => {
+        if (this.modoEdicion) this.notificaciones.exito('Usuario actualizado', `Se guardaron los cambios de ${nombreCompleto}.`);
+        else this.notificaciones.exito('Usuario creado', `${nombreCompleto} ya puede entrar como ${nombreUsuario}. Al entrar por primera vez cambiará su contraseña y aceptará las políticas de uso.`);
+        this.router.navigateByUrl('/admin/usuarios');
+      },
       error: (err) => {
         this.guardando.set(false);
         this.error.set(err?.error?.mensaje ?? 'No se pudo guardar el usuario.');

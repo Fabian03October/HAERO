@@ -176,6 +176,10 @@ export interface Movimiento {
   // Solo canjes, caducados, préstamos y transferencias.
   sentido: SentidoMovimiento | null;
   institucion: string | null;
+  // Solo salidas a Farmacia: quién de Farmacia hizo la solicitud, cuándo y cuánto pidió.
+  solicitadoPor: string | null;
+  fechaSolicitud: string | null;
+  cantidadSolicitada: number | null;
 }
 
 // ---------- Movimientos especiales (HU18, HU19, HU20) ----------
@@ -227,6 +231,59 @@ export interface MovimientoExternoRequest {
   existenciaId?: number;
   // Entrada: lote que se recibe.
   clave?: string;
+  numeroLote?: string;
+  caducidad?: string;
+  ubicacion?: string;
+}
+
+// ---------- Préstamos y transferencias con expediente (ajuste HU20) ----------
+
+// Guardados: ACTIVO, DEVUELTO_PARCIAL, CERRADO (préstamo); REGISTRADA, CONFIRMADA (transferencia).
+// Calculados al consultar: VENCIDO y POR_CERRAR.
+export type EstatusExpediente = 'ACTIVO' | 'DEVUELTO_PARCIAL' | 'POR_CERRAR' | 'VENCIDO' | 'CERRADO' | 'REGISTRADA' | 'CONFIRMADA';
+export type TipoDocumentoExterno = 'SOLICITUD' | 'CIERRE' | 'ENVIO' | 'RECEPCION';
+
+export interface DocumentoExterno {
+  id: number;
+  expedienteId: number;
+  tipo: TipoDocumentoExterno;
+  nombreArchivo: string;
+  tamano: number;
+  fecha: string;
+  usuario: string;
+}
+
+export interface ExpedienteExterno {
+  id: number;
+  tipo: 'PRESTAMO' | 'TRANSFERENCIA';
+  sentido: SentidoMovimiento;
+  institucion: string;
+  clave: string;
+  nombreGenerico: string;
+  cajas: number;
+  cajasDevueltas: number;
+  fechaRegistro: string;
+  fechaLimite: string | null;
+  fechaCierre: string | null;
+  estatus: EstatusExpediente;
+  estatusVigente: EstatusExpediente;
+  observaciones: string | null;
+  registradoPor: string;
+  documentos: DocumentoExterno[];
+  movimientos: Movimiento[];
+}
+
+export interface RegistrarExpedienteRequest extends MovimientoExternoRequest {
+  // Obligatoria en préstamos.
+  fechaLimite?: string;
+  observaciones?: string;
+}
+
+// La devolución va en sentido contrario al préstamo: si se prestó (SALIDA) entra
+// con lote, caducidad y ubicación; si nos prestaron (ENTRADA) sale de una existencia.
+export interface DevolucionPrestamoRequest {
+  cajas: number;
+  existenciaId?: number;
   numeroLote?: string;
   caducidad?: string;
   ubicacion?: string;
@@ -398,8 +455,35 @@ export class AlmacenApi {
     return this.http.get<Movimiento[]>(`${API_BASE_URL}/almacen/movimientos-externos`, this.cabeceras());
   }
 
-  registrarMovimientoExterno(request: MovimientoExternoRequest): Observable<Movimiento> {
-    return this.http.post<Movimiento>(`${API_BASE_URL}/almacen/movimientos-externos`, request, this.cabeceras());
+  // ---------- Préstamos y transferencias con expediente ----------
+  listarExpedientesExternos(): Observable<ExpedienteExterno[]> {
+    return this.http.get<ExpedienteExterno[]>(`${API_BASE_URL}/almacen/expedientes-externos`, this.cabeceras());
+  }
+
+  /** Alta con su PDF: parte "datos" (JSON) y parte "documento" (archivo). */
+  registrarExpedienteExterno(datos: RegistrarExpedienteRequest, documento: File): Observable<ExpedienteExterno> {
+    const cuerpo = new FormData();
+    cuerpo.append('datos', new Blob([JSON.stringify(datos)], { type: 'application/json' }));
+    cuerpo.append('documento', documento, documento.name);
+    return this.http.post<ExpedienteExterno>(`${API_BASE_URL}/almacen/expedientes-externos`, cuerpo, this.cabeceras());
+  }
+
+  registrarDevolucionPrestamo(expedienteId: number, request: DevolucionPrestamoRequest): Observable<ExpedienteExterno> {
+    return this.http.post<ExpedienteExterno>(`${API_BASE_URL}/almacen/expedientes-externos/${expedienteId}/devoluciones`, request, this.cabeceras());
+  }
+
+  /** Préstamo: lo cierra (ya devuelto todo). Transferencia: la confirma. Siempre con su PDF. */
+  cerrarExpedienteExterno(expedienteId: number, documento: File): Observable<ExpedienteExterno> {
+    const cuerpo = new FormData();
+    cuerpo.append('documento', documento, documento.name);
+    return this.http.post<ExpedienteExterno>(`${API_BASE_URL}/almacen/expedientes-externos/${expedienteId}/cierre`, cuerpo, this.cabeceras());
+  }
+
+  descargarDocumentoExterno(expedienteId: number, documentoId: number): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/almacen/expedientes-externos/${expedienteId}/documentos/${documentoId}`, {
+      ...this.cabeceras(),
+      responseType: 'blob',
+    });
   }
 
   // ---------- Solicitudes: lado de Almacén (HU14, HU15) ----------

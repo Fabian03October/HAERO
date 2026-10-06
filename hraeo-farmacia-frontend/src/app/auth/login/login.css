@@ -37,12 +37,12 @@
   opacity: 0.12;
 }
 
-.brand-name {
+.brand-logo {
   position: relative;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  display: block;
+  width: 220px;
+  max-width: 70%;
+  height: auto;
 }
 
 .brand-text {
@@ -174,5 +174,6 @@
   .login-page { flex-direction: column; }
   .login-brand { flex: none; padding: 28px 24px 32px; }
   .brand-text h2 { font-size: 24px; }
+  .brand-logo { width: 150px; margin-bottom: 18px; }
   .modules, .brand-foot, .greca { display: none; }
 }

@@ -50,6 +50,7 @@ export class PanelSupervision {
 
   // Las más antiguas primero: son las que llevan más tiempo en riesgo.
   readonly alertas = computed(() => this.rotacion.alertasActivas().slice(0, ALERTAS_EN_INICIO));
+  readonly alertasRestantes = computed(() => this.rotacion.alertasActivas().length - this.alertas().length);
 
   constructor() {
     // Lo vigente en el servidor al entrar, aunque nadie de Almacén esté conectado (HU17 CA4).

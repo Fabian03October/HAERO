@@ -7,6 +7,7 @@ import { AlmacenApi, UbicacionCantidad, mensajeDeError } from '../../almacen-api
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../../../shared/gs1';
 import { RotacionAlmacen } from '../../rotacion-almacen';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 // Recepción · Registrar entrada (HU10). Recibe un lote contra una clave de un
 // pedido activo y lo reparte en una o varias ubicaciones del almacén.
@@ -18,6 +19,7 @@ import { RotacionAlmacen } from '../../rotacion-almacen';
 })
 export class RegistrarEntrada {
   protected readonly pedidos = inject(PedidosAlmacen);
+  private readonly notificaciones = inject(Notificaciones);
   private readonly inventario = inject(InventarioAlmacen);
   private readonly api = inject(AlmacenApi);
   private readonly rotacion = inject(RotacionAlmacen);
@@ -96,7 +98,7 @@ export class RegistrarEntrada {
         }
         this.pedidoId.set(pedido.id);
         this.clave.set(producto.clave);
-        this.mostrarMensaje(`Código reconocido: ${producto.clave} · ${producto.nombre} · ${producto.proveedor}. Pedido ${pedido.numero}.${detalleGs1}`, 'success');
+        this.mostrarMensaje(`Código reconocido: ${producto.clave} · ${producto.nombre} · ${producto.proveedor}. Pedido ${pedido.numero}.${detalleGs1}`, 'info');
       },
       error: (error) => {
         if (error instanceof HttpErrorResponse && error.status === 404) {
@@ -121,7 +123,7 @@ export class RegistrarEntrada {
     this.api.asociarCodigo({ codigo, clave: this.clave(), proveedor: pedido.proveedor }).subscribe({
       next: () => {
         this.codigoSinRegistrar.set('');
-        this.mostrarMensaje(`Código ${codigo} asociado a ${this.clave()} · ${pedido.proveedor}. La próxima vez se reconocerá al escanear.`, 'success');
+        this.mostrarMensaje(`Código ${codigo} asociado a ${this.clave()} · ${pedido.proveedor}. La próxima vez se reconocerá al escanear.`, 'success', 'Código asociado');
       },
       error: (error) => this.mostrarMensaje(mensajeDeError(error, 'No se pudo asociar el código.'), 'error'),
     });
@@ -180,7 +182,7 @@ export class RegistrarEntrada {
       .subscribe({
         next: () => {
           this.guardando.set(false);
-          this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas en ${ubicaciones.map((fila) => fila.ubicacion).join(', ')}.`, 'success');
+          this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas en ${ubicaciones.map((fila) => fila.ubicacion).join(', ')}.`, 'success', 'Entrada registrada');
           this.entrada = { lote: '', caducidad: '' };
           this.caducidadGs1 = '';
           this.ubicaciones = [{ ubicacion: '', cajas: 0 }];
@@ -192,7 +194,7 @@ export class RegistrarEntrada {
             else {
               this.pedidoId.set(null);
               this.clave.set('');
-              this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas. El pedido ${pedido.numero} quedó recibido completo.`, 'success');
+              this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas. El pedido ${pedido.numero} quedó recibido completo.`, 'success', 'Entrada registrada');
             }
           }
           this.pedidos.recargar();
@@ -213,7 +215,13 @@ export class RegistrarEntrada {
     this.escanearCodigo();
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error' | 'info'): void {
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error' | 'info', titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje.set('');
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje.set(texto);
     this.tipoMensaje.set(tipo);
   }

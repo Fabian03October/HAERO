@@ -46,20 +46,180 @@
   .alert-since { justify-items: start; text-align: left; }
 }
 
-/* Desabasto, sobreabasto y caducidad próxima en tarjetas separadas. */
-.alert-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
-.alert-card .card-heading { margin-bottom: 6px; }
-.alert-card > .card-help { margin: 0 0 14px; }
-.alert-card.low .eyebrow { color: #a9463e; }
-.alert-card.high .eyebrow { color: #9a651c; }
+/* Resumen: desabasto, sobreabasto y caducidad próxima como tarjetas que abren su lista. */
+.alert-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 
-.alert-count { min-width: 40px; padding: 4px 12px; border-radius: 999px; font-size: 20px; font-weight: 800; text-align: center; }
-.low .alert-count { background: #fff1ef; color: #a9463e; }
-.high .alert-count { background: #fff8ec; color: #9a651c; }
+.alert-card {
+  --acento: #a9463e;
+  --acento-suave: #fff1ef;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  width: 100%;
+  border-top: 4px solid var(--acento);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.alert-card.high { --acento: #9a651c; --acento-suave: #fff8ec; }
+.alert-card.expiry { --acento: #a57f2c; --acento-suave: #f4ebd5; }
+
+.alert-card:hover { box-shadow: 0 8px 22px rgb(60 40 20 / 10%); transform: translateY(-1px); }
+.alert-card.active { box-shadow: 0 0 0 2px var(--acento), 0 8px 22px rgb(60 40 20 / 10%); }
+
+/* Flecha que une la tarjeta activa con su lista. */
+.alert-card.active::after {
+  content: '';
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  border-right: 2px solid var(--acento);
+  border-bottom: 2px solid var(--acento);
+  background: #fff;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.alert-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.alert-card .eyebrow { margin: 0; color: var(--acento); }
+.alert-title { color: #611232; font-size: 18px; font-weight: 800; }
+.alert-desc { color: #6f7271; font-size: 12.5px; line-height: 1.45; }
+
+.alert-count { min-width: 44px; padding: 4px 12px; border-radius: 999px; background: var(--acento-suave); color: var(--acento); font-size: 20px; font-weight: 800; text-align: center; }
+
+.alert-toggle { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--acento); font-size: 12.5px; font-weight: 800; }
+
+.chevron { width: 7px; height: 7px; margin-top: -3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 0.2s ease; }
+.alert-card.active .chevron { margin-top: 3px; transform: rotate(225deg); }
+
+/* Lista de la tarjeta abierta: con búsqueda y altura limitada para no tapar la tabla de abajo. */
+.alert-detail { --acento: #a9463e; border-top: 4px solid var(--acento); animation: abrir 0.18s ease-out; }
+.alert-detail.sobreabasto { --acento: #9a651c; }
+.alert-detail.caducidad { --acento: #a57f2c; }
+.alert-detail .eyebrow { color: var(--acento); }
+.alert-detail .card-heading { align-items: center; margin-bottom: 10px; }
+
+.detail-tools { display: flex; align-items: center; gap: 8px; }
+
+.search {
+  width: 280px;
+  padding: 9px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fdfcfa;
+  color: #2b2b2b;
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.search:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+
+.close-button { width: 36px; height: 36px; flex-shrink: 0; border: 1px solid #ddd4c8; border-radius: 10px; background: #fff; color: #6f7271; font-size: 14px; cursor: pointer; }
+.close-button:hover { background: #f6e9ed; color: #9f2241; }
+
+.alert-detail .alert-list { max-height: 420px; overflow-y: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+.alert-list li.expiry .alert-main strong::before { background: #a57f2c; }
 
 .alert-main b { color: #2b2b2b; }
 .empty-state { margin: 0; padding: 16px; border-radius: 10px; background: #f8f5f0; color: #6f7271; font-size: 13px; text-align: center; }
 
+@keyframes abrir {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+
 @media (max-width: 960px) {
   .alert-columns { grid-template-columns: minmax(0, 1fr); }
+  .alert-card.active::after { display: none; }
+  .alert-detail .alert-list { grid-template-columns: minmax(0, 1fr); }
+  .alert-detail .card-heading { flex-direction: column; align-items: stretch; }
+  .search { flex: 1; width: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-card, .alert-detail, .chevron { transition: none; animation: none; }
+}
+
+/* Avisos de rotación: segunda fila, más compacta que las alertas del backend. */
+.avisos { display: grid; gap: 10px; }
+.avisos-heading h2 { margin: 0; font-size: 16px; }
+.avisos-heading p { margin: 2px 0 0; color: #8c8a86; font-size: 12.5px; }
+.avisos-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+
+.aviso-card {
+  --acento: #a9463e;
+  --acento-suave: #fff1ef;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid #e4ddd3;
+  border-left: 4px solid var(--acento);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.aviso-card.high { --acento: #9a651c; --acento-suave: #fff8ec; }
+.aviso-card.expiry { --acento: #a57f2c; --acento-suave: #f4ebd5; }
+.aviso-card.info { --acento: #25627b; --acento-suave: #edf7fb; }
+.aviso-card:hover { box-shadow: 0 6px 16px rgb(60 40 20 / 9%); transform: translateY(-1px); }
+.aviso-card.active { box-shadow: 0 0 0 2px var(--acento); }
+.aviso-card.vacio { opacity: 0.72; }
+
+.aviso-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.aviso-title { color: #611232; font-size: 14px; font-weight: 800; }
+.aviso-count { min-width: 32px; padding: 2px 9px; border-radius: 999px; background: var(--acento-suave); color: var(--acento); font-size: 15px; font-weight: 800; text-align: center; }
+.aviso-desc { color: #6f7271; font-size: 11.5px; line-height: 1.4; }
+
+.alert-detail.low { --acento: #a9463e; }
+.alert-detail.high { --acento: #9a651c; }
+.alert-detail.expiry { --acento: #a57f2c; }
+.alert-detail.info { --acento: #25627b; }
+.alert-list li.info .alert-main strong::before { background: #3f86a3; }
+.aviso-help { margin: -4px 0 10px; }
+
+/* Filtros de la tabla de niveles. */
+.list-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.filter-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.filter-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 999px;
+  background: #fff;
+  color: #6f7271;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-tabs button span { padding: 0 7px; border-radius: 999px; background: #f3f1ee; font-size: 11px; }
+.filter-tabs button:hover:not(.active) { border-color: #c9a9b3; color: #9f2241; }
+.filter-tabs button.active { border-color: #9f2241; background: #9f2241; color: #fff; }
+.filter-tabs button.active span { background: rgb(255 255 255 / 22%); color: #fff; }
+.list-tools .search { width: 260px; }
+.empty { color: #8c8a86; text-align: center; }
+
+@media (max-width: 1200px) {
+  .avisos-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .avisos-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .list-tools .search { flex: 1; width: auto; }
 }

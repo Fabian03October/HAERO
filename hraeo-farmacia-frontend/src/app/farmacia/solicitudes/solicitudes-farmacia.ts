@@ -6,6 +6,7 @@ import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar } from '../../shared/sidebar/sidebar';
 import { FARMACIA_MENU } from '../farmacia-nav';
 import { AlmacenApi, ESTATUS_SOLICITUD_TEXTO, Medicamento, Solicitud, folioSolicitud, mensajeDeError } from '../../almacen/almacen-api';
+import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 // Farmacia · Solicitudes a Almacén (HU13). Farmacia pide medicamento con clave y
 // cantidad y consulta el estatus; Almacén las atiende en su Bandeja de despacho.
@@ -23,6 +24,7 @@ import { AlmacenApi, ESTATUS_SOLICITUD_TEXTO, Medicamento, Solicitud, folioSolic
 })
 export class SolicitudesFarmacia {
   protected readonly session = inject(Session);
+  private readonly notificaciones = inject(Notificaciones);
   private readonly api = inject(AlmacenApi);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   protected readonly estadoTexto = ESTATUS_SOLICITUD_TEXTO;
@@ -84,7 +86,7 @@ export class SolicitudesFarmacia {
         this.enviando.set(false);
         this.mostrarMensaje(
           `Solicitud ${folioSolicitud(solicitud.id)} enviada a Almacén: ${solicitud.cantidadSolicitada} cajas de ${solicitud.nombreGenerico} (${solicitud.clave}). Queda pendiente hasta que Almacén la despache.`,
-          'success',
+          'success', 'Solicitud enviada'
         );
         this.solicitudes.set([solicitud, ...this.solicitudes()]);
         this.clave.set('');
@@ -97,7 +99,13 @@ export class SolicitudesFarmacia {
     });
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error'): void {
+  private mostrarMensaje(texto: string, tipo: 'success' | 'error', titulo = 'Listo'): void {
+    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
+    if (tipo === 'success') {
+      this.mensaje.set('');
+      this.notificaciones.exito(titulo, texto);
+      return;
+    }
     this.mensaje.set(texto);
     this.tipoMensaje.set(tipo);
   }

@@ -13,6 +13,8 @@ import { SolicitudesAlmacen } from '../solicitudes-almacen';
 const MESES_ALERTA_CADUCIDAD = 9;
 // Renglones que se muestran en la tabla "Próximos a salir" del Inicio.
 const LOTES_EN_INICIO = 6;
+// Pedidos que se muestran en "Pedidos por recibir"; el resto se ve en Recepción.
+const PEDIDOS_EN_INICIO = 4;
 
 @Component({
   selector: 'app-panel-almacen',
@@ -60,6 +62,8 @@ export class PanelAlmacen {
   });
 
   readonly proximosASalir = computed(() => this.lotesOrdenados().slice(0, LOTES_EN_INICIO));
+  readonly pedidosEnInicio = computed(() => this.pedidos.pendientes().slice(0, PEDIDOS_EN_INICIO));
+  readonly pedidosRestantes = computed(() => this.pedidos.pendientes().length - this.pedidosEnInicio().length);
   readonly lotesPorCaducar = computed(() => this.lotesOrdenados().filter((lote) => lote.porCaducar).length);
 
   readonly indicadores = computed(() => [
