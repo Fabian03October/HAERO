@@ -1,40 +1,25 @@
-.panel {
+/* La base (hero, tarjetas de indicadores, card) viene de panel-almacen.css. */
+.kpi.info .kpi-title::before { background: #25627b; }
+
+.alert-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.alert-list li {
   display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-left: 4px solid #c95e55;
+  border-radius: 10px;
+  background: #fbf3f2;
 }
-
-.shell {
-  display: flex;
-  flex-grow: 1;
-  min-height: 0;
-}
-
-.main {
-  flex-grow: 1;
-  min-width: 0;
-  padding: 26px 30px;
-  overflow: auto;
-}
-
-/* Mismo ancho y centrado que las pantallas de Almacén. */
-.main > * {
-  max-width: 1280px;
-  margin-right: auto;
-  margin-left: auto;
-}
+.alert-list li.sobreabasto { border-left-color: #d19a3e; background: #fbf6ec; }
+.alert-list strong { display: block; color: #2b2a28; font-size: 13px; }
+.alert-list small { display: block; color: #6f7271; font-size: 12px; }
+.alert-meta { text-align: right; }
+.alert-type { color: #8f2a22; font-size: 12px; font-weight: 700; }
+.alert-list li.sobreabasto .alert-type { color: #8a5a12; }
 
 @media (max-width: 640px) {
-  .main { padding: 18px 14px 32px; }
-}
-
-.main .card h1 {
-  margin: 0 0 6px;
-  font-size: 19px;
-}
-
-.main .card p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-text-muted);
+  .alert-list li { flex-direction: column; align-items: flex-start; }
+  .alert-meta { text-align: left; }
 }

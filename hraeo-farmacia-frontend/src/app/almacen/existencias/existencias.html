@@ -63,7 +63,9 @@
               @if (primero) {
                 <td class="number total" [attr.rowspan]="grupo.ubicaciones.length">{{ grupo.total }}</td>
                 <td [attr.rowspan]="grupo.ubicaciones.length">
-                  @if (grupo.vencido) {
+                  @if (grupo.vencido && soloLectura) {
+                    <span class="status cancelado">Vencido</span>
+                  } @else if (grupo.vencido) {
                     <a class="status cancelado" routerLink="/almacen/movimientos-especiales/caducados" title="Apartar en caducados">Vencido · apartar</a>
                   } @else if (grupo.fefo) {
                     <span class="tag fefo">FEFO · sale primero</span>

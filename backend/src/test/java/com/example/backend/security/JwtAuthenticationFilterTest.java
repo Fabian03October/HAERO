@@ -192,7 +192,7 @@ class JwtAuthenticationFilterTest {
         when(jwtUtil.tokenValido("token-bueno")).thenReturn(true);
         when(jwtUtil.extraerNombreUsuario("token-bueno")).thenReturn("almacen");
         when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
-        when(jwtUtil.extraerFechaEmision("token-bueno")).thenReturn(LocalDateTime.now());
+        when(jwtUtil.extraerFechaEmision("token-bueno")).thenReturn(LocalDateTime.now().minusMinutes(30));
 
         simularUltimaActividad("almacen", LocalDateTime.now().minusMinutes(20));
 
@@ -201,5 +201,47 @@ class JwtAuthenticationFilterTest {
         verify(response).setHeader("X-Auth-Error", "inactividad");
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void conLoginNuevoDespuesDeInactividadVieja_noMarcaInactividad() throws Exception {
+        // Otro usuario entra horas después de su última actividad: el token es
+        // nuevo, así que la actividad vieja no debe cerrarle la sesión.
+        Usuario usuario = usuarioActivo("ALMACEN");
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer token-nuevo");
+        when(jwtUtil.tokenValido("token-nuevo")).thenReturn(true);
+        when(jwtUtil.extraerNombreUsuario("token-nuevo")).thenReturn("almacen");
+        when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
+        when(jwtUtil.extraerFechaEmision("token-nuevo")).thenReturn(LocalDateTime.now());
+        when(jwtUtil.extraerRol("token-nuevo")).thenReturn("ALMACEN");
+
+        simularUltimaActividad("almacen", LocalDateTime.now().minusHours(3));
+
+        filtro.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        verify(response, org.mockito.Mockito.never()).setHeader("X-Auth-Error", "inactividad");
+    }
+
+    @Test
+    void conTokenEmitidoEnElMismoSegundoQueTokenValidoDesde_autentica() throws Exception {
+        // El iat del JWT no guarda milisegundos: un login inmediato tras cambiar
+        // la contraseña no debe tomarse como sesión cerrada.
+        LocalDateTime invalidado = LocalDateTime.now().withNano(700_000_000);
+        Usuario usuario = usuarioActivo("ALMACEN");
+        usuario.setTokenValidoDesde(invalidado);
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer token-nuevo");
+        when(jwtUtil.tokenValido("token-nuevo")).thenReturn(true);
+        when(jwtUtil.extraerNombreUsuario("token-nuevo")).thenReturn("almacen");
+        when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
+        when(jwtUtil.extraerFechaEmision("token-nuevo")).thenReturn(invalidado.withNano(0));
+        when(jwtUtil.extraerRol("token-nuevo")).thenReturn("ALMACEN");
+
+        filtro.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        verify(response, org.mockito.Mockito.never()).setHeader("X-Auth-Error", "sesion-cerrada");
     }
 }

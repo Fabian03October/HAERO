@@ -100,7 +100,7 @@
     </div>
     <div class="actions">
       <span>La carga inicial no cuenta como salida. El consumo promedio de la hoja se usa como CPM hasta que haya salidas registradas. Cada clave debe existir en el catálogo de medicamentos.</span>
-      <button type="button" class="save-button" [disabled]="!validos() || guardando()" (click)="guardarDatos()">
+      <button type="button" class="save-button" [disabled]="!validos() || errores() > 0 || guardando()" (click)="guardarDatos()">
         {{ guardando() ? 'Guardando…' : 'Guardar datos (' + validos() + ')' }}
       </button>
     </div>

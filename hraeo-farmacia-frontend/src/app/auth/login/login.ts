@@ -9,7 +9,7 @@ import { RUTA_POR_ROL, Session } from '../session';
   styleUrl: './login.css',
 })
 export class Login {
-  private readonly session = inject(Session);
+  protected readonly session = inject(Session);
   private readonly router = inject(Router);
 
   readonly error = signal(false);
