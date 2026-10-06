@@ -1,0 +1,79 @@
+:host { display: block; }
+
+/* Filtros de los reportes: búsqueda, rango de fechas y descarga. */
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.report-filters > input,
+.report-filters select {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+.report-filters label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #6f6c68;
+  font-size: 12px;
+  font-weight: 700;
+}
+.report-filters label input {
+  padding: 7px 10px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12px;
+}
+.report-filters input:focus,
+.report-filters select:focus { outline: none; border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+
+.link-button {
+  border: 0;
+  background: none;
+  color: #9f2241;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.export-button {
+  margin-left: auto;
+  padding: 9px 16px;
+  border: 1px solid #9f2241;
+  border-radius: 10px;
+  background: #fff;
+  color: #9f2241;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.export-button:hover:not(:disabled) { background: #f6e9ed; }
+.export-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.counters .danger { color: #8f2a22; }
+
+/* Resumen por institución (préstamos y transferencias). */
+.summary { margin-bottom: 18px; }
+.out { color: #8f2a22; font-weight: 700; }
+.in { color: #2f7a4a; font-weight: 700; }
+
+/* Canje: lote origen → lote nuevo. */
+.trace { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.trace .arrow { color: #9f2241; font-weight: 700; }
+.trace .old { color: #8c8a86; text-decoration: line-through; }
+
+@media (max-width: 640px) {
+  .export-button { margin-left: 0; width: 100%; }
+}

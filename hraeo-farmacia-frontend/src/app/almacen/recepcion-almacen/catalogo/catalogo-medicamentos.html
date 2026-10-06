@@ -1,12 +1,108 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción · Catálogo</p>
   <h1>Catálogo de medicamentos</h1>
-  <p>Da de alta las claves que maneja el almacén. Pedidos, entradas, carga de inventario y solicitudes de Farmacia solo aceptan claves del catálogo.</p>
+  <p>Da de alta las claves que maneja el almacén, una por una o en bloque desde un Excel. Pedidos, entradas, carga de inventario y solicitudes de Farmacia solo aceptan claves del catálogo.</p>
 </header>
 
-@if (mensaje) {
-  <div class="message" [class]="'message ' + tipoMensaje" role="status">{{ mensaje }}</div>
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
 }
+
+<section class="card bulk-card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Carga masiva</p>
+      <h2>Subir catálogo desde Excel</h2>
+      <p class="card-help">Columnas: CLAVE, NOMBRE GENERICO, PRESENTACION, PIEZAS POR CAJA (opcional) y DESCRIPCION (opcional). También acepta la hoja de inventario del Drive: toma nombre y presentación de la descripción. Las claves que ya existen se omiten.</p>
+    </div>
+    <div class="bulk-actions">
+      <button type="button" class="download-button" (click)="descargarPlantilla()">Descargar plantilla</button>
+      <label class="file-button">
+        Subir Excel
+        <input type="file" accept=".xlsx,.xls,.csv" (change)="seleccionarArchivo($event)" />
+      </label>
+    </div>
+  </div>
+
+  @if (renglones().length) {
+    <div class="card-heading preview-heading">
+      <div>
+        <p class="eyebrow">Vista previa · {{ archivoNombre() }}</p>
+        <div class="counters">
+          <span>{{ porGuardar().length }} por dar de alta</span>
+          @if (existentes()) {
+            <span>{{ existentes() }} ya existen</span>
+          }
+          @if (conError()) {
+            <span class="has-errors">{{ conError() }} con error</span>
+          }
+        </div>
+      </div>
+      <div class="preview-tools">
+        <button type="button" class="tool-button" [disabled]="!hayCambios() || guardando()" (click)="restaurar()" title="Deshace las correcciones y vuelve a los datos del archivo">↺ Restaurar</button>
+        <button type="button" class="tool-button" [disabled]="guardando()" (click)="descartar()" title="Cierra la vista previa sin guardar">✕ Descartar</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Clave</th>
+            <th>Nombre genérico</th>
+            <th>Presentación</th>
+            <th class="number">Piezas/caja</th>
+            <th>Revisión</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (renglon of renglones(); track renglon.id) {
+            <tr [class.invalid]="renglon.error">
+              @if (renglon.error) {
+                <td><input class="cell-input" [value]="renglon.clave" (change)="corregir(renglon.id, 'clave', $any($event.target).value)" [class.missing]="!renglon.clave" aria-label="Clave" /></td>
+                <td><input class="cell-input" [value]="renglon.nombreGenerico" (change)="corregir(renglon.id, 'nombreGenerico', $any($event.target).value)" [class.missing]="!renglon.nombreGenerico" aria-label="Nombre genérico" /></td>
+                <td><input class="cell-input" [value]="renglon.presentacion" (change)="corregir(renglon.id, 'presentacion', $any($event.target).value)" [class.missing]="!renglon.presentacion" aria-label="Presentación" /></td>
+                <td class="number"><input class="cell-input number" type="number" min="1" [value]="renglon.piezasPorCaja ?? ''" (change)="corregir(renglon.id, 'piezasPorCaja', $any($event.target).value)" aria-label="Piezas por caja" /></td>
+              } @else {
+                <td><strong>{{ renglon.clave }}</strong></td>
+                <td>{{ renglon.nombreGenerico }}</td>
+                <td>{{ renglon.presentacion }}</td>
+                <td class="number">{{ renglon.piezasPorCaja ?? '—' }}</td>
+              }
+              <td class="review">
+                @if (renglon.error) {
+                  <span>{{ renglon.error }}</span>
+                } @else if (renglon.estado === 'guardado') {
+                  <span class="ok">✓ Dado de alta</span>
+                } @else if (renglon.existente) {
+                  <span class="muted">Ya existe · se omite</span>
+                } @else {
+                  <span class="ok">✓ Correcto</span>
+                }
+                @if (renglon.estado !== 'guardado') {
+                  <button type="button" class="row-remove" [disabled]="guardando()" (click)="quitarRenglon(renglon.id)">Quitar</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <span>
+        @if (guardando()) {
+          Guardando {{ progreso().hechos }} de {{ progreso().total }}…
+        } @else {
+          Solo se dan de alta los renglones correctos que aún no están en el catálogo.
+        }
+      </span>
+      <button type="button" class="save-button" [disabled]="!porGuardar().length || guardando()" (click)="guardarCarga()">
+        {{ guardando() ? 'Guardando…' : 'Dar de alta (' + porGuardar().length + ')' }}
+      </button>
+    </div>
+  }
+</section>
 
 <div class="two-columns">
   <section class="card">

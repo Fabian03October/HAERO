@@ -15,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,7 +63,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         Usuario usuario = usuarioOpt.get();
         LocalDateTime fechaEmision = jwtUtil.extraerFechaEmision(token);
 
-        if (fechaEmision.isBefore(usuario.getTokenValidoDesde())) {
+        // El iat del JWT solo guarda segundos; sin truncar, un login hecho en el mismo
+        // segundo que el cierre de sesión o el cambio de contraseña nacería inválido.
+        if (fechaEmision.isBefore(usuario.getTokenValidoDesde().truncatedTo(ChronoUnit.SECONDS))) {
             response.setHeader("X-Auth-Error", "sesion-cerrada");
             return;
         }
@@ -70,7 +73,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         LocalDateTime ahora = LocalDateTime.now();
         LocalDateTime ultimaActividad = ultimaActividadPorUsuario.get(nombreUsuario);
 
-        if (ultimaActividad != null && Duration.between(ultimaActividad, ahora).compareTo(LIMITE_INACTIVIDAD) > 0) {
+        // La actividad se guarda por usuario: si el token se emitió después de la última
+        // actividad registrada es un login nuevo y la inactividad anterior no cuenta.
+        if (ultimaActividad != null && fechaEmision.isBefore(ultimaActividad)
+                && Duration.between(ultimaActividad, ahora).compareTo(LIMITE_INACTIVIDAD) > 0) {
             ultimaActividadPorUsuario.remove(nombreUsuario);
             response.setHeader("X-Auth-Error", "inactividad");
             return;

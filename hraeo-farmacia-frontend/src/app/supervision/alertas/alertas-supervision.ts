@@ -4,6 +4,7 @@ import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar } from '../../shared/sidebar/sidebar';
 import { AlertasStock } from '../../almacen/rotacion-alertas/alertas/alertas-stock';
 import { SUPERVISION_MENU } from '../supervision-nav';
+import { RotacionAlmacen } from '../../almacen/rotacion-almacen';
 
 // Supervisión · Alertas de stock (HU17 CA4). Misma consulta que ve Almacén, en solo lectura.
 @Component({
@@ -16,4 +17,9 @@ export class AlertasSupervision {
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = SUPERVISION_MENU;
+
+  constructor() {
+    // Las alertas las abre y cierra el backend; al entrar se leen las vigentes (HU17 CA4).
+    inject(RotacionAlmacen).recargar();
+  }
 }
