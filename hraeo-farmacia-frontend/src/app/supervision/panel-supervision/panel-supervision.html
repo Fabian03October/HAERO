@@ -5,12 +5,54 @@
   />
   <div class="shell">
     <app-sidebar [items]="items" />
-    <div class="main">
-      <div class="card">
-        <h1>Bienvenido/a, {{ session.usuarioActual()?.nombreCompleto }}</h1>
-        <p>Consulta de información sin registrar movimientos.</p>
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="hero-date">{{ fechaHoy }}</p>
+            <h1>Bienvenido/a, {{ primerNombre() }}</h1>
+            <p class="hero-text">Estado del abasto del Almacén de Medicamentos. Consulta en solo lectura: Supervisión no registra movimientos.</p>
+          </div>
+        </header>
+
+        <section class="kpi-grid" aria-label="Estado del abasto">
+          @for (item of indicadores(); track item.titulo) {
+            <a [class]="'kpi ' + item.tono" [routerLink]="item.ruta">
+              <span class="kpi-title">{{ item.titulo }}</span>
+              <strong>{{ item.valor }}</strong>
+              <small>{{ item.detalle }}</small>
+            </a>
+          }
+        </section>
+
+        <section class="card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">HU17 · Alertas de stock</p>
+              <h2>Claves en riesgo</h2>
+            </div>
+            <a class="card-link" routerLink="/supervision/alertas">Ver todas →</a>
+          </div>
+          @if (alertas().length) {
+            <ul class="alert-list">
+              @for (alerta of alertas(); track alerta.clave + alerta.tipo) {
+                <li [class]="alerta.tipo.toLowerCase()">
+                  <div>
+                    <strong>{{ alerta.clave }}</strong>
+                    <small>{{ medicamento(alerta.clave) || '—' }}</small>
+                  </div>
+                  <div class="alert-meta">
+                    <span class="alert-type">{{ alerta.tipo === 'DESABASTO' ? 'Riesgo de desabasto' : 'Riesgo de sobreabasto' }}</span>
+                    <small>{{ diasDesde(alerta.inicio) }} · existencia {{ alerta.existencia }} / límite {{ alerta.limite }}</small>
+                  </div>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty-box">No hay claves en riesgo. Todas están entre su stock mínimo ({{ mesesMinimo }} meses) y máximo ({{ mesesMaximo }} meses) o aún no tienen consumo.</p>
+          }
+        </section>
       </div>
-      <div class="empty-area">Área de trabajo del módulo (se habilita en la iteración correspondiente)</div>
-    </div>
+    </main>
   </div>
 </div>

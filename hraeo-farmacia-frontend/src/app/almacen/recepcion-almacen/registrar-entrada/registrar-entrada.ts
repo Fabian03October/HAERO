@@ -5,6 +5,7 @@ import { InventarioAlmacen } from '../../inventario-almacen';
 import { PedidosAlmacen } from '../../pedidos-almacen';
 import { AlmacenApi, UbicacionCantidad, mensajeDeError } from '../../almacen-api';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
+import { leerGs1 } from '../../../shared/gs1';
 import { RotacionAlmacen } from '../../rotacion-almacen';
 
 // Recepción · Registrar entrada (HU10). Recibe un lote contra una clave de un
@@ -45,6 +46,8 @@ export class RegistrarEntrada {
   readonly guardando = signal(false);
 
   entrada = { lote: '', caducidad: '' };
+  // Caducidad exacta (AAAA-MM-DD) leída de un código GS1; la pantalla solo muestra mes y año.
+  private caducidadGs1 = '';
   ubicaciones: UbicacionCantidad[] = [{ ubicacion: '', cajas: 0 }];
 
   seleccionarPedido(valor: string | number): void {
@@ -59,11 +62,27 @@ export class RegistrarEntrada {
   }
 
   escanearCodigo(): void {
-    const codigo = this.codigoEscaneado.trim();
+    let codigo = this.codigoEscaneado.trim();
     this.codigoSinRegistrar.set('');
     if (!codigo) {
       this.mostrarMensaje('Captura o escanea un código de barras.', 'error');
       return;
+    }
+
+    // Código GS1 (DataMatrix o GS1-128): trae producto, lote y caducidad. El producto
+    // se identifica por su GTIN y el lote y la caducidad se llenan solos.
+    const gs1 = leerGs1(codigo);
+    let detalleGs1 = '';
+    if (gs1?.gtin) {
+      codigo = gs1.gtin;
+      this.codigoEscaneado = codigo;
+      if (gs1.lote) this.entrada.lote = gs1.lote;
+      if (gs1.caducidad) {
+        this.entrada.caducidad = gs1.caducidad.slice(0, 7);
+        this.caducidadGs1 = gs1.caducidad;
+      }
+      const leidos = [gs1.lote && `lote ${gs1.lote}`, gs1.caducidad && `caducidad ${gs1.caducidad.split('-').reverse().join('/')}`].filter(Boolean);
+      if (leidos.length) detalleGs1 = ` Del código se tomaron ${leidos.join(' y ')}.`;
     }
 
     this.api.resolverCodigo(codigo).subscribe({
@@ -77,15 +96,15 @@ export class RegistrarEntrada {
         }
         this.pedidoId.set(pedido.id);
         this.clave.set(producto.clave);
-        this.mostrarMensaje(`Código reconocido: ${producto.clave} · ${producto.nombre} · ${producto.proveedor}. Pedido ${pedido.numero}.`, 'success');
+        this.mostrarMensaje(`Código reconocido: ${producto.clave} · ${producto.nombre} · ${producto.proveedor}. Pedido ${pedido.numero}.${detalleGs1}`, 'success');
       },
       error: (error) => {
         if (error instanceof HttpErrorResponse && error.status === 404) {
           this.codigoSinRegistrar.set(codigo);
           this.mostrarMensaje(
             this.partida()
-              ? `Código no registrado. Puedes asociarlo a la clave ${this.clave()} y al proveedor ${this.pedido()!.proveedor}.`
-              : 'Código no registrado. Elige el pedido y la clave de esta caja para asociarlo.',
+              ? `Código no registrado. Puedes asociarlo a la clave ${this.clave()} y al proveedor ${this.pedido()!.proveedor}.${detalleGs1}`
+              : `Código no registrado. Elige el pedido y la clave de esta caja para asociarlo.${detalleGs1}`,
             'error',
           );
           return;
@@ -154,7 +173,8 @@ export class RegistrarEntrada {
         clave: this.clave(),
         proveedor: pedido.proveedor,
         numeroLote: lote,
-        caducidad: ultimoDiaDelMes(this.entrada.caducidad),
+        // Si la caducidad vino del código GS1 y no se cambió el mes, se usa el día exacto.
+        caducidad: this.caducidadGs1.startsWith(this.entrada.caducidad) ? this.caducidadGs1 : ultimoDiaDelMes(this.entrada.caducidad),
         ubicaciones,
       })
       .subscribe({
@@ -162,6 +182,7 @@ export class RegistrarEntrada {
           this.guardando.set(false);
           this.mostrarMensaje(`Entrada registrada: lote ${lote}, ${total} cajas en ${ubicaciones.map((fila) => fila.ubicacion).join(', ')}.`, 'success');
           this.entrada = { lote: '', caducidad: '' };
+          this.caducidadGs1 = '';
           this.ubicaciones = [{ ubicacion: '', cajas: 0 }];
           // Si con esta entrada se completó la clave (o todo el pedido), ya no se deja elegida.
           const completoClave = total >= this.pendientePartida();

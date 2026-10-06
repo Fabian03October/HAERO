@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RotacionAlmacen, nombreMes } from '../../rotacion-almacen';
 
@@ -14,7 +14,7 @@ export class CpmClave {
   protected readonly rotacion = inject(RotacionAlmacen);
   protected readonly nombreMes = nombreMes;
 
-  readonly claveSeleccionada = signal(this.rotacion.rotacion().find((item) => item.cpm)?.clave ?? '');
+  readonly claveSeleccionada = signal('');
   readonly detalle = computed(() => this.rotacion.buscar(this.claveSeleccionada()));
   readonly mesMayor = computed(() => Math.max(1, ...(this.detalle()?.meses.map((mes) => mes.cajas) ?? [])));
 
@@ -30,6 +30,14 @@ export class CpmClave {
     const ventana = this.rotacion.ventana();
     return `${nombreMes(ventana[0])} – ${nombreMes(ventana[ventana.length - 1])}`;
   });
+
+  constructor() {
+    // Se propone la primera clave con CPM en cuanto llegan los datos del backend.
+    effect(() => {
+      const primera = this.rotacion.rotacion().find((item) => item.cpm)?.clave;
+      if (primera && !untracked(() => this.claveSeleccionada())) this.claveSeleccionada.set(primera);
+    });
+  }
 
   altura(cajas: number): number {
     return Math.round((cajas / this.mesMayor()) * 100);

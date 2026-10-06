@@ -1,0 +1,62 @@
+<header class="screen-heading">
+  <p class="eyebrow">Reportes · HU18 · Solo lectura</p>
+  <h1>Trazabilidad de canjes</h1>
+  <p>Cada lote próximo a caducar que el proveedor sustituyó, con el lote nuevo que lo reemplaza.</p>
+</header>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Lote origen → lote nuevo</p>
+      <h2>Canjes registrados</h2>
+    </div>
+    <div class="counters">
+      <span>{{ filas().length }} canjes</span>
+      <span>{{ cajasCanjeadas() }} cajas canjeadas</span>
+      <span>{{ cajasRecibidas() }} cajas recibidas</span>
+    </div>
+  </div>
+
+  <div class="report-filters">
+    <input [ngModel]="buscar()" (ngModelChange)="buscar.set($event)" placeholder="Clave, medicamento, lote o proveedor" />
+    <label>Desde <input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></label>
+    <label>hasta <input type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></label>
+    <button type="button" class="link-button" (click)="limpiar()">Limpiar</button>
+    <button type="button" class="export-button" [disabled]="!filas().length" (click)="descargar()">Descargar Excel</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Clave</th>
+          <th>Lote origen → lote nuevo</th>
+          <th class="number">Cajas</th>
+          <th>Proveedor</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (canje of filas(); track canje.loteNuevoId) {
+          <tr>
+            <td><strong>{{ fechaCorta(canje.fecha) || '—' }}</strong><small>{{ canje.usuario || '—' }}</small></td>
+            <td><strong>{{ canje.clave }}</strong><small>{{ canje.nombreGenerico }}</small></td>
+            <td>
+              <span class="trace">
+                <span class="old">{{ canje.loteOrigen }}</span>
+                <small>cad. {{ formatoCaducidad(canje.caducidadOrigen) }}</small>
+                <span class="arrow" aria-hidden="true">→</span>
+                <strong>{{ canje.loteNuevo }}</strong>
+                <small>cad. {{ formatoCaducidad(canje.caducidadNueva) }} · {{ canje.ubicacion }}</small>
+              </span>
+            </td>
+            <td class="number">{{ canje.cajasOrigen }} → {{ canje.cajasNuevas }}</td>
+            <td>{{ canje.proveedor }}</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="5" class="empty">No hay canjes registrados con estos filtros.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

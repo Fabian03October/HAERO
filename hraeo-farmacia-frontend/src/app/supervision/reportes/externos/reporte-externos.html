@@ -1,0 +1,95 @@
+<header class="screen-heading">
+  <p class="eyebrow">Reportes · HU20 · Solo lectura</p>
+  <h1>Movimientos con otras instituciones</h1>
+  <p>Préstamos y transferencias con otras instituciones públicas, separados del traspaso normal a Farmacia.</p>
+</header>
+
+<section class="card">
+  <div class="report-filters">
+    <input [ngModel]="buscar()" (ngModelChange)="buscar.set($event)" placeholder="Institución, clave o lote" />
+    <select [ngModel]="tipo()" (ngModelChange)="tipo.set($event)" aria-label="Tipo">
+      <option value="">Préstamos y transferencias</option>
+      <option value="PRESTAMO">Solo préstamos</option>
+      <option value="TRANSFERENCIA">Solo transferencias</option>
+    </select>
+    <select [ngModel]="sentido()" (ngModelChange)="sentido.set($event)" aria-label="Sentido">
+      <option value="">Salen y entran</option>
+      <option value="SALIDA">Solo lo que sale</option>
+      <option value="ENTRADA">Solo lo que entra</option>
+    </select>
+    <label>Desde <input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></label>
+    <label>hasta <input type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></label>
+    <button type="button" class="link-button" (click)="limpiar()">Limpiar</button>
+    <button type="button" class="export-button" [disabled]="!filas().length" (click)="descargar()">Descargar Excel</button>
+  </div>
+
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Saldo por institución</p>
+      <h2>Resumen</h2>
+    </div>
+    <div class="counters">
+      <span>{{ filas().length }} movimientos</span>
+      <span class="out">{{ salieron() }} cajas salieron</span>
+      <span class="in">{{ entraron() }} cajas entraron</span>
+    </div>
+  </div>
+  <div class="table-wrap summary">
+    <table>
+      <thead>
+        <tr>
+          <th>Institución</th>
+          <th class="number">Movimientos</th>
+          <th class="number">Salieron</th>
+          <th class="number">Entraron</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (fila of porInstitucion(); track fila.institucion) {
+          <tr>
+            <td><strong>{{ fila.institucion }}</strong></td>
+            <td class="number">{{ fila.movimientos }}</td>
+            <td class="number out">{{ fila.salieron }}</td>
+            <td class="number in">{{ fila.entraron }}</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="4" class="empty">Sin movimientos con otras instituciones en estos filtros.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Detalle</p>
+      <h2>Movimientos</h2>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Movimiento</th>
+          <th>Clave · lote</th>
+          <th class="number">Cajas</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of filas(); track $index) {
+          <tr>
+            <td><strong>{{ fechaCorta(item.fecha) }}</strong><small>{{ item.usuario || '—' }}</small></td>
+            <td>
+              <span [class]="item.sentido === 'SALIDA' ? 'out' : 'in'">{{ tipoTexto(item.tipo) }} · {{ item.sentido === 'SALIDA' ? 'sale' : 'entra' }}</span>
+              <small>{{ item.institucion }}</small>
+            </td>
+            <td><strong>{{ item.clave }} · {{ item.lote }}</strong><small>{{ item.ubicacion }}</small></td>
+            <td class="number">{{ item.cajas }}</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="4" class="empty">Sin movimientos con estos filtros.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

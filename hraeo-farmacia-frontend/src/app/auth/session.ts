@@ -44,6 +44,8 @@ export class Session {
   private readonly http = inject(HttpClient);
 
   readonly usuarioActual = signal<UsuarioSesion | null>(null);
+  // Por qué se cerró la sesión sin que el usuario lo pidiera; el login lo muestra.
+  readonly motivoSalida = signal('');
 
   private token: string | null = null;
 
@@ -62,6 +64,7 @@ export class Session {
       );
 
       this.token = respuesta.token;
+      this.motivoSalida.set('');
       const usuario: UsuarioSesion = {
         nombreCompleto: respuesta.nombreCompleto,
         nombreUsuario,
@@ -90,13 +93,17 @@ export class Session {
     }
   }
 
-  contrasenaCambiada(): void {
-    const actual = this.usuarioActual();
-    if (actual) {
-      const actualizado = { ...actual, debeCambiarContrasena: false };
-      this.usuarioActual.set(actualizado);
-      this.persistirSesion(actualizado);
-    }
+  /**
+   * La sesión dejó de ser válida en el servidor: se borra localmente (sin llamar
+   * a /logout, que también fallaría) y se guarda el motivo para el login.
+   */
+  expirar(motivo: string): void {
+    if (!this.usuarioActual()) return;
+    this.token = null;
+    this.usuarioActual.set(null);
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    this.motivoSalida.set(motivo);
   }
 
   restaurarSesion(): void {

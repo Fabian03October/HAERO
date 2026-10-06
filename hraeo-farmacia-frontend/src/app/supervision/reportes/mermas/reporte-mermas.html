@@ -1,0 +1,64 @@
+<header class="screen-heading">
+  <p class="eyebrow">Reportes · HU19 · Solo lectura</p>
+  <h1>Mermas por caducidad</h1>
+  <p>Lotes que caducaron y se apartaron del inventario disponible: cuánto se perdió, de qué proveedor y cuándo se apartó.</p>
+</header>
+
+@if (porApartar().length) {
+  <div class="message info">
+    Hay {{ porApartar().length }} lote(s) vencido(s) que Almacén aún no aparta. No aparecen aquí hasta que se muevan a caducados.
+  </div>
+}
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Apartado de caducados</p>
+      <h2>Lotes dados de baja</h2>
+    </div>
+    <div class="counters">
+      <span>{{ filas().length }} lotes</span>
+      <span>{{ totalClaves() }} claves</span>
+      <span class="danger">{{ totalCajas() }} cajas</span>
+    </div>
+  </div>
+
+  <div class="report-filters">
+    <input [ngModel]="buscar()" (ngModelChange)="buscar.set($event)" placeholder="Clave, medicamento, lote o proveedor" />
+    <label>Apartado desde <input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></label>
+    <label>hasta <input type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></label>
+    <button type="button" class="link-button" (click)="limpiar()">Limpiar</button>
+    <button type="button" class="export-button" [disabled]="!filas().length" (click)="descargar()">Descargar Excel</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Clave</th>
+          <th>Lote</th>
+          <th>Caducó</th>
+          <th>Proveedor</th>
+          <th>Ubicaciones</th>
+          <th class="number">Cajas</th>
+          <th>Apartado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (lote of filas(); track lote.loteId) {
+          <tr>
+            <td><strong>{{ lote.clave }}</strong><small>{{ lote.nombreGenerico }}</small></td>
+            <td>{{ lote.numeroLote }}</td>
+            <td>{{ formatoCaducidad(lote.caducidad) }}</td>
+            <td>{{ lote.proveedor }}</td>
+            <td>{{ ubicaciones(lote.ubicaciones) }}</td>
+            <td class="number"><strong>{{ lote.cajas }}</strong></td>
+            <td><strong>{{ fechaCorta(lote.fechaApartado) || '—' }}</strong><small>{{ lote.usuario || '—' }}</small></td>
+          </tr>
+        } @empty {
+          <tr><td colspan="7" class="empty">No hay mermas registradas con estos filtros.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

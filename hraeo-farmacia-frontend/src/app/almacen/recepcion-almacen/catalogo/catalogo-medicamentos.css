@@ -1,0 +1,6 @@
+:host { display: block; }
+.bulk-card { margin-bottom: 18px; }
+.bulk-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.preview-heading { margin-top: 14px; }
+.review .muted { color: #8c8a86; }
+.row-remove:disabled { opacity: 0.4; cursor: not-allowed; }
