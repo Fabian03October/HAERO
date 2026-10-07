@@ -129,4 +129,23 @@ class ServicioMovimientosTest {
         }
         return movimiento;
     }
+
+
+    @Test
+    void esDevolucion_soloCuandoVaEnSentidoContrarioAlPrestamo() {
+        com.example.backend.almacen.entity.ExpedienteExterno prestamo = new com.example.backend.almacen.entity.ExpedienteExterno();
+        prestamo.setSentido("SALIDA");
+        Movimiento salidaInicial = movimiento("PRESTAMO", 20, null);
+        salidaInicial.setSentido("SALIDA");
+        salidaInicial.setExpediente(prestamo);
+        Movimiento regreso = movimiento("PRESTAMO", 20, null);
+        regreso.setSentido("ENTRADA");
+        regreso.setExpediente(prestamo);
+        Movimiento sinExpediente = movimiento("PRESTAMO", 5, null);
+        sinExpediente.setSentido("ENTRADA");
+
+        assertThat(ServicioMovimientos.esDevolucion(salidaInicial)).isFalse();
+        assertThat(ServicioMovimientos.esDevolucion(regreso)).isTrue();
+        assertThat(ServicioMovimientos.esDevolucion(sinExpediente)).isFalse();
+    }
 }

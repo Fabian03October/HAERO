@@ -1,5 +1,7 @@
 package com.example.backend.service;
 
+import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.any;
 import com.example.backend.dto.LoginRequest;
 import com.example.backend.dto.LoginResponse;
 import com.example.backend.entity.Rol;
@@ -111,5 +113,75 @@ class ServicioAutenticacionTest {
         assertThatThrownBy(() -> servicioAutenticacion.login(request))
                 .isInstanceOf(BadCredentialsException.class)
                 .hasMessage("Usuario o contraseña incorrectos");
+    }
+
+
+    // ---------- Bloqueo por intentos fallidos ----------
+
+    private LoginRequest intento(String contrasena) {
+        LoginRequest request = new LoginRequest();
+        request.setNombreUsuario("jperez");
+        request.setContrasena(contrasena);
+        return request;
+    }
+
+    @Test
+    void login_conContrasenaIncorrecta_cuentaElIntentoFallido() {
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioActivo));
+        when(passwordEncoder.matches("mala", "hash-guardado")).thenReturn(false);
+
+        assertThatThrownBy(() -> servicioAutenticacion.login(intento("mala")))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessage("Usuario o contraseña incorrectos");
+        assertThat(usuarioActivo.getIntentosFallidos()).isEqualTo(1);
+        assertThat(usuarioActivo.getBloqueadoHasta()).isNull();
+    }
+
+    @Test
+    void login_alQuintoIntentoFallido_bloqueaLaCuenta() {
+        usuarioActivo.setIntentosFallidos(ServicioAutenticacion.MAX_INTENTOS - 1);
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioActivo));
+        when(passwordEncoder.matches("mala", "hash-guardado")).thenReturn(false);
+
+        assertThatThrownBy(() -> servicioAutenticacion.login(intento("mala")))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("Cuenta bloqueada");
+        assertThat(usuarioActivo.getBloqueadoHasta()).isAfter(java.time.LocalDateTime.now());
+        assertThat(usuarioActivo.getIntentosFallidos()).isZero();
+    }
+
+    @Test
+    void login_conCuentaBloqueada_rechazaAunqueLaContrasenaSeaCorrecta() {
+        usuarioActivo.setBloqueadoHasta(java.time.LocalDateTime.now().plusMinutes(5));
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioActivo));
+
+        assertThatThrownBy(() -> servicioAutenticacion.login(intento("clave-correcta")))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("Intenta de nuevo en 5 minutos");
+        verify(jwtUtil, never()).generarToken(any(), any());
+    }
+
+    @Test
+    void login_correcto_reiniciaIntentosYQuitaBloqueoVencido() {
+        usuarioActivo.setIntentosFallidos(3);
+        usuarioActivo.setBloqueadoHasta(java.time.LocalDateTime.now().minusMinutes(1));
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioActivo));
+        when(passwordEncoder.matches("clave-correcta", "hash-guardado")).thenReturn(true);
+        when(jwtUtil.generarToken("jperez", "FARMACIA")).thenReturn("token");
+
+        servicioAutenticacion.login(intento("clave-correcta"));
+
+        assertThat(usuarioActivo.getIntentosFallidos()).isZero();
+        assertThat(usuarioActivo.getBloqueadoHasta()).isNull();
+    }
+
+    @Test
+    void login_devuelveLaVersionDePoliticasAceptada() {
+        usuarioActivo.setVersionPoliticasAceptada("1.0");
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioActivo));
+        when(passwordEncoder.matches("clave-correcta", "hash-guardado")).thenReturn(true);
+        when(jwtUtil.generarToken("jperez", "FARMACIA")).thenReturn("token");
+
+        assertThat(servicioAutenticacion.login(intento("clave-correcta")).getVersionPoliticasAceptada()).isEqualTo("1.0");
     }
 }

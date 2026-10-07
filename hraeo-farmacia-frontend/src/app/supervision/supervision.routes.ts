@@ -5,6 +5,7 @@ import { CpmSupervision } from './cpm/cpm-supervision';
 import { SeccionSupervision } from './seccion-supervision';
 import { Existencias } from '../almacen/existencias/existencias';
 import { SalidasRegistradas } from '../almacen/despacho/salidas-registradas/salidas-registradas';
+import { MovimientosExternos } from '../almacen/movimientos-especiales/externos/movimientos-externos';
 import { ReporteMermas } from './reportes/mermas/reporte-mermas';
 import { ReporteCanjes } from './reportes/canjes/reporte-canjes';
 import { ReporteExternos } from './reportes/externos/reporte-externos';
@@ -24,6 +25,7 @@ export const SUPERVISION_ROUTES: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'existencias' },
       { path: 'existencias', component: Existencias },
       { path: 'salidas', component: SalidasRegistradas },
+      { path: 'prestamos', component: MovimientosExternos, data: { soloLectura: true } },
     ],
   },
   // Reportes que el documento de la Iteración 2 deja anunciados (HU18, HU19, HU20).

@@ -138,8 +138,13 @@ public class ServicioDespacho {
         return aRespuesta(solicitudRepository.save(solicitud));
     }
 
-    public List<SolicitudResponse> listarMisSolicitudes(String nombreUsuarioSolicitante) {
-        return solicitudRepository.findByUsuarioNombreUsuario(nombreUsuarioSolicitante).stream()
+    /**
+     * Solicitudes de todo el personal de Farmacia, las más recientes primero. Son del
+     * área y no de cada persona: así quien entra a otro turno ve lo pendiente y no se
+     * pide dos veces lo mismo. Cada una conserva quién la hizo (HU13 CA1).
+     */
+    public List<SolicitudResponse> listarSolicitudesDeFarmacia() {
+        return solicitudRepository.findAllByOrderByFechaDesc().stream()
                 .map(this::aRespuesta)
                 .toList();
     }
@@ -319,7 +324,9 @@ public class ServicioDespacho {
                 solicitud.getCantidadSolicitada(),
                 solicitud.getCantidadAtendida(),
                 solicitud.getEstatus(),
-                solicitud.getFecha()
+                solicitud.getFecha(),
+                solicitud.getUsuario() != null ? solicitud.getUsuario().getNombreCompleto() : null,
+                solicitud.getUsuario() != null ? solicitud.getUsuario().getNombreUsuario() : null
         );
     }
 }

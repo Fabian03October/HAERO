@@ -12,6 +12,7 @@ export const SUPERVISION_MENU: ItemMenu[] = [
     hijos: [
       { etiqueta: 'Existencias', routerLink: '/supervision/consultas/existencias', etiquetaExtra: 'HU12' },
       { etiqueta: 'Salidas registradas', routerLink: '/supervision/consultas/salidas', etiquetaExtra: 'HU14' },
+      { etiqueta: 'Préstamos y transferencias', routerLink: '/supervision/consultas/prestamos', etiquetaExtra: 'HU20' },
     ],
   },
   {

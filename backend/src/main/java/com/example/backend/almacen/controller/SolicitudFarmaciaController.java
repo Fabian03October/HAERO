@@ -27,7 +27,8 @@ public class SolicitudFarmaciaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<SolicitudResponse>> misSolicitudes(Authentication authentication) {
-        return ResponseEntity.ok(servicioDespacho.listarMisSolicitudes(authentication.getName()));
+    public ResponseEntity<List<SolicitudResponse>> listar() {
+        // Todas las solicitudes del área de Farmacia, no solo las del usuario.
+        return ResponseEntity.ok(servicioDespacho.listarSolicitudesDeFarmacia());
     }
 }

@@ -11,6 +11,7 @@
       <option value="">Préstamos y transferencias</option>
       <option value="PRESTAMO">Solo préstamos</option>
       <option value="TRANSFERENCIA">Solo transferencias</option>
+      <option value="DEVOLUCION">Solo devoluciones de préstamos</option>
     </select>
     <select [ngModel]="sentido()" (ngModelChange)="sentido.set($event)" aria-label="Sentido">
       <option value="">Salen y entran</option>
@@ -32,6 +33,9 @@
       <span>{{ filas().length }} movimientos</span>
       <span class="out">{{ salieron() }} cajas salieron</span>
       <span class="in">{{ entraron() }} cajas entraron</span>
+      @if (devueltas()) {
+        <span>{{ devueltas() }} cajas en devoluciones</span>
+      }
     </div>
   </div>
   <div class="table-wrap summary">
@@ -42,6 +46,8 @@
           <th class="number">Movimientos</th>
           <th class="number">Salieron</th>
           <th class="number">Entraron</th>
+          <th class="number">Nos devolvieron</th>
+          <th class="number">Devolvimos</th>
         </tr>
       </thead>
       <tbody>
@@ -51,9 +57,11 @@
             <td class="number">{{ fila.movimientos }}</td>
             <td class="number out">{{ fila.salieron }}</td>
             <td class="number in">{{ fila.entraron }}</td>
+            <td class="number in">{{ fila.nosDevolvieron }}</td>
+            <td class="number out">{{ fila.devolvimos }}</td>
           </tr>
         } @empty {
-          <tr><td colspan="4" class="empty">Sin movimientos con otras instituciones en estos filtros.</td></tr>
+          <tr><td colspan="6" class="empty">Sin movimientos con otras instituciones en estos filtros.</td></tr>
         }
       </tbody>
     </table>
@@ -80,7 +88,7 @@
           <tr>
             <td><strong>{{ fechaCorta(item.fecha) }}</strong><small>{{ item.usuario || '—' }}</small></td>
             <td>
-              <span [class]="item.sentido === 'SALIDA' ? 'out' : 'in'">{{ tipoTexto(item.tipo) }} · {{ item.sentido === 'SALIDA' ? 'sale' : 'entra' }}</span>
+              <span [class]="item.sentido === 'SALIDA' ? 'out' : 'in'">{{ tipoTexto(item) }} · {{ item.sentido === 'SALIDA' ? 'sale' : 'entra' }}</span>
               <small>{{ item.institucion }}</small>
             </td>
             <td><strong>{{ item.clave }} · {{ item.lote }}</strong><small>{{ item.ubicacion }}</small></td>

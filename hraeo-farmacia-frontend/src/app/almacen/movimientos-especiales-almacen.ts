@@ -39,6 +39,8 @@ export interface MovimientoExterno {
   caducidad: string;
   ubicacion: string;
   cajas: number;
+  // Devolución de un préstamo (no es un préstamo nuevo).
+  devolucion: boolean;
 }
 
 export interface DatosCanje {
@@ -316,6 +318,7 @@ function aExterno(movimiento: Movimiento): MovimientoExterno {
     caducidad: movimiento.caducidad,
     ubicacion: movimiento.ubicacion,
     cajas: movimiento.cajas,
+    devolucion: !!movimiento.devolucion,
   };
 }
 

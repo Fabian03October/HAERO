@@ -57,7 +57,14 @@ public class ServicioMovimientos {
                 m.getInstitucionExterna(),
                 solicitud != null ? solicitud.getUsuario().getNombreCompleto() : null,
                 solicitud != null ? solicitud.getFecha() : null,
-                solicitud != null ? solicitud.getCantidadSolicitada() : null
+                solicitud != null ? solicitud.getCantidadSolicitada() : null,
+                esDevolucion(m)
         );
+    }
+
+    /** Un movimiento de un expediente que va en sentido contrario al préstamo es su devolución. */
+    static boolean esDevolucion(Movimiento m) {
+        return m.getExpediente() != null && m.getSentido() != null
+                && !m.getSentido().equalsIgnoreCase(m.getExpediente().getSentido());
     }
 }

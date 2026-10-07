@@ -24,7 +24,7 @@
       <p class="subtitle">Usa el usuario que te asignó el administrador.</p>
 
       @if (error()) {
-        <div class="banner error">Usuario o contraseña incorrectos.</div>
+        <div class="banner error" role="alert">{{ session.errorInicio() }}</div>
       } @else if (session.motivoSalida()) {
         <div class="banner warn" role="status">{{ session.motivoSalida() }}</div>
       }

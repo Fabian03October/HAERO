@@ -102,7 +102,7 @@ export class PoliticasUsoPage {
   });
   readonly aceptacion = computed(() => {
     const usuario = this.usuario();
-    return usuario ? this.politicas.aceptacionVigente(usuario.nombreUsuario) : undefined;
+    return usuario ? this.politicas.aceptacionVigente(usuario) : undefined;
   });
 
   readonly marcado = signal(false);
@@ -113,10 +113,19 @@ export class PoliticasUsoPage {
     if (!this.session.usuarioActual()) this.router.navigateByUrl('/login');
   }
 
-  aceptar(): void {
+  readonly guardando = signal(false);
+  readonly error = signal('');
+
+  async aceptar(): Promise<void> {
     const usuario = this.usuario();
-    if (!usuario || !this.marcado()) return;
-    this.politicas.aceptar(usuario);
+    if (!usuario || !this.marcado() || this.guardando()) return;
+    this.guardando.set(true);
+    const error = await this.politicas.aceptar();
+    this.guardando.set(false);
+    if (error) {
+      this.error.set(error);
+      return;
+    }
     this.router.navigateByUrl(RUTA_POR_ROL[usuario.rol]);
   }
 

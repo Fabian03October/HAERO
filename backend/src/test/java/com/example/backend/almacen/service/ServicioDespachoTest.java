@@ -102,6 +102,31 @@ class ServicioDespachoTest {
         return existencia;
     }
 
+    // ---------- Farmacia ve las solicitudes de toda el área ----------
+
+    @Test
+    void listarSolicitudesDeFarmacia_incluyeLasDeTodosLosUsuariosConQuienLasHizo() {
+        Usuario fabian = new Usuario();
+        fabian.setNombreUsuario("fabiancito");
+        fabian.setNombreCompleto("Fabián de Jesús Jiménez Castillejos");
+        Usuario rubi = new Usuario();
+        rubi.setNombreUsuario("rubi");
+        rubi.setNombreCompleto("Rubí Morales");
+        Solicitud deFabian = solicitudPendiente(10);
+        deFabian.setUsuario(fabian);
+        Solicitud deRubi = solicitudPendiente(5);
+        deRubi.setId(2L);
+        deRubi.setUsuario(rubi);
+        when(solicitudRepository.findAllByOrderByFechaDesc()).thenReturn(List.of(deRubi, deFabian));
+
+        var lista = servicioDespacho.listarSolicitudesDeFarmacia();
+
+        assertThat(lista).hasSize(2);
+        assertThat(lista.get(0).getSolicitadoPor()).isEqualTo("Rubí Morales");
+        assertThat(lista.get(0).getSolicitadoPorUsuario()).isEqualTo("rubi");
+        assertThat(lista.get(1).getSolicitadoPor()).isEqualTo("Fabián de Jesús Jiménez Castillejos");
+    }
+
     // ---------- PU-06: partida mayor a la existencia ----------
 
     @Test

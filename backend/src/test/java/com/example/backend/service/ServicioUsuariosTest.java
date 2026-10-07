@@ -319,22 +319,52 @@ class ServicioUsuariosTest {
     }
 
     @Test
-    void cambiarContrasenaPropia_siendoAdmin_lanza400() {
+    void cambiarContrasenaPropia_siendoAdmin_laCambia() {
         Rol rolAdmin = new Rol();
         rolAdmin.setNombre("ADMIN");
         usuarioExistente.setRol(rolAdmin);
+        usuarioExistente.setDebeCambiarContrasena(true);
 
         CambiarContrasenaRequest request = new CambiarContrasenaRequest();
-        request.setContrasenaActual("hash-actual-en-claro");
+        request.setContrasenaActual("clave-de-prueba");
         request.setContrasenaNueva("NuevaValida123*");
 
         when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.matches("clave-de-prueba", "hash-actual")).thenReturn(true);
+        when(passwordEncoder.encode("NuevaValida123*")).thenReturn("hash-nuevo");
+
+        servicioUsuarios.cambiarContrasenaPropia("jperez", request);
+
+        assertThat(usuarioExistente.getContrasenaHash()).isEqualTo("hash-nuevo");
+        assertThat(usuarioExistente.isDebeCambiarContrasena()).isFalse();
+        verify(usuarioRepository).save(usuarioExistente);
+    }
+
+    @Test
+    void cambiarContrasenaPropia_conLaMismaContrasena_lanza400() {
+        CambiarContrasenaRequest request = new CambiarContrasenaRequest();
+        request.setContrasenaActual("Actual123");
+        request.setContrasenaNueva("Actual123");
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.matches("Actual123", "hash-actual")).thenReturn(true);
 
         assertThatThrownBy(() -> servicioUsuarios.cambiarContrasenaPropia("jperez", request))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("no puede cambiar su propia contraseña");
-
+                .hasMessageContaining("distinta de la actual");
         verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void validarContrasena_pideOchoCaracteresConLetraYNumero() {
+        ServicioUsuarios.validarContrasena("Farmacia2026");
+        ServicioUsuarios.validarContrasena("abc12345");
+
+        for (String debil : new String[] {"12345678", "abcdefgh", "Abc123", "        ", null}) {
+            assertThatThrownBy(() -> ServicioUsuarios.validarContrasena(debil))
+                    .as("debería rechazar \"%s\"", debil)
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("al menos una letra y un número");
+        }
     }
 
     @Test
@@ -371,5 +401,44 @@ class ServicioUsuariosTest {
         verify(usuarioRepository).save(captor.capture());
         assertThat(captor.getValue().getContrasenaHash()).isEqualTo("hash-nuevo");
         assertThat(captor.getValue().isDebeCambiarContrasena()).isFalse();
+    }
+
+    // ---------- Políticas de uso y bloqueo ----------
+
+    @Test
+    void aceptarPoliticas_guardaLaVersionYLaFechaEnElServidor() {
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        com.example.backend.dto.AceptarPoliticasRequest request = new com.example.backend.dto.AceptarPoliticasRequest();
+        request.setVersion("1.0");
+
+        var respuesta = servicioUsuarios.aceptarPoliticas("jperez", request);
+
+        assertThat(respuesta.getVersion()).isEqualTo("1.0");
+        assertThat(respuesta.getFecha()).isNotNull();
+        assertThat(usuarioExistente.getVersionPoliticasAceptada()).isEqualTo("1.0");
+        verify(usuarioRepository).save(usuarioExistente);
+    }
+
+    @Test
+    void aceptarPoliticas_sinVersion_lanza400() {
+        assertThatThrownBy(() -> servicioUsuarios.aceptarPoliticas("jperez", new com.example.backend.dto.AceptarPoliticasRequest()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("versión");
+    }
+
+    @Test
+    void restablecerContrasena_quitaElBloqueoPorIntentos() {
+        usuarioExistente.setIntentosFallidos(3);
+        usuarioExistente.setBloqueadoHasta(java.time.LocalDateTime.now().plusMinutes(8));
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.encode(any())).thenReturn("nuevo-hash");
+        when(usuarioRepository.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
+        RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
+        request.setContrasenaTemporal("Temporal123");
+
+        servicioUsuarios.restablecerContrasena(5L, request);
+
+        assertThat(usuarioExistente.getIntentosFallidos()).isZero();
+        assertThat(usuarioExistente.getBloqueadoHasta()).isNull();
     }
 }

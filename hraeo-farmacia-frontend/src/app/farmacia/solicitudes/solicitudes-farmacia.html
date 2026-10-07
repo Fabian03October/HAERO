@@ -10,7 +10,7 @@
         <header class="screen-heading">
           <p class="eyebrow">Farmacia · HU13</p>
           <h1>Solicitudes a Almacén</h1>
-          <p>Pide medicamento a Almacén con la clave y la cantidad. Almacén elige el lote y lo despacha.</p>
+          <p>Pide medicamento a Almacén con la clave y la cantidad. Almacén elige el lote y lo despacha. Aquí ves las solicitudes de todo el personal de Farmacia.</p>
         </header>
 
         @if (mensaje()) {
@@ -60,13 +60,34 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Seguimiento</p>
-                <h2>Mis solicitudes</h2>
+                <p class="eyebrow">Seguimiento del área</p>
+                <h2>Solicitudes de Farmacia</h2>
               </div>
               <div class="counters">
                 <span>{{ enEspera() }} en espera</span>
                 <button class="secondary-button" type="button" [disabled]="cargando()" (click)="recargar()">Actualizar</button>
               </div>
+            </div>
+            <div class="list-tools">
+              <span class="segmented" role="group" aria-label="De quién">
+                <button type="button" [class.active]="!soloMias()" (click)="soloMias.set(false)">Todas</button>
+                <button type="button" [class.active]="soloMias()" (click)="soloMias.set(true)">Mías</button>
+              </span>
+              <input
+                class="search"
+                type="search"
+                [value]="busqueda()"
+                (input)="busqueda.set($any($event.target).value)"
+                placeholder="Buscar folio, clave, medicamento o persona"
+                aria-label="Buscar solicitudes"
+              />
+            </div>
+            <div class="filter-tabs" role="group" aria-label="Filtrar por estatus">
+              @for (opcion of filtrosEstatus(); track opcion.valor) {
+                <button type="button" [class.active]="filtroEstatus() === opcion.valor" [attr.aria-pressed]="filtroEstatus() === opcion.valor" (click)="filtroEstatus.set(opcion.valor)">
+                  {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
+                </button>
+              }
             </div>
             <div class="table-wrap">
               <table>
@@ -74,20 +95,27 @@
                   <tr>
                     <th>Folio</th>
                     <th>Medicamento</th>
+                    <th>Solicitó</th>
                     <th class="number">Atendidas</th>
                     <th>Estatus</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (solicitud of solicitudes(); track solicitud.id) {
-                    <tr>
+                  @for (solicitud of solicitudesFiltradas(); track solicitud.id) {
+                    <tr [class.mia]="esMia(solicitud)">
                       <td><strong>{{ folio(solicitud.id) }}</strong><small>{{ solicitud.fecha | date: 'dd/MM/yyyy HH:mm' }}</small></td>
                       <td><strong>{{ solicitud.clave }}</strong><small>{{ solicitud.nombreGenerico || '—' }}</small></td>
+                      <td class="quien">
+                        <strong>{{ solicitud.solicitadoPor || '—' }}</strong>
+                        @if (esMia(solicitud)) {
+                          <small class="tu">tú</small>
+                        }
+                      </td>
                       <td class="number">{{ solicitud.cantidadAtendida }} / {{ solicitud.cantidadSolicitada }}</td>
                       <td><span [class]="'status ' + solicitud.estatus.toLowerCase()">{{ estadoTexto[solicitud.estatus] }}</span></td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="4" class="empty">{{ cargando() ? 'Cargando…' : 'Aún no hay solicitudes.' }}</td></tr>
+                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : solicitudes().length ? 'Ninguna solicitud coincide con el filtro o la búsqueda.' : 'Aún no hay solicitudes.' }}</td></tr>
                   }
                 </tbody>
               </table>

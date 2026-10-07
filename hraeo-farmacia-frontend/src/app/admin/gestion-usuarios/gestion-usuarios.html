@@ -46,7 +46,12 @@
                     </td>
                     <td class="rowact">
                       @if (u.rol === 'ADMIN') {
-                        <span class="subtitle">Sin acciones</span>
+                        <!-- Su propia contraseña se cambia pidiendo la actual; no se "restablece". -->
+                        @if (u.nombreUsuario === session.usuarioActual()?.nombreUsuario) {
+                          <a routerLink="/cambiar-contrasena">Cambiar mi contraseña</a>
+                        } @else {
+                          <span class="subtitle">Sin acciones</span>
+                        }
                       } @else {
                         <a routerLink="/admin/usuarios/{{ u.id }}/editar">Editar</a>
                         <a routerLink="/admin/usuarios/{{ u.id }}/restablecer-contrasena">Restablecer contraseña</a>

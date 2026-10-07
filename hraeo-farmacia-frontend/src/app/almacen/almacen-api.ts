@@ -120,6 +120,9 @@ export interface Solicitud {
   cantidadAtendida: number;
   estatus: EstatusSolicitud;
   fecha: string;
+  // Quién de Farmacia la hizo: nombre para mostrar y usuario (para marcar las propias).
+  solicitadoPor: string | null;
+  solicitadoPorUsuario: string | null;
 }
 
 export interface SugerenciaPartida {
@@ -180,6 +183,8 @@ export interface Movimiento {
   solicitadoPor: string | null;
   fechaSolicitud: string | null;
   cantidadSolicitada: number | null;
+  // Préstamos: true si es la devolución (va en sentido contrario al préstamo).
+  devolucion: boolean;
 }
 
 // ---------- Movimientos especiales (HU18, HU19, HU20) ----------
@@ -516,7 +521,8 @@ export class AlmacenApi {
     return this.http.post<Solicitud>(`${API_BASE_URL}/farmacia/solicitudes`, { clave, cantidad }, this.cabeceras());
   }
 
-  misSolicitudes(): Observable<Solicitud[]> {
+  /** Solicitudes de todo el personal de Farmacia (no solo las del usuario). */
+  solicitudesFarmacia(): Observable<Solicitud[]> {
     return this.http.get<Solicitud[]>(`${API_BASE_URL}/farmacia/solicitudes`, this.cabeceras());
   }
 }

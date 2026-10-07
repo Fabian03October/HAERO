@@ -15,4 +15,7 @@ public class SolicitudResponse {
     private Integer cantidadAtendida;
     private String estatus;
     private LocalDateTime fecha;
+    // Quién de Farmacia la hizo: nombre para mostrar y usuario (para marcar "mías").
+    private String solicitadoPor;
+    private String solicitadoPorUsuario;
 }

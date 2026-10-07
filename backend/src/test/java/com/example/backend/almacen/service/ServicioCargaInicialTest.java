@@ -97,4 +97,74 @@ class ServicioCargaInicialTest {
         verify(existenciaRepository, org.mockito.Mockito.times(2)).save(any());
         verify(movimientoRepository, org.mockito.Mockito.times(2)).save(any());
     }
+
+
+    // ---------- No duplicar el inventario ----------
+
+    private com.example.backend.almacen.entity.Medicamento paracetamol() {
+        var medicamento = new com.example.backend.almacen.entity.Medicamento();
+        medicamento.setClave("0134");
+        medicamento.setNombreGenerico("Paracetamol 500 mg");
+        when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
+        return medicamento;
+    }
+
+    @Test
+    void cargar_unLoteQueYaEstaEnElInventario_loRechazaYNoImportaNada() {
+        paracetamol();
+        when(loteRepository.findByMedicamentoClaveAndNumeroLoteIgnoreCaseAndEstatus("0134", "L-0001", "DISPONIBLE"))
+                .thenReturn(List.of(new com.example.backend.almacen.entity.Lote()));
+
+        CargaInicialResponse respuesta = servicioCargaInicial.cargar(List.of(
+                "clave,numero_lote,caducidad,proveedor,ubicacion,cantidad_cajas",
+                "0134,L-0001,2028-01-01,Lab Sanfer,Sector 1,10"), "encargada1");
+
+        assertThat(respuesta.isExito()).isFalse();
+        assertThat(respuesta.getErrores().get(0).getMensaje()).contains("ya está en el inventario");
+        verify(loteRepository, never()).save(any());
+    }
+
+    @Test
+    void cargar_renglonRepetidoEnElArchivo_loRechaza() {
+        paracetamol();
+
+        CargaInicialResponse respuesta = servicioCargaInicial.cargar(List.of(
+                "clave,numero_lote,caducidad,proveedor,ubicacion,cantidad_cajas",
+                "0134,L-0001,2028-01-01,Lab Sanfer,Sector 1,10",
+                "0134,l-0001,2028-01-01,Lab Sanfer,sector 1,10"), "encargada1");
+
+        assertThat(respuesta.isExito()).isFalse();
+        assertThat(respuesta.getErrores()).hasSize(1);
+        assertThat(respuesta.getErrores().get(0).getFila()).isEqualTo(3);
+        assertThat(respuesta.getErrores().get(0).getMensaje()).contains("Renglón repetido");
+    }
+
+    @Test
+    void cargar_mismoLoteConDosCaducidades_loRechaza() {
+        paracetamol();
+
+        CargaInicialResponse respuesta = servicioCargaInicial.cargar(List.of(
+                "clave,numero_lote,caducidad,proveedor,ubicacion,cantidad_cajas",
+                "0134,L-0001,2028-01-01,Lab Sanfer,Sector 1,10",
+                "0134,L-0001,2029-01-01,Lab Sanfer,Sector 2,5"), "encargada1");
+
+        assertThat(respuesta.isExito()).isFalse();
+        assertThat(respuesta.getErrores().get(0).getMensaje()).contains("dos caducidades");
+    }
+
+    @Test
+    void cargar_mismoLoteEnDosUbicaciones_creaUnSoloLoteConDosExistencias() {
+        paracetamol();
+        when(loteRepository.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
+        when(existenciaRepository.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
+
+        CargaInicialResponse respuesta = servicioCargaInicial.cargar(List.of(
+                "clave,numero_lote,caducidad,proveedor,ubicacion,cantidad_cajas",
+                "0134,L-0001,2028-01-01,Lab Sanfer,Sector 1,10",
+                "0134,L-0001,2028-01-01,Lab Sanfer,Sector 2,5"), "encargada1");
+
+        assertThat(respuesta.isExito()).isTrue();
+        verify(loteRepository, org.mockito.Mockito.times(1)).save(any());
+        verify(existenciaRepository, org.mockito.Mockito.times(2)).save(any());
+    }
 }
