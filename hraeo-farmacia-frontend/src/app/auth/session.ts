@@ -10,6 +10,9 @@ export interface UsuarioSesion {
   nombreUsuario: string;
   rol: Rol;
   debeCambiarContrasena: boolean;
+  // Políticas de uso y privacidad aceptadas, según el servidor (null si nunca).
+  versionPoliticasAceptada?: string | null;
+  fechaAceptacionPoliticas?: string | null;
 }
 
 export const RUTA_POR_ROL: Record<Rol, string> = {
@@ -35,7 +38,11 @@ interface LoginResponse {
   rol: Rol;
   debeCambiarContrasena: boolean;
   nombreCompleto: string;
+  versionPoliticasAceptada: string | null;
+  fechaAceptacionPoliticas: string | null;
 }
+
+const ERROR_INICIO_POR_DEFECTO = 'Usuario o contraseña incorrectos.';
 
 @Injectable({
   providedIn: 'root',
@@ -46,6 +53,8 @@ export class Session {
   readonly usuarioActual = signal<UsuarioSesion | null>(null);
   // Por qué se cerró la sesión sin que el usuario lo pidiera; el login lo muestra.
   readonly motivoSalida = signal('');
+  // Por qué falló el último inicio de sesión (credenciales o cuenta bloqueada).
+  readonly errorInicio = signal('');
 
   private token: string | null = null;
 
@@ -65,18 +74,40 @@ export class Session {
 
       this.token = respuesta.token;
       this.motivoSalida.set('');
+      this.errorInicio.set('');
       const usuario: UsuarioSesion = {
         nombreCompleto: respuesta.nombreCompleto,
         nombreUsuario,
         rol: respuesta.rol,
         debeCambiarContrasena: respuesta.debeCambiarContrasena,
+        versionPoliticasAceptada: respuesta.versionPoliticasAceptada,
+        fechaAceptacionPoliticas: respuesta.fechaAceptacionPoliticas,
       };
       this.usuarioActual.set(usuario);
       this.persistirSesion(usuario);
       return usuario;
-    } catch {
+    } catch (error) {
+      // El backend explica el motivo (p. ej. cuenta bloqueada por intentos fallidos).
+      const mensaje = (error as { error?: { mensaje?: string } })?.error?.mensaje;
+      this.errorInicio.set(mensaje ? (mensaje.endsWith('.') ? mensaje : `${mensaje}.`) : ERROR_INICIO_POR_DEFECTO);
       return null;
     }
+  }
+
+  /** Registra en el servidor que el usuario aceptó esta versión de las políticas. */
+  async aceptarPoliticas(version: string): Promise<void> {
+    const usuario = this.usuarioActual();
+    if (!usuario || !this.token) throw new Error('No hay sesión activa');
+    const respuesta = await firstValueFrom(
+      this.http.put<{ version: string; fecha: string }>(
+        `${API_BASE_URL}/usuarios/me/politicas`,
+        { version },
+        { headers: { Authorization: `Bearer ${this.token}` } },
+      ),
+    );
+    const actualizado: UsuarioSesion = { ...usuario, versionPoliticasAceptada: respuesta.version, fechaAceptacionPoliticas: respuesta.fecha };
+    this.usuarioActual.set(actualizado);
+    this.persistirSesion(actualizado);
   }
 
   cerrarSesion(): void {

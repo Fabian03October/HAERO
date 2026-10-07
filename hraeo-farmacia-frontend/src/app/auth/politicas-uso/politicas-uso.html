@@ -57,9 +57,14 @@
             </span>
           </label>
           <p class="registro">Se registrará tu usuario ({{ actual.nombreUsuario }}), la fecha y la hora: {{ hoy | date: 'dd/MM/yyyy HH:mm' }}.</p>
+          @if (error()) {
+            <div class="banner error" role="alert">{{ error() }}</div>
+          }
           <div class="acciones">
             <button class="btn secondary" type="button" (click)="rechazar()">No acepto, salir</button>
-            <button class="btn" type="button" [disabled]="!marcado()" (click)="aceptar()">Aceptar y continuar</button>
+            <button class="btn" type="button" [disabled]="!marcado() || guardando()" (click)="aceptar()">
+              {{ guardando() ? 'Guardando…' : 'Aceptar y continuar' }}
+            </button>
           </div>
         }
       </footer>

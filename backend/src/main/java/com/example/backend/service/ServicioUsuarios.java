@@ -1,5 +1,7 @@
 package com.example.backend.service;
 
+import com.example.backend.dto.AceptacionPoliticasResponse;
+import com.example.backend.dto.AceptarPoliticasRequest;
 import com.example.backend.dto.CambiarContrasenaRequest;
 import com.example.backend.dto.CrearUsuarioRequest;
 import com.example.backend.dto.EditarUsuarioRequest;
@@ -22,6 +24,8 @@ public class ServicioUsuarios {
 
     private static final Pattern CORREO_VALIDO = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final int LONGITUD_MINIMA_CONTRASENA = 8;
+    static final String MENSAJE_CONTRASENA =
+            "La contraseña debe tener al menos " + LONGITUD_MINIMA_CONTRASENA + " caracteres, con al menos una letra y un número";
 
     private final UsuarioRepository usuarioRepository;
     private final RolRepository rolRepository;
@@ -53,7 +57,7 @@ public class ServicioUsuarios {
         }
 
         validarCorreo(request.getCorreo());
-        validarLongitudContrasena(request.getContrasenaTemporal());
+        validarContrasena(request.getContrasenaTemporal());
 
         Rol rol = buscarRol(request.getRol());
         if (esAdmin(rol)) {
@@ -124,28 +128,48 @@ public class ServicioUsuarios {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se puede restablecer la contraseña del administrador");
         }
 
-        validarLongitudContrasena(request.getContrasenaTemporal());
+        validarContrasena(request.getContrasenaTemporal());
 
         usuario.setContrasenaHash(passwordEncoder.encode(request.getContrasenaTemporal()));
         usuario.setDebeCambiarContrasena(true);
         usuario.setTokenValidoDesde(java.time.LocalDateTime.now());
+        // Restablecer también quita el bloqueo por intentos fallidos.
+        usuario.setIntentosFallidos(0);
+        usuario.setBloqueadoHasta(null);
 
         return aRespuesta(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * Registra en el servidor que el usuario aceptó esta versión de las políticas de
+     * uso y privacidad, con fecha y hora; antes solo quedaba en su navegador.
+     */
+    public AceptacionPoliticasResponse aceptarPoliticas(String nombreUsuario, AceptarPoliticasRequest request) {
+        String version = request == null || request.getVersion() == null ? "" : request.getVersion().trim();
+        if (version.isEmpty() || version.length() > 20) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica la versión de las políticas que se aceptó");
+        }
+        Usuario usuario = usuarioRepository.findByNombreUsuario(nombreUsuario)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
+        usuario.setVersionPoliticasAceptada(version);
+        usuario.setFechaAceptacionPoliticas(java.time.LocalDateTime.now());
+        usuarioRepository.save(usuario);
+        return new AceptacionPoliticasResponse(usuario.getVersionPoliticasAceptada(), usuario.getFechaAceptacionPoliticas());
     }
 
     public void cambiarContrasenaPropia(String nombreUsuario, CambiarContrasenaRequest request) {
         Usuario usuario = usuarioRepository.findByNombreUsuario(nombreUsuario)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
-        if (esAdmin(usuario.getRol())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El administrador no puede cambiar su propia contraseña");
-        }
-
+        // Todos, incluido el administrador, pueden cambiar su propia contraseña.
         if (!passwordEncoder.matches(request.getContrasenaActual(), usuario.getContrasenaHash())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contraseña actual no es correcta");
         }
 
-        validarLongitudContrasena(request.getContrasenaNueva());
+        validarContrasena(request.getContrasenaNueva());
+        if (passwordEncoder.matches(request.getContrasenaNueva(), usuario.getContrasenaHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nueva contraseña debe ser distinta de la actual");
+        }
 
         usuario.setContrasenaHash(passwordEncoder.encode(request.getContrasenaNueva()));
         usuario.setDebeCambiarContrasena(false);
@@ -173,10 +197,14 @@ public class ServicioUsuarios {
         }
     }
 
-    private void validarLongitudContrasena(String contrasena) {
-        if (contrasena == null || contrasena.length() < LONGITUD_MINIMA_CONTRASENA) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "La contraseña debe tener al menos " + LONGITUD_MINIMA_CONTRASENA + " caracteres");
+    /** Mínimo 8 caracteres, con al menos una letra y un número (aplica también a las temporales). */
+    static void validarContrasena(String contrasena) {
+        boolean valida = contrasena != null
+                && contrasena.length() >= LONGITUD_MINIMA_CONTRASENA
+                && contrasena.chars().anyMatch(Character::isLetter)
+                && contrasena.chars().anyMatch(Character::isDigit);
+        if (!valida) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, MENSAJE_CONTRASENA);
         }
     }
 

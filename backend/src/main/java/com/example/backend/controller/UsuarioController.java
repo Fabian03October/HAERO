@@ -1,5 +1,7 @@
 package com.example.backend.controller;
 
+import com.example.backend.dto.AceptacionPoliticasResponse;
+import com.example.backend.dto.AceptarPoliticasRequest;
 import com.example.backend.dto.CambiarContrasenaRequest;
 import com.example.backend.dto.CrearUsuarioRequest;
 import com.example.backend.dto.EditarUsuarioRequest;
@@ -66,5 +68,11 @@ public class UsuarioController {
                                                      Authentication authentication) {
         servicioUsuarios.cambiarContrasenaPropia(authentication.getName(), request);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/me/politicas")
+    public ResponseEntity<AceptacionPoliticasResponse> aceptarPoliticas(@RequestBody AceptarPoliticasRequest request,
+                                                                       Authentication authentication) {
+        return ResponseEntity.ok(servicioUsuarios.aceptarPoliticas(authentication.getName(), request));
     }
 }

@@ -23,4 +23,8 @@ public class Existencia {
 
     @Column(name = "cantidad_cajas", nullable = false)
     private Integer cantidadCajas = 0;
+
+    // Bloqueo optimista: evita que dos despachos simultáneos pisen las cajas.
+    @Version
+    private Long version;
 }

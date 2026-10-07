@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface SolicitudRepository extends JpaRepository<Solicitud, Long> {
     List<Solicitud> findByEstatusIn(List<String> estatus);
-    List<Solicitud> findByUsuarioNombreUsuario(String nombreUsuario);
+    List<Solicitud> findAllByOrderByFechaDesc();
 }

@@ -1,5 +1,8 @@
 /* Préstamos y transferencias con expediente. */
 
+/* Solo lectura (Supervisión): la lista ocupa todo el ancho. */
+.una-columna { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+
 /* Archivo PDF obligatorio */
 .file-field { display: grid; gap: 6px; }
 .file-label { color: #4a4a4a; font-size: 12px; font-weight: 700; }

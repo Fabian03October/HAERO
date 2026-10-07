@@ -1,6 +1,7 @@
 import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { InventarioAlmacen } from '../../inventario-almacen';
 import {
   DatosDevolucion,
@@ -59,6 +60,8 @@ export class MovimientosExternos {
   protected readonly formatoCaducidad = formatoCaducidad;
   protected readonly estatusTexto = ESTATUS_EXPEDIENTE_TEXTO;
   protected readonly documentoTexto = DOCUMENTO_TEXTO;
+  // Supervisión usa esta misma pantalla en solo lectura (sin registrar, devolver ni cerrar).
+  protected readonly soloLectura = inject(ActivatedRoute).snapshot.data['soloLectura'] === true;
   protected readonly hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   // ---------- Alta ----------

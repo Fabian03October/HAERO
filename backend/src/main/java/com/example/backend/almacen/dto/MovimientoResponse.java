@@ -26,4 +26,6 @@ public class MovimientoResponse {
     private String solicitadoPor;
     private LocalDateTime fechaSolicitud;
     private Integer cantidadSolicitada;
+    // Préstamos: true si el movimiento es la devolución (va en sentido contrario al préstamo).
+    private boolean devolucion;
 }

@@ -45,4 +45,18 @@ public class Usuario {
 
     @Column(name = "token_valido_desde", nullable = false)
     private LocalDateTime tokenValidoDesde = LocalDateTime.now();
+
+    // Última versión de las políticas de uso y privacidad que aceptó, y cuándo.
+    @Column(name = "version_politicas_aceptada", length = 20)
+    private String versionPoliticasAceptada;
+
+    @Column(name = "fecha_aceptacion_politicas")
+    private LocalDateTime fechaAceptacionPoliticas;
+
+    // Intentos fallidos seguidos de inicio de sesión y hasta cuándo está bloqueado.
+    @Column(name = "intentos_fallidos", nullable = false)
+    private int intentosFallidos = 0;
+
+    @Column(name = "bloqueado_hasta")
+    private LocalDateTime bloqueadoHasta;
 }

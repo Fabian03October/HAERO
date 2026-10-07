@@ -25,7 +25,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * HU21 (carga inicial de inventario) — TEMPORAL: importa desde un archivo CSV
@@ -83,6 +87,9 @@ public class ServicioCargaInicial {
         List<String> renglones = lineasConEncabezado.subList(1, lineasConEncabezado.size());
         List<ErrorRenglonCargaInicial> errores = new ArrayList<>();
         List<RenglonValido> validos = new ArrayList<>();
+        // Para detectar renglones repetidos y el mismo lote con dos caducidades en el archivo.
+        Set<String> lotesYUbicacionesVistos = new HashSet<>();
+        Map<String, LocalDate> caducidadPorLote = new HashMap<>();
 
         int numeroFila = 1;
         for (String linea : renglones) {
@@ -152,6 +159,25 @@ public class ServicioCargaInicial {
                 continue;
             }
 
+            // Evita duplicar el inventario si se vuelve a subir el mismo archivo.
+            if (!loteRepository.findByMedicamentoClaveAndNumeroLoteIgnoreCaseAndEstatus(clave, numeroLote, "DISPONIBLE").isEmpty()) {
+                errores.add(new ErrorRenglonCargaInicial(numeroFila, "El lote " + numeroLote + " de la clave " + clave
+                        + " ya está en el inventario; la carga inicial no lo vuelve a sumar. Quítalo del archivo o regístralo como entrada"));
+                continue;
+            }
+            String llaveLote = clave + "|" + numeroLote.toUpperCase();
+            if (!lotesYUbicacionesVistos.add(llaveLote + "|" + ubicacion.toUpperCase())) {
+                errores.add(new ErrorRenglonCargaInicial(numeroFila, "Renglón repetido: el lote " + numeroLote + " en " + ubicacion
+                        + " ya aparece antes en el archivo"));
+                continue;
+            }
+            LocalDate caducidadPrevia = caducidadPorLote.putIfAbsent(llaveLote, caducidad);
+            if (caducidadPrevia != null && !caducidadPrevia.equals(caducidad)) {
+                errores.add(new ErrorRenglonCargaInicial(numeroFila, "El lote " + numeroLote + " aparece con dos caducidades distintas ("
+                        + caducidadPrevia + " y " + caducidad + ")"));
+                continue;
+            }
+
             validos.add(new RenglonValido(medicamento, numeroLote, caducidad, proveedor, ubicacion, cantidad, consumoPromedio));
         }
 
@@ -159,18 +185,25 @@ public class ServicioCargaInicial {
             return new CargaInicialResponse(false, renglones.size(), 0, errores);
         }
 
+        // Un mismo lote repartido en varias ubicaciones queda como un solo lote con varias existencias.
+        Map<String, Lote> lotesCreados = new HashMap<>();
         for (RenglonValido renglon : validos) {
             if (renglon.consumoPromedioHoja() != null) {
                 renglon.medicamento().setConsumoPromedioHoja(renglon.consumoPromedioHoja());
             }
 
-            Lote lote = new Lote();
-            lote.setMedicamento(renglon.medicamento());
-            lote.setNumeroLote(renglon.numeroLote());
-            lote.setCaducidad(renglon.caducidad());
-            lote.setProveedor(renglon.proveedor());
-            lote.setEstatus("DISPONIBLE");
-            lote = loteRepository.save(lote);
+            String llaveLote = renglon.medicamento().getClave() + "|" + renglon.numeroLote().toUpperCase();
+            Lote lote = lotesCreados.get(llaveLote);
+            if (lote == null) {
+                lote = new Lote();
+                lote.setMedicamento(renglon.medicamento());
+                lote.setNumeroLote(renglon.numeroLote());
+                lote.setCaducidad(renglon.caducidad());
+                lote.setProveedor(renglon.proveedor());
+                lote.setEstatus("DISPONIBLE");
+                lote = loteRepository.save(lote);
+                lotesCreados.put(llaveLote, lote);
+            }
 
             Existencia existencia = new Existencia();
             existencia.setLote(lote);

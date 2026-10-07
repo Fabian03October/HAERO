@@ -1,10 +1,11 @@
 <header class="screen-heading">
-  <p class="eyebrow">Movimientos especiales · HU20</p>
+  <p class="eyebrow">{{ soloLectura ? 'Consulta · HU20 · Solo lectura' : 'Movimientos especiales · HU20' }}</p>
   <h1>Préstamos y transferencias</h1>
   <p>Medicamento que se presta, transfiere o recibe de otra institución. Cada uno se registra con su documento PDF y lleva un estatus.</p>
 </header>
 
-<div class="two-columns">
+<div [class]="soloLectura ? 'una-columna' : 'two-columns'">
+  @if (!soloLectura) {
   <section class="card">
     <div class="card-heading">
       <div>
@@ -105,6 +106,7 @@
       </button>
     </div>
   </section>
+  }
 
   <section class="card">
     <div class="card-heading">
@@ -254,11 +256,11 @@
             </tr>
           </thead>
           <tbody>
-            @for (mov of item.movimientos; track mov.id; let primero = $first) {
+            @for (mov of item.movimientos; track mov.id) {
               <tr>
                 <td><strong>{{ mov.fecha | date: 'dd/MM/yyyy' }}</strong><small>{{ mov.usuario }}</small></td>
                 <td>
-                  <span [class]="'direction ' + (mov.sentido ?? 'salida').toLowerCase()">{{ primero ? (item.tipo === 'PRESTAMO' ? 'Préstamo' : 'Transferencia') : 'Devolución' }} · {{ mov.sentido === 'SALIDA' ? 'sale' : 'entra' }}</span>
+                  <span [class]="'direction ' + (mov.sentido ?? 'salida').toLowerCase()">{{ mov.devolucion ? 'Devolución' : (item.tipo === 'PRESTAMO' ? 'Préstamo' : 'Transferencia') }} · {{ mov.sentido === 'SALIDA' ? 'sale' : 'entra' }}</span>
                 </td>
                 <td><strong>{{ mov.numeroLote }}</strong><small>{{ mov.ubicacion }}</small></td>
                 <td class="number">{{ mov.cajas }}</td>
@@ -273,7 +275,7 @@
       }
 
       <!-- Préstamo abierto con cajas pendientes: registrar devolución. -->
-      @if (item.tipo === 'PRESTAMO' && item.estatus !== 'CERRADO' && item.cajasDevueltas < item.cajas) {
+      @if (!soloLectura && item.tipo === 'PRESTAMO' && item.estatus !== 'CERRADO' && item.cajasDevueltas < item.cajas) {
         <div class="accion">
           <h3>Registrar devolución</h3>
           <p class="card-help">
@@ -318,7 +320,7 @@
       }
 
       <!-- Préstamo devuelto completo: cerrar con su documento. Transferencia registrada: confirmar. -->
-      @if ((item.tipo === 'PRESTAMO' && item.estatus !== 'CERRADO' && item.cajasDevueltas >= item.cajas) || (item.tipo === 'TRANSFERENCIA' && item.estatus === 'REGISTRADA')) {
+      @if (!soloLectura && ((item.tipo === 'PRESTAMO' && item.estatus !== 'CERRADO' && item.cajasDevueltas >= item.cajas) || (item.tipo === 'TRANSFERENCIA' && item.estatus === 'REGISTRADA'))) {
         <div class="accion">
           <h3>{{ item.tipo === 'PRESTAMO' ? 'Cerrar préstamo' : 'Confirmar recepción' }}</h3>
           <p class="card-help">

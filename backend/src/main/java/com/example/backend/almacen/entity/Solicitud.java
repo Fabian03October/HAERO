@@ -36,4 +36,8 @@ public class Solicitud {
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
+
+    // Bloqueo optimista: evita que dos despachadores atiendan la misma solicitud a la vez.
+    @Version
+    private Long version;
 }

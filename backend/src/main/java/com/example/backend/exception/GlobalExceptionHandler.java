@@ -2,7 +2,9 @@ package com.example.backend.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -49,6 +51,16 @@ public class GlobalExceptionHandler {
         log.warn("Violación de integridad de datos: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("mensaje", "Los datos enviados entran en conflicto con información existente"));
+    }
+
+    // Dos personas guardaron la misma existencia o solicitud al mismo tiempo (@Version):
+    // se rechaza la segunda para no pisar las cajas que ya registró la primera.
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<Map<String, String>> manejarEdicionSimultanea(Exception ex) {
+        log.info("Edición simultánea rechazada: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("mensaje", "Otra persona registró un movimiento sobre estos datos al mismo tiempo. "
+                        + "Vuelve a cargar la información y repite la operación."));
     }
 
     // Archivo adjunto más grande que el límite de ArchivosConfig.
