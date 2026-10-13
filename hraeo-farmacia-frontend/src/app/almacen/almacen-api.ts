@@ -14,6 +14,21 @@ export interface Medicamento {
   presentacion: string;
   piezasPorCaja: number | null;
   descripcion: string | null;
+  // Datos de Intelisis; vienen vacíos en las claves capturadas a mano en HAERO.
+  formaFarmaceutica: string | null;
+  concentracion: string | null;
+  grupoTerapeutico: string | null;
+  cuadroBasico: boolean | null;
+  estatus: string | null; // ALTA o BAJA
+  claveCucop: string | null;
+  unidadCompra: string | null;
+  unidadMinima: string | null;
+  riesgo: string | null;
+  principalIndicacion: string | null;
+  contraindicaciones: string | null;
+  descripcionCompleta: string | null;
+  origen: 'HAERO' | 'INTELISIS';
+  sincronizadoEn: string | null;
 }
 
 export interface CrearMedicamentoRequest {

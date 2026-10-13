@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { SolicitudesAlmacen } from '../../solicitudes-almacen';
-import { AlmacenApi, CrearMedicamentoRequest, mensajeDeError } from '../../almacen-api';
+import { AlmacenApi, CrearMedicamentoRequest, Medicamento, mensajeDeError } from '../../almacen-api';
 import { RenglonCatalogo, descargarPlantilla, interpretarFilas, leerFilas, revalidar } from './carga-catalogo';
 import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
@@ -20,6 +20,7 @@ type CampoEditable = 'clave' | 'nombreGenerico' | 'presentacion' | 'piezasPorCaj
   imports: [FormsModule],
   templateUrl: './catalogo-medicamentos.html',
   styleUrls: ['../recepcion-comun.css', '../pedidos/pedidos-recepcion.css', '../inventario-inicial.css', './catalogo-medicamentos.css'],
+  host: { '(document:keydown.escape)': 'cerrarDetalle()' },
 })
 export class CatalogoMedicamentos {
   protected readonly datos = inject(SolicitudesAlmacen);
@@ -38,8 +39,43 @@ export class CatalogoMedicamentos {
     const texto = this.filtro().trim().toLowerCase();
     const lista = [...this.datos.catalogo()].sort((a, b) => a.clave.localeCompare(b.clave));
     if (!texto) return lista;
-    return lista.filter((item) => `${item.clave} ${item.nombreGenerico} ${item.presentacion}`.toLowerCase().includes(texto));
+    return lista.filter((item) =>
+      [item.clave, item.nombreGenerico, item.presentacion, item.formaFarmaceutica, item.concentracion, item.grupoTerapeutico]
+        .filter(Boolean).join(' ').toLowerCase().includes(texto)
+    );
   });
+
+  // ---------- Detalle de un medicamento ----------
+  readonly detalle = signal<Medicamento | null>(null);
+
+  verDetalle(medicamento: Medicamento): void {
+    this.detalle.set(medicamento);
+  }
+
+  cerrarDetalle(): void {
+    this.detalle.set(null);
+  }
+
+  /** Línea bajo el nombre: forma · concentración · presentación (lo que haya). */
+  resumen(medicamento: Medicamento): string {
+    return [medicamento.formaFarmaceutica, medicamento.concentracion, medicamento.presentacion].filter(Boolean).join(' · ');
+  }
+
+  siNo(valor: boolean | null): string {
+    return valor === null || valor === undefined ? '—' : valor ? 'Sí' : 'No';
+  }
+
+  estatusTexto(estatus: string): string {
+    return estatus === 'ALTA' ? 'Activo' : estatus === 'BAJA' ? 'Baja' : estatus;
+  }
+
+  origenTexto(origen: Medicamento['origen']): string {
+    return origen === 'INTELISIS' ? 'De Intelisis' : 'HAERO';
+  }
+
+  fecha(valor: string): string {
+    return new Date(valor).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+  }
 
   // ---------- Carga masiva desde Excel ----------
   readonly archivoNombre = signal('');
