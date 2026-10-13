@@ -333,6 +333,46 @@ export interface Alerta {
   caducidad: string | null;
 }
 
+// ---------- Integración Intelisis (solo lectura, com.example.backend.intelisis.dto) ----------
+
+export interface EstadoIntelisis {
+  disponible: boolean;
+  motivo: string | null;
+  enCurso: boolean;
+  ultimoEstatus: 'OK' | 'ERROR' | null;
+  ultimoOrigen: 'AUTOMATICA' | 'MANUAL' | null;
+  ultimoInicio: string | null;
+  ultimoFin: string | null;
+  ultimaDuracionMs: number | null;
+  ultimoError: string | null;
+  // De cuándo son los datos copiados (última sincronización exitosa).
+  datosAl: string | null;
+  articulos: number | null;
+  proveedores: number | null;
+  lotesExistencia: number | null;
+  recepciones: number | null;
+  lotesRecepcion: number | null;
+}
+
+export type EstadoComparacion = 'EN_AMBOS' | 'SOLO_HAERO' | 'SOLO_INTELISIS';
+
+export interface ComparacionClave {
+  clave: string;
+  nombre: string | null;
+  estado: EstadoComparacion;
+  haeroCajas: number | null;
+  haeroLotes: number | null;
+  haeroProximaCaducidad: string | null;
+  piezasPorCaja: number | null;
+  intelisisArticulo: string | null;
+  // En la unidad de Intelisis (piezas, mg, ml, UI...), sin convertir a cajas.
+  intelisisCantidad: number | null;
+  intelisisUnidad: string | null;
+  intelisisUnidadCantidad: number | null;
+  intelisisLotes: number | null;
+  intelisisProximaCaducidad: string | null;
+}
+
 export const ESTATUS_SOLICITUD_TEXTO: Record<EstatusSolicitud, string> = {
   PENDIENTE: 'Pendiente',
   PARCIAL: 'Parcial',
@@ -514,6 +554,20 @@ export class AlmacenApi {
 
   listarAlertas(activas: boolean): Observable<Alerta[]> {
     return this.http.get<Alerta[]>(`${API_BASE_URL}/almacen/alertas`, { ...this.cabeceras(), params: { activas } });
+  }
+
+  // ---------- Integración Intelisis (lee el espejo en HAERO, nunca Intelisis directo) ----------
+  estadoIntelisis(): Observable<EstadoIntelisis> {
+    return this.http.get<EstadoIntelisis>(`${API_BASE_URL}/almacen/intelisis/estado`, this.cabeceras());
+  }
+
+  comparacionIntelisis(): Observable<ComparacionClave[]> {
+    return this.http.get<ComparacionClave[]>(`${API_BASE_URL}/almacen/intelisis/comparacion`, this.cabeceras());
+  }
+
+  /** Arranca la sincronización en segundo plano; el avance se ve en estadoIntelisis(). */
+  sincronizarIntelisis(): Observable<{ mensaje: string }> {
+    return this.http.post<{ mensaje: string }>(`${API_BASE_URL}/almacen/intelisis/sincronizar`, {}, this.cabeceras());
   }
 
   // ---------- Solicitudes: lado de Farmacia (HU13) ----------
