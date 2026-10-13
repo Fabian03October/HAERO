@@ -44,6 +44,26 @@ public class ServicioMedicamentos {
     }
 
     private MedicamentoResponse aRespuesta(Medicamento m) {
-        return new MedicamentoResponse(m.getClave(), m.getNombreGenerico(), m.getPresentacion(), m.getPiezasPorCaja(), m.getDescripcion());
+        return MedicamentoResponse.builder()
+                .clave(m.getClave())
+                .nombreGenerico(m.getNombreGenerico())
+                .presentacion(m.getPresentacion())
+                .piezasPorCaja(m.getPiezasPorCaja())
+                .descripcion(m.getDescripcion())
+                .formaFarmaceutica(m.getFormaFarmaceutica())
+                .concentracion(m.getConcentracion())
+                .grupoTerapeutico(m.getGrupoTerapeutico())
+                .cuadroBasico(m.getCuadroBasico())
+                .estatus(m.getEstatus())
+                .claveCucop(m.getClaveCucop())
+                .unidadCompra(m.getUnidadCompra())
+                .unidadMinima(m.getUnidadMinima())
+                .riesgo(m.getRiesgo())
+                .principalIndicacion(m.getPrincipalIndicacion())
+                .contraindicaciones(m.getContraindicaciones())
+                .descripcionCompleta(m.getDescripcionCompleta())
+                .origen(m.getOrigen())
+                .sincronizadoEn(m.getSincronizadoEn())
+                .build();
     }
 }
