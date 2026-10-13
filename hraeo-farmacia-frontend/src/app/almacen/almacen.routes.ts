@@ -6,6 +6,7 @@ import { PedidosRecepcion } from './recepcion-almacen/pedidos/pedidos-recepcion'
 import { CancelarPedido } from './recepcion-almacen/cancelar-pedido/cancelar-pedido';
 import { InventarioInicial } from './recepcion-almacen/inventario-inicial';
 import { CatalogoMedicamentos } from './recepcion-almacen/catalogo/catalogo-medicamentos';
+import { ComparacionIntelisis } from './recepcion-almacen/intelisis/comparacion-intelisis';
 import { Existencias } from './existencias/existencias';
 import { Despacho } from './despacho/despacho';
 import { BandejaDespacho } from './despacho/bandeja-despacho/bandeja-despacho';
@@ -34,6 +35,8 @@ export const ALMACEN_ROUTES: Routes = [
       { path: 'cancelar-pedido', component: CancelarPedido },
       { path: 'inventario', component: InventarioInicial },
       { path: 'catalogo', component: CatalogoMedicamentos },
+      // Integración Intelisis (solo lectura): compara lo cargado por Excel con Intelisis.
+      { path: 'intelisis', component: ComparacionIntelisis },
       // Ruta anterior de la carga de inventario.
       { path: 'inventario-inicial', redirectTo: 'inventario' },
     ],
