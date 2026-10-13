@@ -1,0 +1,41 @@
+/* Campo de contraseña con botón de ojo para mostrarla u ocultarla. */
+app-campo-contrasena.campo-contrasena {
+  position: relative;
+  display: block;
+}
+
+app-campo-contrasena.campo-contrasena input {
+  padding-right: 44px;
+}
+
+app-campo-contrasena.campo-contrasena .eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+app-campo-contrasena.campo-contrasena .eye:hover {
+  background: var(--color-guinda-suave);
+  color: var(--color-guinda-medio);
+}
+
+app-campo-contrasena.campo-contrasena .eye svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

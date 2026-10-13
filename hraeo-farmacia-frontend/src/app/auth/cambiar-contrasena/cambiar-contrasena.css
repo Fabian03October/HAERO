@@ -23,6 +23,11 @@
   font-size: 22px;
 }
 
+.volver {
+  margin-top: 10px;
+  text-decoration: none;
+}
+
 .subtitle {
   margin: 0 0 20px;
   font-size: 13px;
