@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class ServicioAutenticacion {
@@ -62,6 +63,12 @@ public class ServicioAutenticacion {
         usuario.setIntentosFallidos(0);
         usuario.setBloqueadoHasta(null);
         usuario.setUltimoAcceso(ahora);
+        // La sesión queda válida desde este inicio de sesión. Se guarda con la hora de
+        // la aplicación (misma zona y reloj que el iat del token) y truncada al segundo,
+        // porque el iat del JWT solo tiene precisión de segundos; así el token recién
+        // emitido nunca nace "anterior" a esta marca por milisegundos ni por diferencias
+        // de zona horaria con la base de datos (p. ej. SQL Server en UTC dentro de Docker).
+        usuario.setTokenValidoDesde(ahora.truncatedTo(ChronoUnit.SECONDS));
         usuarioRepository.save(usuario);
 
         String token = jwtUtil.generarToken(usuario.getNombreUsuario(), usuario.getRol().getNombre());
