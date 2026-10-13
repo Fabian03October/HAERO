@@ -1,10 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { RUTA_POR_ROL, Session } from '../session';
+import { CampoContrasena } from '../../shared/campo-contrasena/campo-contrasena';
 
 @Component({
   selector: 'app-login',
-  imports: [],
+  imports: [CampoContrasena],
   templateUrl: './login.html',
   styleUrl: './login.css',
 })
@@ -13,7 +14,6 @@ export class Login {
   private readonly router = inject(Router);
 
   readonly error = signal(false);
-  readonly verContrasena = signal(false);
 
   async iniciarSesion(nombreUsuario: string, contrasena: string): Promise<void> {
     const usuario = await this.session.iniciarSesion(nombreUsuario, contrasena);

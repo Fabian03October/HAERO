@@ -3,10 +3,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Rol } from '../../auth/session';
 import { UsuariosApi } from '../usuarios-api';
 import { Notificaciones } from '../../shared/notificaciones/notificaciones';
+import { CampoContrasena } from '../../shared/campo-contrasena/campo-contrasena';
 
 @Component({
   selector: 'app-formulario-usuario',
-  imports: [RouterLink],
+  imports: [RouterLink, CampoContrasena],
   templateUrl: './formulario-usuario.html',
   styleUrl: './formulario-usuario.css',
 })

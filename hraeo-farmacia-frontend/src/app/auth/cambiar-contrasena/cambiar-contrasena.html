@@ -13,16 +13,22 @@
 
     <div class="field">
       <label for="actual">Contraseña actual</label>
-      <input id="actual" type="password" placeholder="••••••••" #actual>
+      <app-campo-contrasena>
+        <input id="actual" type="password" placeholder="••••••••" #actual>
+      </app-campo-contrasena>
     </div>
     <div class="field">
       <label for="nueva">Nueva contraseña</label>
-      <input id="nueva" type="password" placeholder="•••••••••••" #nueva>
+      <app-campo-contrasena>
+        <input id="nueva" type="password" placeholder="•••••••••••" #nueva>
+      </app-campo-contrasena>
       <div class="hint">Mínimo 8 caracteres, con al menos una letra y un número, y distinta de la actual.</div>
     </div>
     <div class="field">
       <label for="confirmar">Confirmar nueva contraseña</label>
-      <input id="confirmar" type="password" placeholder="•••••••••••" #confirmar>
+      <app-campo-contrasena>
+        <input id="confirmar" type="password" placeholder="•••••••••••" #confirmar>
+      </app-campo-contrasena>
     </div>
     <button
       class="btn block"
@@ -32,5 +38,8 @@
     >
       {{ guardando() ? 'Guardando...' : 'Guardar contraseña' }}
     </button>
+    @if (!esTemporal()) {
+      <a class="btn secondary block volver" [routerLink]="rutaInicio()">Volver al sistema</a>
+    }
   </div>
 </div>

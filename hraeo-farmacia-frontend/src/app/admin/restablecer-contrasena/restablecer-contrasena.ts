@@ -2,10 +2,11 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { UsuariosApi } from '../usuarios-api';
 import { Notificaciones } from '../../shared/notificaciones/notificaciones';
+import { CampoContrasena } from '../../shared/campo-contrasena/campo-contrasena';
 
 @Component({
   selector: 'app-restablecer-contrasena',
-  imports: [RouterLink],
+  imports: [RouterLink, CampoContrasena],
   templateUrl: './restablecer-contrasena.html',
   styleUrl: './restablecer-contrasena.css',
 })
