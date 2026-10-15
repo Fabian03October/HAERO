@@ -1,9 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { Pedido, PedidosAlmacen } from '../../pedidos-almacen';
+import { ActivatedRoute } from '@angular/router';
+import { DIAS_PEDIDO_VIGENTE, Pedido, PedidosAlmacen } from '../../pedidos-almacen';
 
-type FiltroPedidos = 'POR_RECIBIR' | 'RECIBIDOS' | 'CANCELADOS' | 'TODOS';
+// AHORA: pendientes con entrega reciente o próxima (lo que de verdad se espera). POR_RECIBIR:
+// todo lo que Intelisis tiene pendiente del último año, aunque sea viejo.
+type FiltroPedidos = 'AHORA' | 'POR_RECIBIR' | 'RECIBIDOS' | 'CANCELADOS' | 'TODOS';
+const FILTROS: FiltroPedidos[] = ['AHORA', 'POR_RECIBIR', 'RECIBIDOS', 'CANCELADOS', 'TODOS'];
 
 // Se pintan de a poco: Intelisis trae cientos de pedidos del último año.
 const PEDIDOS_POR_TANDA = 100;
@@ -20,12 +24,15 @@ const PEDIDOS_POR_TANDA = 100;
 })
 export class PedidosRecepcion {
   protected readonly pedidos = inject(PedidosAlmacen);
+  protected readonly diasVigente = DIAS_PEDIDO_VIGENTE;
 
   constructor() {
     this.pedidos.recargar();
   }
 
-  readonly filtroEstado = signal<FiltroPedidos>('POR_RECIBIR');
+  // Se puede abrir en un filtro desde otra pantalla (?filtro=AHORA, como el cuadro del Inicio).
+  private readonly filtroInicial = inject(ActivatedRoute).snapshot.queryParamMap.get('filtro') as FiltroPedidos | null;
+  readonly filtroEstado = signal<FiltroPedidos>(this.filtroInicial && FILTROS.includes(this.filtroInicial) ? this.filtroInicial : 'AHORA');
   readonly busqueda = signal('');
   readonly limite = signal(PEDIDOS_POR_TANDA);
 
@@ -55,7 +62,8 @@ export class PedidosRecepcion {
     const todos = this.pedidos.pedidos();
     const contar = (filtro: FiltroPedidos) => todos.filter((pedido) => this.cumpleEstado(pedido, filtro)).length;
     return [
-      { valor: 'POR_RECIBIR' as const, etiqueta: 'Por recibir', total: contar('POR_RECIBIR') },
+      { valor: 'AHORA' as const, etiqueta: 'Por recibir ahora', total: contar('AHORA') },
+      { valor: 'POR_RECIBIR' as const, etiqueta: 'Pendientes en Intelisis (todos)', total: contar('POR_RECIBIR') },
       { valor: 'RECIBIDOS' as const, etiqueta: 'Recibidos', total: contar('RECIBIDOS') },
       { valor: 'CANCELADOS' as const, etiqueta: 'Cancelados', total: contar('CANCELADOS') },
       { valor: 'TODOS' as const, etiqueta: 'Todos', total: todos.length },
@@ -92,6 +100,7 @@ export class PedidosRecepcion {
 
   private cumpleEstado(pedido: Pedido, filtro: FiltroPedidos): boolean {
     const estado = this.pedidos.estadoTexto(pedido);
+    if (filtro === 'AHORA') return this.pedidos.esPorRecibirAhora(pedido);
     if (filtro === 'POR_RECIBIR') return estado === 'Pendiente' || estado === 'Parcial';
     if (filtro === 'RECIBIDOS') return estado === 'Recibido';
     if (filtro === 'CANCELADOS') return estado === 'Cancelado';

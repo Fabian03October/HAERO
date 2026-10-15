@@ -12,9 +12,14 @@
     </div>
     <div class="counters">
       <span>{{ pedidos.pedidos().length }} pedidos</span>
-      <span>{{ pedidos.pendientes().length }} por recibir</span>
+      <span>{{ pedidos.porRecibirAhora().length }} por recibir ahora</span>
     </div>
   </div>
+  @if (filtroEstado() === 'AHORA') {
+    <p class="card-help">Pendientes con entrega en los últimos {{ diasVigente }} días o próxima: lo que se espera que llegue. Es el mismo número del Inicio.</p>
+  } @else if (filtroEstado() === 'POR_RECIBIR') {
+    <p class="card-help">Todo lo que Intelisis sigue teniendo pendiente del último año, aunque la entrega sea de hace meses y ya no vaya a llegar.</p>
+  }
 
   <div class="list-tools">
     <div class="filter-tabs" role="group" aria-label="Filtrar pedidos por estado">

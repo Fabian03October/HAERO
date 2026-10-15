@@ -24,7 +24,7 @@
 
         <section class="kpi-grid" aria-label="Indicadores del almacén">
           @for (item of indicadores(); track item.titulo) {
-            <a class="kpi" [class]="'kpi ' + item.tono" [routerLink]="item.ruta">
+            <a class="kpi" [class]="'kpi ' + item.tono" [routerLink]="item.ruta" [queryParams]="item.filtro ? { filtro: item.filtro } : null">
               <span class="kpi-title">
                 {{ item.titulo }}
                 @if (item.ejemplo) {
@@ -109,7 +109,7 @@
                 }
               </ul>
               @if (pedidosRestantes()) {
-                <a class="more-link" routerLink="/almacen/recepcion/pedidos">Ver {{ pedidosRestantes() === 1 ? 'el pedido restante' : 'los ' + pedidosRestantes() + ' pedidos restantes' }} →</a>
+                <a class="more-link" routerLink="/almacen/recepcion/pedidos" [queryParams]="{ filtro: 'AHORA' }">Ver {{ pedidosRestantes() === 1 ? 'el pedido restante' : 'los ' + pedidosRestantes() + ' pedidos restantes' }} →</a>
               }
             } @else {
               <p class="empty-box">No hay pedidos con entrega en los últimos 60 días ni próximos. Los más antiguos se ven en Pedidos.</p>
