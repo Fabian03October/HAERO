@@ -77,8 +77,9 @@ export class PanelAlmacen {
     {
       titulo: 'Pedidos por recibir',
       valor: this.pedidos.porRecibirAhora().length,
-      detalle: `${this.cajasPendientes()} cajas pendientes de entrada`,
-      ruta: '/almacen/recepcion/entrada',
+      detalle: `${this.cajasPendientes().toLocaleString('es-MX')} cajas que Intelisis aún espera`,
+      ruta: '/almacen/recepcion/pedidos',
+      filtro: 'AHORA',
       tono: 'info',
       ejemplo: false,
     },
@@ -114,8 +115,10 @@ export class PanelAlmacen {
     return esperadas ? Math.min(100, Math.round((recibidas / esperadas) * 100)) : 0;
   }
 
+  // Lo que Intelisis todavía espera de esos pedidos. No se usa lo recibido en HAERO: lo que
+  // Intelisis recibió antes de que HAERO arrancara ya está en los anaqueles (alta inicial).
   private cajasPendientes(): number {
-    return this.pedidos.porRecibirAhora().reduce((total, pedido) => total + pedido.cajasEsperadas - pedido.cajasRecibidas, 0);
+    return this.pedidos.porRecibirAhora().reduce((total, pedido) => total + pedido.cajasPendientesIntelisis, 0);
   }
 
   private caducaPronto(caducidad: string): boolean {

@@ -26,6 +26,9 @@ export interface Pedido {
   // Recibidas en HAERO (lo que registró Almacén) y lo que dice Intelisis.
   cajasRecibidas: number;
   cajasRecibidasIntelisis: number;
+  // Lo que Intelisis todavía espera recibir (lo esperado sin lo cancelado, menos lo que ya recibió).
+  // Lo que Intelisis recibió antes de que HAERO arrancara ya está en los anaqueles (alta inicial).
+  cajasPendientesIntelisis: number;
 }
 
 export type EstadoTextoPedido = 'Cancelado' | 'Recibido' | 'Parcial' | 'Pendiente';
@@ -47,13 +50,19 @@ export class PedidosAlmacen {
   // días o futura). Intelisis deja como PENDIENTE pedidos de hace un año que ya no van a llegar;
   // esos siguen visibles en la pantalla de Pedidos, pero no inflan el Inicio.
   readonly porRecibirAhora = computed(() => {
-    const limite = new Date();
-    limite.setDate(limite.getDate() - DIAS_PEDIDO_VIGENTE);
-    const desde = limite.toLocaleDateString('en-CA');
     return this.pendientes()
-      .filter((pedido) => (pedido.fechaEntrega ?? pedido.fecha ?? '') >= desde)
+      .filter((pedido) => this.esPorRecibirAhora(pedido))
       .sort((a, b) => (a.fechaEntrega ?? a.fecha).localeCompare(b.fechaEntrega ?? b.fecha));
   });
+
+  /** Pendiente con entrega en los últimos DIAS_PEDIDO_VIGENTE días o futura (sin entrega, por su fecha). */
+  esPorRecibirAhora(pedido: Pedido): boolean {
+    const estado = this.estadoTexto(pedido);
+    if (estado !== 'Pendiente' && estado !== 'Parcial') return false;
+    const limite = new Date();
+    limite.setDate(limite.getDate() - DIAS_PEDIDO_VIGENTE);
+    return (pedido.fechaEntrega ?? pedido.fecha ?? '') >= limite.toLocaleDateString('en-CA');
+  }
   readonly cancelados = computed(() => this._pedidos().filter((pedido) => pedido.estado === 'CANCELADO'));
   // Pedidos vigentes con alguna partida cancelada en Intelisis (esa clave ya no se recibe completa).
   readonly conPartidasCanceladas = computed(() =>
@@ -92,11 +101,20 @@ export class PedidosAlmacen {
     return this._pedidos().find((pedido) => pedido.id === id);
   }
 
-  /** El estado lo decide Intelisis; "Parcial" es que Almacén ya recibió algo en HAERO. */
+  /**
+   * El estado lo decide Intelisis. Recibido: concluido en Intelisis, o ya no le queda nada
+   * por recibir ahí, o Almacén recibió todo en HAERO. Parcial: ya llegó algo (en HAERO o en
+   * Intelisis). Así un pedido que Intelisis recibió antes de que HAERO arrancara no queda
+   * "por recibir" para siempre.
+   */
   estadoTexto(pedido: Pedido): EstadoTextoPedido {
     if (pedido.estado === 'CANCELADO' || pedido.estatusIntelisis === 'CANCELADO') return 'Cancelado';
-    if (pedido.estatusIntelisis === 'CONCLUIDO' || (pedido.cajasEsperadas > 0 && pedido.cajasRecibidas >= pedido.cajasEsperadas)) return 'Recibido';
-    if (pedido.cajasRecibidas > 0) return 'Parcial';
+    if (
+      pedido.estatusIntelisis === 'CONCLUIDO' ||
+      (pedido.cajasEsperadas > 0 && (pedido.cajasPendientesIntelisis === 0 || pedido.cajasRecibidas >= pedido.cajasEsperadas))
+    )
+      return 'Recibido';
+    if (pedido.cajasRecibidas > 0 || pedido.cajasRecibidasIntelisis > 0) return 'Parcial';
     return 'Pendiente';
   }
 }
@@ -119,5 +137,9 @@ function aPedido(pedido: PedidoApi): Pedido {
     cajasEsperadas: pedido.partidas.reduce((total, partida) => total + partida.cantidadEsperada, 0),
     cajasRecibidas: pedido.partidas.reduce((total, partida) => total + partida.cantidadRecibida, 0),
     cajasRecibidasIntelisis: pedido.partidas.reduce((total, partida) => total + (partida.recibidaIntelisis ?? 0), 0),
+    cajasPendientesIntelisis: pedido.partidas.reduce(
+      (total, partida) => total + Math.max(0, partida.cantidadEsperada - (partida.recibidaIntelisis ?? 0)),
+      0,
+    ),
   };
 }
