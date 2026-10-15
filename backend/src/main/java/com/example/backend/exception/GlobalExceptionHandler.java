@@ -49,6 +49,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> manejarViolacionIntegridad(DataIntegrityViolationException ex) {
         log.warn("Violación de integridad de datos: {}", ex.getMessage());
+        // Dos personas recibieron el mismo registro de Intelisis (o dieron de alta el mismo lote)
+        // al mismo tiempo: los índices únicos de la V19 frenan al segundo.
+        String detalle = String.valueOf(ex.getMostSpecificCause().getMessage());
+        if (detalle.contains("UX_lote_registro_intelisis")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("mensaje", "Ese registro de Intelisis ya se recibió en HAERO (otra persona lo registró al mismo tiempo). Vuelve a escanear la caja."));
+        }
+        if (detalle.contains("UX_lote_alta_inicial")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("mensaje", "Ese lote ya se dio de alta en HAERO (otra persona lo registró al mismo tiempo). Vuelve a escanear la caja."));
+        }
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("mensaje", "Los datos enviados entran en conflicto con información existente"));
     }

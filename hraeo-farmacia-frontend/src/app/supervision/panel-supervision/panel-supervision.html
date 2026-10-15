@@ -15,6 +15,13 @@
           </div>
         </header>
 
+        @if (avisosPorRevisar() > 0) {
+          <a class="aviso-intelisis" routerLink="/supervision/consultas/intelisis">
+            <strong>{{ avisosPorRevisar() }} {{ avisosPorRevisar() === 1 ? 'aviso de Intelisis por revisar' : 'avisos de Intelisis por revisar' }}</strong>
+            <span>Pedidos o partidas cancelados, o cambios de Intelisis en lotes que ya están en HAERO. Revisa las diferencias contra Intelisis.</span>
+          </a>
+        }
+
         <section class="kpi-grid" aria-label="Estado del abasto">
           @for (item of indicadores(); track item.titulo) {
             <a [class]="'kpi ' + item.tono" [routerLink]="item.ruta">

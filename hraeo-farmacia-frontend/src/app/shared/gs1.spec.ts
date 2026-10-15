@@ -26,6 +26,28 @@ describe('leerGs1', () => {
     });
   });
 
+  it('lee el DataMatrix de una caja real: GTIN de 14, lote antes de la caducidad y número de serie', () => {
+    expect(leerGs1('0117506022328332' + '10IIP23072\u001d' + '17250228' + '21QS1SQYBPE5NR')).toEqual({
+      gtin: '17506022328332',
+      lote: 'IIP23072',
+      caducidad: '2025-02-28',
+      serie: 'QS1SQYBPE5NR',
+    });
+  });
+
+  it('separa el lote de la caducidad cuando el lector no manda el separador', () => {
+    expect(leerGs1('0117506022328332' + '10IIP23072' + '17250228' + '21QS1SQYBPE5NR')).toEqual({
+      gtin: '17506022328332',
+      lote: 'IIP23072',
+      caducidad: '2025-02-28',
+      serie: 'QS1SQYBPE5NR',
+    });
+  });
+
+  it('no corta un lote que solo contiene "17" seguido de algo que no es fecha', () => {
+    expect(leerGs1('0107501234567894' + '10AB179999ZZ')?.lote).toBe('AB179999ZZ');
+  });
+
   it('día 00 en la caducidad es el último día del mes', () => {
     expect(leerGs1('(01)07501234567894(17)270200(10)X')?.caducidad).toBe('2027-02-28');
   });

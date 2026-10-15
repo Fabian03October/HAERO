@@ -76,6 +76,26 @@ class ServicioDespachoTest {
         lenient().when(usuarioRepository.findByNombreUsuario("despachador1")).thenReturn(Optional.of(usuario));
     }
 
+    @Test
+    void listarExistencias_marcaComoFefoElLoteVigenteQueCaducaAntes_aunqueSeFiltrePorUbicacion() {
+        Lote vencido = lote(1L, "L-VENCIDO", LocalDate.now().minusDays(3));
+        Lote pronto = lote(2L, "L-PRONTO", LocalDate.now().plusMonths(2));
+        Lote despues = lote(3L, "L-DESPUES", LocalDate.now().plusMonths(8));
+        Lote agotado = lote(4L, "L-AGOTADO", LocalDate.now().plusMonths(1));
+        when(existenciaRepository.findAllConLote()).thenReturn(List.of(
+                existencia(10L, vencido, "Sector 1", 5),
+                existencia(11L, pronto, "Sector 2", 8),
+                existencia(12L, despues, "Sector 1", 20),
+                existencia(13L, agotado, "Sector 1", 0)));
+
+        var enSector1 = servicioDespacho.listarExistencias(null, null, "Sector 1");
+
+        // El FEFO es L-PRONTO (Sector 2) aunque no esté en el filtro: nada del Sector 1 sale primero.
+        assertThat(enSector1).hasSize(3).noneMatch(e -> e.isFefo());
+        assertThat(servicioDespacho.listarExistencias(null, null, null))
+                .filteredOn(e -> e.isFefo()).extracting(e -> e.getNumeroLote()).containsExactly("L-PRONTO");
+    }
+
     private Solicitud solicitudPendiente(int cantidadSolicitada) {
         Solicitud solicitud = new Solicitud();
         solicitud.setId(1L);

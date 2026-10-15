@@ -30,6 +30,9 @@ export interface Pedido {
 
 export type EstadoTextoPedido = 'Cancelado' | 'Recibido' | 'Parcial' | 'Pendiente';
 
+// Un pedido pendiente cuenta como "por recibir ahora" si su entrega fue en estos días o es futura.
+export const DIAS_PEDIDO_VIGENTE = 60;
+
 // Pedidos de Recepción leídos del backend (GET /api/almacen/pedidos). Los comparten
 // las páginas Registrar entrada, Pedidos, Pedidos cancelados y el Inicio.
 @Injectable({ providedIn: 'root' })
@@ -40,6 +43,17 @@ export class PedidosAlmacen {
   readonly pedidos = this._pedidos.asReadonly();
   // Por recibir: pendientes en Intelisis (ni concluidos ni cancelados).
   readonly pendientes = computed(() => this._pedidos().filter((pedido) => this.estadoTexto(pedido) === 'Pendiente' || this.estadoTexto(pedido) === 'Parcial'));
+  // Para el Inicio: solo los que se esperan ahora (entrega en los últimos DIAS_PEDIDO_VIGENTE
+  // días o futura). Intelisis deja como PENDIENTE pedidos de hace un año que ya no van a llegar;
+  // esos siguen visibles en la pantalla de Pedidos, pero no inflan el Inicio.
+  readonly porRecibirAhora = computed(() => {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - DIAS_PEDIDO_VIGENTE);
+    const desde = limite.toLocaleDateString('en-CA');
+    return this.pendientes()
+      .filter((pedido) => (pedido.fechaEntrega ?? pedido.fecha ?? '') >= desde)
+      .sort((a, b) => (a.fechaEntrega ?? a.fecha).localeCompare(b.fechaEntrega ?? b.fecha));
+  });
   readonly cancelados = computed(() => this._pedidos().filter((pedido) => pedido.estado === 'CANCELADO'));
   // Pedidos vigentes con alguna partida cancelada en Intelisis (esa clave ya no se recibe completa).
   readonly conPartidasCanceladas = computed(() =>

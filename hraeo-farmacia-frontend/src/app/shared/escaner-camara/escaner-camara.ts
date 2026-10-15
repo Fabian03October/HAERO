@@ -34,6 +34,16 @@ export class EscanerCamara implements OnDestroy {
 
   readonly estado = signal<'iniciando' | 'leyendo' | 'error'>('iniciando');
   readonly error = signal('');
+  readonly leyendoFoto = signal(false);
+  readonly avisoFoto = signal('');
+
+  private readonly lector = new BrowserMultiFormatReader(
+    new Map<DecodeHintType, unknown>([
+      [DecodeHintType.POSSIBLE_FORMATS, FORMATOS],
+      [DecodeHintType.TRY_HARDER, true],
+    ]),
+    { delayBetweenScanAttempts: 150 },
+  );
 
   constructor() {
     afterNextRender(() => this.iniciar());
@@ -44,24 +54,19 @@ export class EscanerCamara implements OnDestroy {
       this.fallar('El navegador solo permite usar la cámara en una conexión segura. Abre la página con https:// (npm run start:celular).');
       return;
     }
-    const hints = new Map<DecodeHintType, unknown>([
-      [DecodeHintType.POSSIBLE_FORMATS, FORMATOS],
-      [DecodeHintType.TRY_HARDER, true],
-    ]);
-    const lector = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 150 });
     try {
-      // Cámara trasera cuando existe (teléfono); en una laptop usa la que haya.
-      this.controles = await lector.decodeFromConstraints(
-        { video: { facingMode: { ideal: 'environment' } } },
+      // Cámara trasera cuando existe (teléfono); en una laptop usa la que haya. Sin pedir
+      // resolución el navegador da 640x480 y un DataMatrix pequeño (GS1) no se alcanza a leer.
+      this.controles = await this.lector.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
         this.video().nativeElement,
         (resultado) => {
           if (!resultado) return;
-          this.detener();
-          navigator.vibrate?.(80);
-          this.leido.emit(resultado.getText().trim());
+          this.emitir(resultado.getText());
         },
       );
       this.estado.set('leyendo');
+      await this.enfocar();
     } catch (error) {
       const nombre = (error as { name?: string })?.name;
       if (nombre === 'NotAllowedError') this.fallar('No se dio permiso para usar la cámara. Actívalo en la configuración del navegador y vuelve a intentar.');
@@ -69,6 +74,58 @@ export class EscanerCamara implements OnDestroy {
       else if (nombre === 'NotReadableError') this.fallar('La cámara está ocupada por otra aplicación. Ciérrala y vuelve a intentar.');
       else this.fallar('No se pudo abrir la cámara.');
     }
+  }
+
+  /**
+   * Enfoque continuo y un poco de zoom cuando la cámara lo permite (Chrome en Android
+   * sí; Safari en iPhone a veces no, y entonces no pasa nada). Con zoom la caja se
+   * puede tener a 15-20 cm, donde la cámara sí enfoca, y el código se ve grande.
+   */
+  private async enfocar(): Promise<void> {
+    const pista = (this.video().nativeElement.srcObject as MediaStream | null)?.getVideoTracks()[0];
+    if (!pista?.getCapabilities) return;
+    const capacidades = pista.getCapabilities() as MediaTrackCapabilities & {
+      focusMode?: string[];
+      zoom?: { min: number; max: number };
+    };
+    const ajustes: Record<string, unknown> = {};
+    if (capacidades.focusMode?.includes('continuous')) ajustes['focusMode'] = 'continuous';
+    if (capacidades.zoom && capacidades.zoom.max >= 2) ajustes['zoom'] = 2;
+    if (!Object.keys(ajustes).length) return;
+    try {
+      await pista.applyConstraints({ advanced: [ajustes as MediaTrackConstraintSet] });
+    } catch {
+      // Si la cámara no acepta el ajuste se sigue leyendo igual.
+    }
+  }
+
+  /**
+   * Plan B para códigos pequeños o borrosos: se toma una foto con la cámara del
+   * teléfono (enfoca sola y con mucha más resolución) y se lee el código de la foto.
+   */
+  async leerFoto(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo) return;
+    this.leyendoFoto.set(true);
+    this.avisoFoto.set('');
+    const url = URL.createObjectURL(archivo);
+    try {
+      const resultado = await this.lector.decodeFromImageUrl(url);
+      this.emitir(resultado.getText());
+    } catch {
+      this.avisoFoto.set('No se encontró el código en la foto. Tómala de cerca, con buena luz y sin reflejo, con el código al centro.');
+    } finally {
+      URL.revokeObjectURL(url);
+      this.leyendoFoto.set(false);
+    }
+  }
+
+  private emitir(texto: string): void {
+    this.detener();
+    navigator.vibrate?.(80);
+    this.leido.emit(texto.trim());
   }
 
   cancelar(): void {

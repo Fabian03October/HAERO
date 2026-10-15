@@ -17,30 +17,85 @@
     <!-- 1) Escanear -->
     <label><span class="paso">1</span> Escanea la caja
       <div class="scanner-control">
-        <input [(ngModel)]="codigoEscaneado" (keyup.enter)="escanearCodigo()" placeholder="Escanea el código de barras y presiona Enter" />
+        <input #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanearCodigo()" placeholder="Escanea el código de barras y presiona Enter" />
         <button type="button" title="Buscar código" (click)="escanearCodigo()">▣</button>
         <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
       </div>
     </label>
+    @if (mantenerUbicacion() && ultimaUbicacion()) {
+      <div class="ubicacion-trabajo">
+        <span>📍 Ubicación de trabajo: <strong>{{ ultimaUbicacion() }}</strong> · se pone sola en la siguiente caja</span>
+        <button type="button" class="link-add" (click)="olvidarUbicacion()">Quitar</button>
+      </div>
+    }
     @if (camaraAbierta()) {
       <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
     }
-
-    @if (codigoNuevo()) {
-      <label>Clave de esta caja (código nuevo)
-        <input list="claves-captura" [(ngModel)]="claveEscrita" (change)="elegirClave(claveEscrita)" placeholder="Busca la clave o el nombre del medicamento" />
-      </label>
-      <datalist id="claves-captura">
-        @for (medicamento of catalogo.catalogo(); track medicamento.clave) {
-          <option [value]="medicamento.clave + ' · ' + medicamento.nombreGenerico"></option>
+    @if (datosGs1(); as gs1) {
+      <div class="gs1">
+        <span class="gs1-titulo">Código GS1 de la caja</span>
+        <span>GTIN <strong>{{ gs1.gtin }}</strong></span>
+        <span>Lote <strong>{{ gs1.lote || '—' }}</strong></span>
+        <span>Caducidad <strong>{{ gs1.caducidad ? formatoFecha(gs1.caducidad) : '—' }}</strong></span>
+        @if (gs1.serie) {
+          <span>Serie <strong>{{ gs1.serie }}</strong></span>
         }
-      </datalist>
+      </div>
+    }
+
+    @if (codigoNuevo() && !clave()) {
+      <!-- Código nuevo: se busca la clave en el catálogo de Intelisis, con el nombre completo a la vista. -->
+      <div class="bloque">
+        <label>¿Qué medicamento es esta caja?
+          <input class="buscar-registro" type="search" [value]="buscarClave()" (input)="escribirClave($any($event.target).value)"
+                 (focus)="listaMedicamentosAbierta.set(true)" (click)="listaMedicamentosAbierta.set(true)"
+                 placeholder="Toca para ver todos o escribe la clave, el nombre o la presentación (ej. paracetamol 1 g)" aria-label="Buscar medicamento" />
+        </label>
+        @if (listaMedicamentosAbierta()) {
+          <p class="card-help">
+            {{ buscarClave().trim() ? medicamentosCoinciden().length + ' coinciden' : 'Todos los medicamentos del catálogo (' + medicamentosCoinciden().length + ')' }}
+            · se muestran {{ medicamentosEncontrados().length }}
+          </p>
+          <ul class="medicamentos">
+            @for (medicamento of medicamentosEncontrados(); track medicamento.clave) {
+              <li>
+                <button type="button" class="medicamento" (click)="elegirClave(medicamento.clave)">
+                  <span class="medicamento-cabeza">
+                    <strong>{{ medicamento.clave }}</strong>
+                    @if (medicamento.dadoDeAlta) { <span class="etiqueta alta">Dada de alta</span> }
+                    @if (medicamento.estatus === 'BAJA') { <span class="etiqueta baja">Baja en Intelisis</span> }
+                    @if (medicamento.claveCucop) { <span class="etiqueta">CUCOP {{ medicamento.claveCucop }}</span> }
+                  </span>
+                  <span class="medicamento-nombre">{{ medicamento.nombreGenerico }}</span>
+                  @if (medicamento.presentacion) {
+                    <span class="medicamento-presentacion">{{ medicamento.presentacion }}</span>
+                  }
+                </button>
+              </li>
+            } @empty {
+              <li class="sin-registros">Ningún medicamento del catálogo coincide. Prueba con otra palabra o con la clave.</li>
+            }
+          </ul>
+          @if (medicamentosEncontrados().length < medicamentosCoinciden().length) {
+            <button type="button" class="link-add" (click)="mostrarMasMedicamentos()">
+              Mostrar más ({{ medicamentosCoinciden().length - medicamentosEncontrados().length }} restantes)
+            </button>
+          }
+        } @else {
+          <p class="card-help">Toca el buscador para ver todos los medicamentos, o escribe para filtrar. Puedes combinar palabras, por ejemplo "paracetamol inyectable".</p>
+        }
+      </div>
     }
 
     @if (clave()) {
       <div class="pedido-resumen">
-        <span><strong>{{ clave() }}</strong> · {{ nombre() || 'Medicamento' }}</span>
-        <span>{{ codigoNuevo() ? 'Código nuevo: se asocia al confirmar' : 'Código reconocido' }}</span>
+        <span class="resumen-medicamento"><strong>{{ clave() }}</strong> · {{ nombre() || 'Medicamento' }}</span>
+        <span>
+          {{ codigoNuevo() ? 'Código nuevo: se asocia al confirmar' : 'Código reconocido' }}
+          @if (codigoNuevo()) {
+            · <button type="button" class="link-add" (click)="cambiarClave()">Cambiar medicamento</button>
+          }
+        </span>
       </div>
 
       <!-- 2) Elegir el registro de Intelisis -->
@@ -53,30 +108,99 @@
         </p>
         @if (cargandoRegistros()) {
           <p class="card-help">Leyendo registros de Intelisis…</p>
+        } @else if (seleccionado(); as elegido) {
+          <!-- Ya se eligió: solo se muestra ese registro completo, con opción de cambiarlo. -->
+          <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: elegido }" />
+          <button type="button" class="link-add" (click)="cambiarRegistro()">Cambiar de registro ({{ registros().length }} en total)</button>
         } @else if (registros().length) {
+          <div class="registros-herramientas">
+            <input class="buscar-registro" type="search" [value]="buscarRegistro()" (input)="buscarRegistro.set($any($event.target).value)"
+                   placeholder="Buscar por lote, proveedor, pedido, contrato, movimiento o fecha" aria-label="Buscar registro de Intelisis" />
+            <div class="filtros" role="group" aria-label="Filtrar registros">
+              <button type="button" [class.activo]="filtroRegistros() === 'DISPONIBLES'" (click)="filtroRegistros.set('DISPONIBLES')">Disponibles <span>{{ disponibles().length }}</span></button>
+              <button type="button" [class.activo]="filtroRegistros() === 'BLOQUEADOS'" (click)="filtroRegistros.set('BLOQUEADOS')">Bloqueados <span>{{ bloqueados().length }}</span></button>
+              <button type="button" [class.activo]="filtroRegistros() === 'TODOS'" (click)="filtroRegistros.set('TODOS')">Todos <span>{{ registros().length }}</span></button>
+            </div>
+          </div>
           <ul class="registros">
-            @for (registro of registros(); track registro.origen + registro.idIntelisis + registro.lote) {
-              <li>
-                <button type="button" class="registro" [class.elegido]="esSeleccionado(registro)" [class.bloqueado]="registro.bloqueo" [disabled]="!!registro.bloqueo" (click)="elegir(registro)">
-                  <span class="registro-linea">
-                    <strong>Lote {{ registro.lote }}</strong>
-                    <span>Caduca {{ registro.caducidad ? formatoFecha(registro.caducidad) : 'sin dato' }}</span>
-                    <span class="cajas">{{ registro.cajas !== null ? (registro.cajas | number: '1.0-2') + ' cajas' : (registro.piezas | number: '1.0-0') + ' piezas' }}</span>
-                  </span>
-                  <small>
-                    {{ registro.movimiento }}{{ registro.fecha ? ' · ' + formatoFecha(registro.fecha) : '' }}{{ registro.proveedor ? ' · ' + registro.proveedor : '' }}
-                    {{ registro.numeroPedido ? ' · pedido ' + registro.numeroPedido : '' }}{{ registro.contrato ? ' · contrato ' + registro.contrato : '' }}
-                    {{ registro.referencia ? ' · ' + registro.referencia : '' }}
-                  </small>
-                  @if (registro.bloqueo) {
-                    <small class="motivo">{{ registro.bloqueo }}</small>
-                  }
-                </button>
-              </li>
+            @for (registro of registrosVisibles(); track registro.origen + registro.idIntelisis + registro.lote) {
+              <li><ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: registro }" /></li>
+            } @empty {
+              <li class="sin-registros">{{ buscarRegistro() ? 'Ningún registro coincide con la búsqueda.' : 'No hay registros en este filtro.' }}</li>
             }
           </ul>
         }
       </div>
+
+      <!-- Tarjeta de un registro de Intelisis con toda su información. -->
+      <ng-template #tarjeta let-registro>
+        <button type="button" class="registro" [class.elegido]="esSeleccionado(registro)" [class.bloqueado]="registro.bloqueo"
+                [disabled]="!!registro.bloqueo" (click)="elegir(registro)" [attr.aria-pressed]="esSeleccionado(registro)">
+          <span class="registro-cabeza">
+            <span class="registro-lote">
+              <small>Lote</small>
+              <strong>{{ registro.lote }}</strong>
+            </span>
+            <span class="registro-cantidad">
+              @if (registro.cajas !== null) {
+                <strong>{{ registro.cajas | number: '1.0-2' }}</strong> cajas
+                @if (registro.piezas !== null) { <small>{{ registro.piezas | number: '1.0-0' }} piezas</small> }
+              } @else {
+                <strong>{{ registro.piezas | number: '1.0-0' }}</strong> piezas
+                <small>sin piezas por caja</small>
+              }
+            </span>
+            @if (esSeleccionado(registro)) {
+              <span class="marca-elegido">✓ Elegido</span>
+            }
+          </span>
+
+          <span class="registro-datos">
+            <span class="dato">
+              <small>Caducidad</small>
+              <strong [class]="'caducidad ' + estadoCaducidad(registro)">
+                {{ registro.caducidad ? formatoFecha(registro.caducidad) : 'Sin dato' }}
+                @if (estadoCaducidad(registro) === 'vencido') { · vencido }
+                @if (estadoCaducidad(registro) === 'pronto') { · caduca pronto }
+              </strong>
+            </span>
+            <span class="dato">
+              <small>{{ registro.origen === 'EXISTENCIA' ? 'Origen' : 'Movimiento' }}</small>
+              <strong>{{ registro.movimiento }}</strong>
+            </span>
+            <span class="dato">
+              <small>{{ registro.origen === 'EXISTENCIA' ? 'Última entrada' : 'Fecha' }}</small>
+              <strong>{{ registro.fecha ? formatoFecha(registro.fecha) : '—' }}</strong>
+            </span>
+            <span class="dato">
+              <small>Proveedor</small>
+              <strong>{{ registro.proveedor || 'Sin proveedor en Intelisis' }}</strong>
+            </span>
+            @if (registro.numeroPedido) {
+              <span class="dato">
+                <small>Pedido</small>
+                <strong>{{ registro.numeroPedido }}</strong>
+              </span>
+            }
+            @if (registro.contrato) {
+              <span class="dato">
+                <small>Contrato</small>
+                <strong>{{ registro.contrato }}</strong>
+              </span>
+            }
+            @if (registro.referencia) {
+              <span class="dato ancho">
+                <small>Referencia</small>
+                <strong>{{ registro.referencia }}</strong>
+              </span>
+            }
+          </span>
+
+          @if (registro.bloqueo) {
+            <span class="motivo">⛔ {{ registro.bloqueo }}</span>
+          }
+        </button>
+      </ng-template>
     }
 
     <!-- 3) Ubicación y cajas -->
@@ -99,6 +223,10 @@
           </div>
         }
         <button type="button" class="link-add" (click)="agregarUbicacion()">+ Repartir en otra ubicación</button>
+        <label class="mantener">
+          <input type="checkbox" [ngModel]="mantenerUbicacion()" (ngModelChange)="cambiarMantenerUbicacion($event)" />
+          Mantener la ubicación para la siguiente caja
+        </label>
 
         <p class="card-help">
           Contaste {{ totalCajas() }} cajas ·

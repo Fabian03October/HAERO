@@ -13,7 +13,16 @@
     @if (estado() === 'error') {
       <p class="error">{{ error() }}</p>
     } @else {
-      <p class="hint">{{ estado() === 'iniciando' ? 'Abriendo la cámara…' : 'Centra el código de barras de la caja dentro del recuadro.' }}</p>
+      <p class="hint">{{ estado() === 'iniciando' ? 'Abriendo la cámara…' : 'Centra el código dentro del recuadro, a unos 15-20 cm. Si se ve borroso, aleja un poco la caja.' }}</p>
+    }
+
+    <!-- Plan B: la cámara del teléfono enfoca sola y con más resolución. -->
+    <label class="foto" [class.ocupado]="leyendoFoto()">
+      {{ leyendoFoto() ? 'Leyendo la foto…' : '📸 Tomar foto del código' }}
+      <input type="file" accept="image/*" capture="environment" (change)="leerFoto($event)" [disabled]="leyendoFoto()" />
+    </label>
+    @if (avisoFoto()) {
+      <p class="error">{{ avisoFoto() }}</p>
     }
 
     <button type="button" class="cancel" (click)="cancelar()">Cancelar</button>

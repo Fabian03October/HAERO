@@ -149,11 +149,6 @@ export interface ResolverCodigoResponse {
   proveedor: string;
 }
 
-export interface AsociarCodigoRequest {
-  codigo: string;
-  clave: string;
-  proveedor: string;
-}
 
 export type EstatusSolicitud = 'PENDIENTE' | 'PARCIAL' | 'ATENDIDA';
 
@@ -514,9 +509,6 @@ export class AlmacenApi {
     return this.http.get<ResolverCodigoResponse>(`${API_BASE_URL}/almacen/codigos-barras/${encodeURIComponent(codigo)}`, this.cabeceras());
   }
 
-  asociarCodigo(request: AsociarCodigoRequest): Observable<void> {
-    return this.http.post<void>(`${API_BASE_URL}/almacen/codigos-barras`, request, this.cabeceras());
-  }
 
   registrarEntrada(request: RegistrarEntradaRequest): Observable<RegistrarEntradaResponse> {
     return this.http.post<RegistrarEntradaResponse>(`${API_BASE_URL}/almacen/entradas`, request, this.cabeceras());
