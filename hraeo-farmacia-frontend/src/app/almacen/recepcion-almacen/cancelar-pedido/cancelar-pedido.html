@@ -1,65 +1,59 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción · HU11</p>
-  <h1>Cancelar pedido</h1>
-  <p>Bloquea la recepción de un pedido que fue cancelado por el nivel central.</p>
+  <h1>Pedidos cancelados</h1>
+  <p>Lo que se canceló en Intelisis y Almacén no debe recibir. La cancelación se hace en Intelisis; Registrar entrada no deja recibir un pedido cancelado.</p>
 </header>
 
-@if (mensaje) {
-  <div class="message" [class]="'message ' + tipoMensaje" role="status">{{ mensaje }}</div>
-}
+<input class="search buscador" type="search" [value]="buscar()" (input)="buscar.set($any($event.target).value)" placeholder="Buscar por pedido, contrato, proveedor o clave" aria-label="Buscar en pedidos cancelados" />
 
 <div class="two-columns">
   <section class="card">
     <div class="card-heading">
       <div>
-        <p class="eyebrow">Bloqueo de recepción</p>
-        <h2>Cancelar un pedido</h2>
-      </div>
-      <div class="counters">
-        <span>{{ pedidos.pendientes().length }} cancelables</span>
-      </div>
-    </div>
-    <div class="entry-form">
-      <label>Pedido
-        <select [(ngModel)]="pedidoACancelar">
-          <option value="">Selecciona un pedido pendiente</option>
-          @for (pedido of pedidos.pendientes(); track pedido.id) {
-            <option [value]="pedido.id">{{ pedido.numero }} · {{ pedido.proveedor }}</option>
-          }
-        </select>
-      </label>
-      <label>Motivo de cancelación
-        <input [(ngModel)]="motivoCancelacion" placeholder="Cancelado por nivel central" />
-      </label>
-      <p class="card-help">Un pedido cancelado ya no podrá seleccionarse para registrar entradas.</p>
-      <button class="danger-button" type="button" [disabled]="guardando()" (click)="cancelarPedido()">
-        {{ guardando() ? 'Guardando…' : 'Marcar como cancelado' }}
-      </button>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">Historial</p>
+        <p class="eyebrow">Pedido completo</p>
         <h2>Pedidos cancelados</h2>
       </div>
       <div class="counters">
         <span class="danger">{{ pedidos.cancelados().length }} cancelados</span>
       </div>
     </div>
-    @if (pedidos.cancelados().length) {
+    @if (cancelados().length) {
       <ul class="cancel-list lista-scroll">
-        @for (pedido of pedidos.cancelados(); track pedido.id) {
+        @for (pedido of cancelados(); track pedido.id) {
           <li>
-            <strong>{{ pedido.numero }}</strong>
-            <span>{{ pedido.proveedor }} · clave {{ pedido.clave }}</span>
-            <small>Motivo: {{ pedido.motivoCancelacion || '—' }} · {{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} cajas recibidas</small>
+            <strong>{{ pedido.numero }} · No recibir</strong>
+            <span>{{ pedido.proveedor }}{{ pedido.contrato ? ' · contrato ' + pedido.contrato : '' }}</span>
+            <small>Claves {{ pedido.clave }} · cancelado {{ (pedido.fechaCancelacion | date: 'dd/MM/yyyy') ?? 'sin fecha' }}{{ pedido.cajasRecibidas ? ' · ya se habían recibido ' + pedido.cajasRecibidas + ' cajas en HAERO' : '' }}</small>
           </li>
         }
       </ul>
     } @else {
-      <p class="card-help">Aún no hay pedidos cancelados.</p>
+      <p class="card-help">{{ buscar() ? 'Ningún pedido cancelado coincide con la búsqueda.' : 'No hay pedidos cancelados en Intelisis en el último año.' }}</p>
+    }
+  </section>
+
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">Solo una clave</p>
+        <h2>Partidas canceladas</h2>
+      </div>
+      <div class="counters">
+        <span class="danger">{{ partidasCanceladas().length }} partidas</span>
+      </div>
+    </div>
+    @if (partidasCanceladas().length) {
+      <ul class="cancel-list lista-scroll">
+        @for (item of partidasCanceladas(); track item.pedido.id + item.partida.clave) {
+          <li>
+            <strong>{{ item.pedido.numero }} · {{ item.partida.clave }}</strong>
+            <span>{{ item.partida.nombreGenerico }}</span>
+            <small>Intelisis canceló {{ item.partida.canceladaIntelisis }} cajas · se esperan {{ item.partida.cantidadEsperada }} · HAERO lleva {{ item.partida.cantidadRecibida }}</small>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="card-help">{{ buscar() ? 'Ninguna partida cancelada coincide con la búsqueda.' : 'No hay partidas canceladas en pedidos vigentes.' }}</p>
     }
   </section>
 </div>

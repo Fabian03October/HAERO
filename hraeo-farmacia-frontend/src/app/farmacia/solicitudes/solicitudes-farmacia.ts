@@ -81,7 +81,8 @@ export class SolicitudesFarmacia {
 
   constructor() {
     this.recargar();
-    this.api.listarMedicamentos().subscribe({ next: (lista) => this.catalogo.set(lista), error: () => {} });
+    // Solo se pueden pedir claves dadas de alta en HAERO (con código de barras): las demás no tienen inventario aquí.
+    this.api.listarMedicamentos().subscribe({ next: (lista) => this.catalogo.set(lista.filter((item) => item.dadoDeAlta)), error: () => {} });
   }
 
   recargar(): void {
@@ -106,7 +107,7 @@ export class SolicitudesFarmacia {
       return;
     }
     if (this.catalogo().length && !this.medicamento()) {
-      this.mostrarMensaje('La clave no existe en el catálogo. Revisa la clave del medicamento.', 'error');
+      this.mostrarMensaje('Esa clave no está dada de alta en el Almacén. Revisa la clave del medicamento.', 'error');
       return;
     }
     if (!Number.isInteger(this.cantidad) || this.cantidad <= 0) {

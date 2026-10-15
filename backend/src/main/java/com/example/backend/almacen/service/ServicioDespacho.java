@@ -13,6 +13,7 @@ import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.entity.Movimiento;
 import com.example.backend.almacen.entity.Solicitud;
+import com.example.backend.almacen.repository.CodigoBarrasRepository;
 import com.example.backend.almacen.repository.ExistenciaRepository;
 import com.example.backend.almacen.repository.LoteRepository;
 import com.example.backend.almacen.repository.MedicamentoRepository;
@@ -52,19 +53,22 @@ public class ServicioDespacho {
     private final MovimientoRepository movimientoRepository;
     private final SolicitudRepository solicitudRepository;
     private final UsuarioRepository usuarioRepository;
+    private final CodigoBarrasRepository codigoBarrasRepository;
 
     public ServicioDespacho(MedicamentoRepository medicamentoRepository,
                              LoteRepository loteRepository,
                              ExistenciaRepository existenciaRepository,
                              MovimientoRepository movimientoRepository,
                              SolicitudRepository solicitudRepository,
-                             UsuarioRepository usuarioRepository) {
+                             UsuarioRepository usuarioRepository,
+                             CodigoBarrasRepository codigoBarrasRepository) {
         this.medicamentoRepository = medicamentoRepository;
         this.loteRepository = loteRepository;
         this.existenciaRepository = existenciaRepository;
         this.movimientoRepository = movimientoRepository;
         this.solicitudRepository = solicitudRepository;
         this.usuarioRepository = usuarioRepository;
+        this.codigoBarrasRepository = codigoBarrasRepository;
     }
 
     // ---------- HU12: existencias por ubicacion ----------
@@ -97,7 +101,9 @@ public class ServicioDespacho {
                             e.getUbicacion(),
                             e.getCantidadCajas(),
                             esFefo,
-                            e.getLote().getProveedor()
+                            e.getLote().getProveedor(),
+                            e.getLote().getMovimientoIntelisis(),
+                            e.getLote().getFechaAlta() == null ? null : e.getLote().getFechaAlta().toLocalDate()
                     );
                 })
                 .toList();
@@ -124,6 +130,10 @@ public class ServicioDespacho {
 
         Medicamento medicamento = medicamentoRepository.findById(request.getClave())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Clave de medicamento no encontrada"));
+        // Diseno aprobado: solo se piden claves dadas de alta en HAERO (con codigo de barras).
+        if (!codigoBarrasRepository.existsByMedicamentoClave(medicamento.getClave())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esa clave todavía no está dada de alta en el Almacén");
+        }
 
         Usuario usuario = usuarioRepository.findByNombreUsuario(nombreUsuarioSolicitante)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));

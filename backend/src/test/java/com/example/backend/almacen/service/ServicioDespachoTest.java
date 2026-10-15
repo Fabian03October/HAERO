@@ -8,6 +8,7 @@ import com.example.backend.almacen.entity.Existencia;
 import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.entity.Solicitud;
+import com.example.backend.almacen.repository.CodigoBarrasRepository;
 import com.example.backend.almacen.repository.ExistenciaRepository;
 import com.example.backend.almacen.repository.LoteRepository;
 import com.example.backend.almacen.repository.MedicamentoRepository;
@@ -52,6 +53,8 @@ class ServicioDespachoTest {
     private SolicitudRepository solicitudRepository;
     @Mock
     private UsuarioRepository usuarioRepository;
+    @Mock
+    private CodigoBarrasRepository codigoBarrasRepository;
 
     private ServicioDespacho servicioDespacho;
 
@@ -61,7 +64,7 @@ class ServicioDespachoTest {
     @BeforeEach
     void configurar() {
         servicioDespacho = new ServicioDespacho(medicamentoRepository, loteRepository, existenciaRepository,
-                movimientoRepository, solicitudRepository, usuarioRepository);
+                movimientoRepository, solicitudRepository, usuarioRepository, codigoBarrasRepository);
 
         medicamento = new Medicamento();
         medicamento.setClave("0134");

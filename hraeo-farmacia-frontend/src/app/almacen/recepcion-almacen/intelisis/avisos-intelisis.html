@@ -1,0 +1,59 @@
+<section class="card avisos-card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Control de cambios</p>
+      <h2>Avisos de Intelisis</h2>
+      <p class="card-help">La sincronización nunca modifica lo que Almacén registró en HAERO. Un pedido o partida cancelados, o un cambio de Intelisis en un lote que ya está aquí, queda como <b>por revisar</b>.</p>
+    </div>
+    <button type="button" class="link-button" (click)="cargar()" [disabled]="cargando()">Actualizar</button>
+  </div>
+
+  <div class="list-tools">
+    <div class="filter-tabs" role="group" aria-label="Tipo de aviso">
+      <button type="button" [class.active]="vista() === 'REVISAR'" [attr.aria-pressed]="vista() === 'REVISAR'" (click)="elegir('REVISAR')">
+        Por revisar <span [class.alerta]="porRevisar().length">{{ porRevisar().length }}</span>
+      </button>
+      <button type="button" [class.active]="vista() === 'INFO'" [attr.aria-pressed]="vista() === 'INFO'" (click)="elegir('INFO')">
+        Informativos <span>{{ informativos().length }}</span>
+      </button>
+      <button type="button" [class.active]="vista() === 'REVISADOS'" [attr.aria-pressed]="vista() === 'REVISADOS'" (click)="elegir('REVISADOS')">
+        Revisados
+      </button>
+    </div>
+    @if (vista() === 'INFO' && informativos().length && !soloLectura) {
+      <button type="button" class="link-button" [disabled]="trabajando()" (click)="marcarInformativos()">Marcar todos como revisados</button>
+    }
+  </div>
+
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  } @else if (cargando()) {
+    <p class="card-help">Cargando…</p>
+  } @else {
+    <ul class="avisos-lista">
+      @for (aviso of visibles(); track aviso.id) {
+        <li [class.revisar]="aviso.nivel === 'REVISAR'">
+          <div class="aviso-texto">
+            <span class="aviso-tipo">{{ tipoTexto[aviso.tipo] }}</span>
+            <strong>{{ aviso.titulo }}</strong>
+            @if (aviso.detalle) { <span>{{ aviso.detalle }}</span> }
+            <small>
+              {{ aviso.fecha | date: 'dd/MM/yyyy HH:mm' }}
+              @if (aviso.revisadoEn) { · revisado {{ aviso.revisadoEn | date: 'dd/MM/yyyy HH:mm' }}{{ aviso.revisadoPor ? ' por ' + aviso.revisadoPor : '' }} }
+            </small>
+          </div>
+          @if (!aviso.revisadoEn && !soloLectura) {
+            <button type="button" class="link-button" [disabled]="trabajando()" (click)="marcarRevisado(aviso)">Marcar revisado</button>
+          }
+        </li>
+      } @empty {
+        <li class="vacio">
+          {{ vista() === 'REVISAR' ? 'No hay nada por revisar.' : vista() === 'INFO' ? 'No hay avisos informativos pendientes.' : 'Todavía no hay avisos revisados.' }}
+        </li>
+      }
+    </ul>
+    @if (visibles().length >= 500) {
+      <p class="card-help">Se muestran los 500 más recientes.</p>
+    }
+  }
+</section>

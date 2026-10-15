@@ -2,7 +2,9 @@ package com.example.backend.almacen.service;
 
 import com.example.backend.almacen.dto.RegistrarEntradaRequest;
 import com.example.backend.almacen.dto.RegistrarEntradaResponse;
+import com.example.backend.almacen.dto.RegistroIntelisisResponse;
 import com.example.backend.almacen.dto.UbicacionCantidad;
+import com.example.backend.almacen.entity.CodigoBarras;
 import com.example.backend.almacen.entity.Existencia;
 import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Medicamento;
@@ -26,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -39,7 +42,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * PU-02 a PU-05 (HU10, HU11): recepcion de medicamento con lector de codigo de barras.
+ * HU10 y HU21 con el diseño aprobado: se escanea la caja, se elige el registro de
+ * Intelisis y Almacén solo pone ubicación y cajas. Lote y caducidad salen de Intelisis.
  */
 @ExtendWith(MockitoExtension.class)
 class ServicioRecepcionTest {
@@ -60,6 +64,8 @@ class ServicioRecepcionTest {
     private MovimientoRepository movimientoRepository;
     @Mock
     private UsuarioRepository usuarioRepository;
+    @Mock
+    private ServicioRegistrosIntelisis servicioRegistrosIntelisis;
 
     private ServicioRecepcion servicioRecepcion;
 
@@ -69,33 +75,51 @@ class ServicioRecepcionTest {
     @BeforeEach
     void configurar() {
         servicioRecepcion = new ServicioRecepcion(pedidoRepository, pedidoDetalleRepository, medicamentoRepository,
-                codigoBarrasRepository, loteRepository, existenciaRepository, movimientoRepository, usuarioRepository);
+                codigoBarrasRepository, loteRepository, existenciaRepository, movimientoRepository, usuarioRepository,
+                servicioRegistrosIntelisis);
 
         medicamento = new Medicamento();
-        medicamento.setClave("0134");
-        medicamento.setNombreGenerico("Paracetamol 500 mg");
-        medicamento.setPresentacion("Caja con 20 tabletas");
+        medicamento.setClave("010.000.0104.00");
+        medicamento.setNombreGenerico("Paracetamol");
+        medicamento.setPresentacion("Envase con 10 tabletas");
 
         usuario = new Usuario();
-        usuario.setNombreUsuario("despachador1");
+        usuario.setNombreUsuario("almacen");
     }
 
-    private RegistrarEntradaRequest requestBase(Long pedidoId) {
+    private RegistrarEntradaRequest request(String origen, Integer idIntelisis, int... cajas) {
         RegistrarEntradaRequest request = new RegistrarEntradaRequest();
-        request.setPedidoId(pedidoId);
-        request.setClave("0134");
-        request.setProveedor("Lab Sanfer");
-        request.setNumeroLote("L-8821");
-        request.setCaducidad(LocalDate.of(2028, 7, 1));
-
-        UbicacionCantidad ubicacion = new UbicacionCantidad();
-        ubicacion.setUbicacion("Sector 5");
-        ubicacion.setCajas(40);
-        request.setUbicaciones(List.of(ubicacion));
+        request.setCodigo("7501234567890");
+        request.setClave("010.000.0104.00");
+        request.setOrigen(origen);
+        request.setIdIntelisis(idIntelisis);
+        request.setLote("L-8821");
+        List<UbicacionCantidad> ubicaciones = new java.util.ArrayList<>();
+        for (int i = 0; i < cajas.length; i++) {
+            UbicacionCantidad ubicacion = new UbicacionCantidad();
+            ubicacion.setUbicacion("Sector " + (i + 5));
+            ubicacion.setCajas(cajas[i]);
+            ubicaciones.add(ubicacion);
+        }
+        request.setUbicaciones(ubicaciones);
         return request;
     }
 
-    // ---------- PU-03: escanear codigo no registrado ----------
+    private static RegistroIntelisisResponse compra(Long pedidoId, String bloqueo) {
+        return new RegistroIntelisisResponse("COMPRA", 5001, "Ent. Compra Farmacia 7788", null, LocalDate.of(2026, 10, 13),
+                "010.000.0104.00", "L-8821", LocalDate.of(2028, 7, 31), new BigDecimal("650"), new BigDecimal("65"),
+                "Lab Sanfer", pedidoId, "PP-8632", "IB-HRAEO-AD-B-C-310-2025", bloqueo, null);
+    }
+
+    private void guardadoNormal() {
+        when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
+        when(loteRepository.save(any(Lote.class))).thenAnswer(inv -> {
+            Lote lote = inv.getArgument(0);
+            lote.setId(10L);
+            return lote;
+        });
+        when(existenciaRepository.save(any(Existencia.class))).thenAnswer(inv -> inv.getArgument(0));
+    }
 
     @Test
     void resolverCodigo_noRegistrado_lanza404ConIndicacionDeAsociar() {
@@ -106,99 +130,138 @@ class ServicioRecepcionTest {
                 .hasMessageContaining("asóci");
     }
 
-    // ---------- PU-02: entrada contra pedido CANCELADO ----------
+    @Test
+    void registrarEntrada_sinCodigoDeBarras_lanza400() {
+        RegistrarEntradaRequest request = request("COMPRA", 5001, 40);
+        request.setCodigo(" ");
+
+        assertThatThrownBy(() -> servicioRecepcion.registrarEntrada(request, "almacen"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("código de barras");
+        verify(loteRepository, never()).save(any());
+    }
 
     @Test
-    void registrarEntrada_contraPedidoCancelado_lanza400YNoCreaNada() {
-        Pedido pedido = new Pedido();
-        pedido.setId(1L);
-        pedido.setEstatus("CANCELADO");
+    void registrarEntrada_sinRegistroEnIntelisis_lanza400YNoCreaNada() {
+        when(medicamentoRepository.findById("010.000.0104.00")).thenReturn(Optional.of(medicamento));
+        when(servicioRegistrosIntelisis.buscar("COMPRA", 5001, "010.000.0104.00", "L-8821")).thenReturn(Optional.empty());
 
-        when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
-        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+        assertThatThrownBy(() -> servicioRecepcion.registrarEntrada(request("COMPRA", 5001, 40), "almacen"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("no está en Intelisis");
+        verify(loteRepository, never()).save(any());
+        verify(codigoBarrasRepository, never()).save(any());
+    }
 
-        RegistrarEntradaRequest request = requestBase(1L);
+    @Test
+    void registrarEntrada_dePedidoCanceladoEnIntelisis_lanza400YNoCreaNada() {
+        when(medicamentoRepository.findById("010.000.0104.00")).thenReturn(Optional.of(medicamento));
+        when(servicioRegistrosIntelisis.buscar("COMPRA", 5001, "010.000.0104.00", "L-8821"))
+                .thenReturn(Optional.of(compra(1L, "El pedido PP-8632 está cancelado en Intelisis: no recibir.")));
 
-        assertThatThrownBy(() -> servicioRecepcion.registrarEntrada(request, "despachador1"))
+        assertThatThrownBy(() -> servicioRecepcion.registrarEntrada(request("COMPRA", 5001, 40), "almacen"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("cancelado");
-
         verify(loteRepository, never()).save(any());
         verify(existenciaRepository, never()).save(any());
     }
 
-    // ---------- PU-04: clave que no viene en el pedido ----------
-
     @Test
-    void registrarEntrada_conClaveFueraDelPedido_lanza400YNadaGuardado() {
-        Pedido pedido = new Pedido();
-        pedido.setId(1L);
-        pedido.setEstatus("ACTIVO");
+    void registrarEntrada_conCodigoDeOtraClave_lanza400() {
+        Medicamento otro = new Medicamento();
+        otro.setClave("010.000.6282.00");
+        CodigoBarras codigo = new CodigoBarras();
+        codigo.setCodigo("7501234567890");
+        codigo.setMedicamento(otro);
 
-        when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
-        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
-        when(pedidoDetalleRepository.findByPedidoIdAndMedicamentoClave(1L, "0134")).thenReturn(Optional.empty());
+        when(medicamentoRepository.findById("010.000.0104.00")).thenReturn(Optional.of(medicamento));
+        when(servicioRegistrosIntelisis.buscar("COMPRA", 5001, "010.000.0104.00", "L-8821")).thenReturn(Optional.of(compra(1L, null)));
+        when(codigoBarrasRepository.findById("7501234567890")).thenReturn(Optional.of(codigo));
 
-        RegistrarEntradaRequest request = requestBase(1L);
-
-        assertThatThrownBy(() -> servicioRecepcion.registrarEntrada(request, "despachador1"))
+        assertThatThrownBy(() -> servicioRecepcion.registrarEntrada(request("COMPRA", 5001, 40), "almacen"))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("no forma parte del pedido");
-
+                .hasMessageContaining("010.000.6282.00");
         verify(loteRepository, never()).save(any());
-        verify(existenciaRepository, never()).save(any());
     }
 
-    // ---------- PU-05: entrada valida repartida en dos ubicaciones ----------
-
     @Test
-    void registrarEntrada_valida_repartidaEnDosUbicaciones_creaUnLoteDosExistenciasYDosMovimientos() {
+    void registrarEntrada_deCompra_enDosUbicaciones_guardaLaFotoDeIntelisisAsociaElCodigoYSumaAlPedido() {
         Pedido pedido = new Pedido();
         pedido.setId(1L);
         pedido.setEstatus("ACTIVO");
-
         PedidoDetalle detalle = new PedidoDetalle();
         detalle.setPedido(pedido);
         detalle.setMedicamento(medicamento);
         detalle.setCantidadEsperada(100);
         detalle.setCantidadRecibida(0);
 
-        when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
+        when(medicamentoRepository.findById("010.000.0104.00")).thenReturn(Optional.of(medicamento));
+        when(servicioRegistrosIntelisis.buscar("COMPRA", 5001, "010.000.0104.00", "L-8821")).thenReturn(Optional.of(compra(1L, null)));
+        when(codigoBarrasRepository.findById("7501234567890")).thenReturn(Optional.empty());
         when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
-        when(pedidoDetalleRepository.findByPedidoIdAndMedicamentoClave(1L, "0134")).thenReturn(Optional.of(detalle));
-        when(usuarioRepository.findByNombreUsuario("despachador1")).thenReturn(Optional.of(usuario));
+        when(pedidoDetalleRepository.findByPedidoIdAndMedicamentoClave(1L, "010.000.0104.00")).thenReturn(Optional.of(detalle));
+        guardadoNormal();
 
-        when(loteRepository.save(any(Lote.class))).thenAnswer(inv -> {
-            Lote lote = inv.getArgument(0);
-            lote.setId(10L);
-            return lote;
-        });
-        when(existenciaRepository.save(any(Existencia.class))).thenAnswer(inv -> {
-            Existencia existencia = inv.getArgument(0);
-            existencia.setId((long) (100 + existencia.getCantidadCajas()));
-            return existencia;
-        });
-
-        RegistrarEntradaRequest request = requestBase(1L);
-        UbicacionCantidad ubicacion2 = new UbicacionCantidad();
-        ubicacion2.setUbicacion("Sector 8");
-        ubicacion2.setCajas(25);
-        request.setUbicaciones(List.of(request.getUbicaciones().get(0), ubicacion2));
-
-        RegistrarEntradaResponse respuesta = servicioRecepcion.registrarEntrada(request, "despachador1");
+        // Almacén contó 62 cajas; Intelisis dice 65: la diferencia queda registrada.
+        RegistrarEntradaResponse respuesta = servicioRecepcion.registrarEntrada(request("COMPRA", 5001, 40, 22), "almacen");
 
         assertThat(respuesta.getLoteId()).isEqualTo(10L);
-        assertThat(respuesta.getExistencias()).hasSize(2);
+        assertThat(respuesta.getCajasConfirmadas()).isEqualTo(62);
+        assertThat(respuesta.getCajasIntelisis()).isEqualByComparingTo("65");
 
-        verify(loteRepository, times(1)).save(any(Lote.class));
+        ArgumentCaptor<Lote> loteCaptor = ArgumentCaptor.forClass(Lote.class);
+        verify(loteRepository).save(loteCaptor.capture());
+        Lote lote = loteCaptor.getValue();
+        assertThat(lote.getNumeroLote()).isEqualTo("L-8821");
+        assertThat(lote.getCaducidad()).isEqualTo(LocalDate.of(2028, 7, 31));
+        assertThat(lote.getProveedor()).isEqualTo("Lab Sanfer");
+        assertThat(lote.getPedido()).isSameAs(pedido);
+        assertThat(lote.getOrigenIntelisis()).isEqualTo("COMPRA");
+        assertThat(lote.getIdIntelisis()).isEqualTo(5001);
+        assertThat(lote.getMovimientoIntelisis()).isEqualTo("Ent. Compra Farmacia 7788");
+        assertThat(lote.getContrato()).isEqualTo("IB-HRAEO-AD-B-C-310-2025");
+        assertThat(lote.getCajasConfirmadas()).isEqualTo(62);
+
+        ArgumentCaptor<CodigoBarras> codigoCaptor = ArgumentCaptor.forClass(CodigoBarras.class);
+        verify(codigoBarrasRepository).save(codigoCaptor.capture());
+        assertThat(codigoCaptor.getValue().getMedicamento()).isSameAs(medicamento);
+
         verify(existenciaRepository, times(2)).save(any(Existencia.class));
-
         ArgumentCaptor<Movimiento> movimientoCaptor = ArgumentCaptor.forClass(Movimiento.class);
         verify(movimientoRepository, times(2)).save(movimientoCaptor.capture());
         assertThat(movimientoCaptor.getAllValues()).allSatisfy(m -> assertThat(m.getTipo()).isEqualTo("ENTRADA"));
 
-        ArgumentCaptor<PedidoDetalle> detalleCaptor = ArgumentCaptor.forClass(PedidoDetalle.class);
-        verify(pedidoDetalleRepository).save(detalleCaptor.capture());
-        assertThat(detalleCaptor.getValue().getCantidadRecibida()).isEqualTo(65);
+        assertThat(detalle.getCantidadRecibida()).isEqualTo(62);
+        verify(pedidoDetalleRepository).save(detalle);
+    }
+
+    @Test
+    void registrarEntrada_altaInicialDeLaExistencia_noTocaPedidosYQuedaComoCargaInicial() {
+        RegistroIntelisisResponse existencia = new RegistroIntelisisResponse("EXISTENCIA", null, "Existencia 25301", null,
+                LocalDate.of(2026, 9, 1), "010.000.0104.00", "L-8821", LocalDate.of(2028, 7, 31), new BigDecimal("300"),
+                new BigDecimal("30"), null, null, null, null, null, null);
+        CodigoBarras codigo = new CodigoBarras();
+        codigo.setCodigo("7501234567890");
+        codigo.setMedicamento(medicamento);
+
+        when(medicamentoRepository.findById("010.000.0104.00")).thenReturn(Optional.of(medicamento));
+        when(servicioRegistrosIntelisis.buscar("EXISTENCIA", null, "010.000.0104.00", "L-8821")).thenReturn(Optional.of(existencia));
+        when(codigoBarrasRepository.findById("7501234567890")).thenReturn(Optional.of(codigo));
+        guardadoNormal();
+
+        servicioRecepcion.registrarEntrada(request("EXISTENCIA", null, 30), "almacen");
+
+        ArgumentCaptor<Lote> loteCaptor = ArgumentCaptor.forClass(Lote.class);
+        verify(loteRepository).save(loteCaptor.capture());
+        assertThat(loteCaptor.getValue().getOrigenIntelisis()).isEqualTo("EXISTENCIA");
+        assertThat(loteCaptor.getValue().getProveedor()).isEqualTo("Sin proveedor en Intelisis");
+        assertThat(loteCaptor.getValue().getPedido()).isNull();
+
+        ArgumentCaptor<Movimiento> movimientoCaptor = ArgumentCaptor.forClass(Movimiento.class);
+        verify(movimientoRepository).save(movimientoCaptor.capture());
+        assertThat(movimientoCaptor.getValue().getTipo()).isEqualTo("CARGA_INICIAL");
+        // El código ya era de esta clave: no se vuelve a guardar.
+        verify(codigoBarrasRepository, never()).save(any());
+        verify(pedidoDetalleRepository, never()).save(any());
     }
 }

@@ -1,0 +1,90 @@
+/* Ocupa el mismo ancho que las demás pantallas para no dejar un hueco a la derecha. */
+.entry-card { width: 100%; }
+
+.scanner-control { display: flex; gap: 8px; }
+.scanner-control input { flex: 1; min-width: 0; }
+
+.scanner-control button {
+  width: 44px;
+  border: 1px solid #9f2241;
+  border-radius: 10px;
+  background: #fff;
+  color: #9f2241;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.scanner-control button:hover { background: #f6e9ed; }
+
+.pedido-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f8f5f0;
+  color: #4a4a4a;
+  font-size: 12px;
+}
+
+.paso {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #9f2241;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bloque { display: grid; gap: 10px; }
+.titulo-paso { margin: 0; color: #2b2b2b; font-size: 13px; font-weight: 700; }
+
+.registros { display: grid; gap: 8px; max-height: 420px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+
+.registro {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e4ddd2;
+  border-radius: 10px;
+  background: #fff;
+  color: #2b2b2b;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.registro:hover:not(:disabled) { border-color: #9f2241; }
+.registro.elegido { border-color: #9f2241; background: #f6e9ed; box-shadow: 0 0 0 2px #f3dde4; }
+.registro.bloqueado { background: #faf8f5; color: #8a8a8a; cursor: not-allowed; }
+
+.registro-linea { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.registro-linea .cajas { margin-left: auto; font-weight: 700; }
+.registro small { color: #6f7271; }
+.registro .motivo { color: #9b443c; font-weight: 700; }
+
+.diferencia { color: #9b443c; }
+
+.inline-control { display: flex; gap: 6px; align-items: center; }
+.inline-control input { flex: 1; min-width: 0; }
+.link-add, .link-remove {
+  border: 0;
+  background: none;
+  color: #9f2241;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+  justify-self: start;
+  text-align: left;
+}
+.link-remove { padding: 4px 8px; }

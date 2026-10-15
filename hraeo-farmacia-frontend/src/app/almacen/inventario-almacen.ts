@@ -16,7 +16,7 @@ export interface LoteInventario {
   ubicacion: string;
   // Columna CANTIDAD de la hoja.
   cajas: number;
-  // Columna FUENTE de la hoja (R-56, SADMI, SAEAC, U013…).
+  // Registro de Intelisis del que salió el lote (p. ej. "Ent. Compra Farmacia 4334").
   fuente?: string;
   // AAAA-MM-DD.
   fechaIngreso?: string;
@@ -81,5 +81,7 @@ function aLoteInventario(fila: Existencia): LoteInventario {
     proveedor: fila.proveedor ?? '',
     ubicacion: fila.ubicacion,
     cajas: fila.cajas,
+    fuente: fila.movimientoIntelisis ?? undefined,
+    fechaIngreso: fila.fechaIngreso ?? undefined,
   };
 }

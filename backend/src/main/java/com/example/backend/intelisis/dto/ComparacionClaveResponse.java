@@ -7,9 +7,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Una clave comparada entre HAERO (lo cargado por Excel) e Intelisis (el espejo).
- * La cantidad de Intelisis va en su propia unidad (piezas, mg, ml, UI...), sin
- * convertir a cajas: la conversion espera la respuesta de Almacen/Farmacia.
+ * Una clave comparada en cajas entre HAERO (lo que dio de alta y recibió Almacén) e
+ * Intelisis (la copia de consulta). Intelisis guarda piezas en la clave "-1" y cajas
+ * en la clave base; se convierten con las piezas por caja del catálogo.
  */
 @Getter
 @AllArgsConstructor
@@ -25,9 +25,9 @@ public class ComparacionClaveResponse {
     private Integer piezasPorCaja;
 
     private String intelisisArticulo;
-    private BigDecimal intelisisCantidad;
-    private String intelisisUnidad;
-    private Double intelisisUnidadCantidad;
+    // Piezas en Intelisis y su equivalente en cajas (null si no se sabe cuántas piezas trae la caja).
+    private BigDecimal intelisisPiezas;
+    private BigDecimal intelisisCajas;
     private Integer intelisisLotes;
     private LocalDate intelisisProximaCaducidad;
 }

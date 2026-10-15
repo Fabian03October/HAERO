@@ -1,160 +1,102 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción · HU22</p>
   <h1>Pedidos</h1>
-  <p>Consulta los pedidos registrados y captura uno nuevo mientras no exista integración con FONSABI.</p>
+  <p>Los pedidos a proveedor de Intelisis, con su contrato. Se capturan y se cancelan en Intelisis; aquí se consultan y se ve lo que Almacén ya recibió.</p>
 </header>
 
-@if (mensaje) {
-  <div class="message" [class]="'message ' + tipoMensaje" role="status">{{ mensaje }}</div>
-}
-
-<div class="two-columns">
-  <section class="card">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">Captura manual</p>
-        <h2>Pedido nuevo</h2>
-      </div>
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">Desde Intelisis</p>
+      <h2>Lista de pedidos</h2>
     </div>
-    <div class="entry-form">
-      <div class="form-row">
-        <label>Número de pedido
-          <input [(ngModel)]="numero" placeholder="PED-2026-0149" />
-        </label>
-        <label>Fecha
-          <input type="date" [(ngModel)]="fecha" />
-        </label>
-      </div>
-      <label>Proveedor
-        <input [(ngModel)]="proveedor" placeholder="Laboratorios Sanfer" />
-      </label>
+    <div class="counters">
+      <span>{{ pedidos.pedidos().length }} pedidos</span>
+      <span>{{ pedidos.pendientes().length }} por recibir</span>
+    </div>
+  </div>
 
-      <datalist id="claves-pedido">
-        @for (item of catalogo.catalogo(); track item.clave) {
-          <option [value]="item.clave">{{ item.nombreGenerico }}</option>
-        }
-      </datalist>
-      @for (partida of partidas; track $index; let i = $index) {
-        <div class="form-row partida-row">
-          <label>Clave {{ partidas.length > 1 ? i + 1 : '' }}
-            <input [(ngModel)]="partida.clave" list="claves-pedido" placeholder="Clave del catálogo" />
-            @if (catalogo.nombreMedicamento(partida.clave.trim()); as nombre) {
-              <small class="hint">{{ nombre }}</small>
-            }
-          </label>
-          <label>Cajas esperadas
-            <span class="inline-control">
-              <input type="number" min="1" [(ngModel)]="partida.cantidadEsperada" />
-              @if (partidas.length > 1) {
-                <button type="button" class="link-remove" title="Quitar clave" (click)="quitarPartida(i)">✕</button>
-              }
-            </span>
-          </label>
-        </div>
+  <div class="list-tools">
+    <div class="filter-tabs" role="group" aria-label="Filtrar pedidos por estado">
+      @for (filtro of filtros(); track filtro.valor) {
+        <button type="button" [class.active]="filtroEstado() === filtro.valor" [attr.aria-pressed]="filtroEstado() === filtro.valor" (click)="elegirFiltro(filtro.valor)">
+          {{ filtro.etiqueta }} <span>{{ filtro.total }}</span>
+        </button>
       }
-      <button type="button" class="link-add" (click)="agregarPartida()">+ Agregar otra clave</button>
-
-      <button class="primary-button" type="button" [disabled]="guardando()" (click)="registrarPedido()">
-        {{ guardando() ? 'Guardando…' : 'Registrar pedido' }}
-      </button>
     </div>
-  </section>
+    <input class="search" type="search" [ngModel]="busqueda()" (ngModelChange)="buscar($event)" placeholder="Buscar por pedido, contrato, proveedor, clave o CUCOP" aria-label="Buscar pedidos" />
+  </div>
 
-  <section class="card">
-    <div class="card-heading">
-      <div>
-        <p class="eyebrow">Pedidos registrados</p>
-        <h2>Lista de pedidos</h2>
-      </div>
-      <div class="counters">
-        <span>{{ pedidos.pedidos().length }} pedidos</span>
-        <span>{{ pedidos.pendientes().length }} por recibir</span>
-      </div>
-    </div>
-
-    <div class="list-tools">
-      <div class="filter-tabs" role="group" aria-label="Filtrar pedidos por estado">
-        @for (filtro of filtros(); track filtro.valor) {
-          <button
-            type="button"
-            [class.active]="filtroEstado() === filtro.valor"
-            [attr.aria-pressed]="filtroEstado() === filtro.valor"
-            (click)="filtroEstado.set(filtro.valor)"
-          >
-            {{ filtro.etiqueta }} <span>{{ filtro.total }}</span>
-          </button>
-        }
-      </div>
-      <input
-        class="search"
-        type="search"
-        [ngModel]="busqueda()"
-        (ngModelChange)="busqueda.set($event)"
-        placeholder="Buscar por número, fecha, proveedor, clave o medicamento"
-        aria-label="Buscar pedidos"
-      />
-    </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Pedido</th>
-            <th>Proveedor</th>
-            <th>Clave</th>
-            <th class="number">Recibidas</th>
-            <th>Estado</th>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Pedido</th>
+          <th>Contrato</th>
+          <th>Proveedor</th>
+          <th>Claves</th>
+          <th>Entrega</th>
+          <th class="number">Recibido en HAERO</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (pedido of visibles(); track pedido.id) {
+          <tr class="fila-pedido" (click)="verDetalle(pedido)">
+            <td>
+              <button type="button" class="pedido-link" (click)="$event.stopPropagation(); verDetalle(pedido)" [attr.aria-label]="'Ver detalle del pedido ' + pedido.numero">{{ pedido.numero }}</button>
+              <small>{{ pedido.fecha | date: 'dd/MM/yyyy' }}</small>
+            </td>
+            <td>{{ pedido.contrato ?? '—' }}</td>
+            <td>{{ pedido.proveedor }}</td>
+            <td>
+              @for (partida of pedido.partidas; track partida.clave) {
+                <span class="partida">{{ partida.clave }}<small>{{ partida.nombreGenerico }} · {{ partida.cantidadRecibida }}/{{ partida.cantidadEsperada }}</small></span>
+              }
+            </td>
+            <td>
+              {{ (pedido.fechaEntrega | date: 'dd/MM/yyyy') ?? '—' }}
+              @if (vencido(pedido)) { <small class="vencido">vencida</small> }
+            </td>
+            <td class="number">{{ pedido.cajasRecibidas }} / {{ pedido.cajasEsperadas }}</td>
+            <td>
+              <span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span>
+              @if (pedido.estado === 'CANCELADO') {
+                <small class="motivo">No recibir</small>
+              }
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          @for (pedido of pedidosFiltrados(); track pedido.id) {
-            <tr class="fila-pedido" (click)="verDetalle(pedido)">
-              <td>
-                <button type="button" class="pedido-link" (click)="$event.stopPropagation(); verDetalle(pedido)" [attr.aria-label]="'Ver detalle del pedido ' + pedido.numero">{{ pedido.numero }}</button>
-                <small>{{ pedido.fecha | date: 'dd/MM/yyyy' }}</small>
-              </td>
-              <td>{{ pedido.proveedor }}</td>
-              <td>
-                @for (partida of pedido.partidas; track partida.clave) {
-                  <span class="partida">{{ partida.clave }}<small>{{ partida.nombreGenerico }} · {{ partida.cantidadRecibida }}/{{ partida.cantidadEsperada }}</small></span>
-                }
-              </td>
-              <td class="number">{{ pedido.cajasRecibidas }} / {{ pedido.cajasEsperadas }}</td>
-              <td>
-                <span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span>
-                @if (pedido.motivoCancelacion) {
-                  <small class="motivo" [title]="pedido.motivoCancelacion">{{ pedido.motivoCancelacion }}</small>
-                }
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="5" class="empty">
-                @if (pedidos.cargando()) {
-                  Cargando…
-                } @else if (pedidos.error()) {
-                  {{ pedidos.error() }}
-                } @else if (pedidos.pedidos().length) {
-                  Ningún pedido coincide con el filtro o la búsqueda.
-                } @else {
-                  Aún no hay pedidos registrados.
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </section>
-</div>
+        } @empty {
+          <tr>
+            <td colspan="7" class="empty">
+              @if (pedidos.cargando()) {
+                Cargando…
+              } @else if (pedidos.error()) {
+                {{ pedidos.error() }}
+              } @else if (pedidos.pedidos().length) {
+                Ningún pedido coincide con el filtro o la búsqueda.
+              } @else {
+                Todavía no llegan los pedidos de Intelisis. Revisa la sincronización.
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (pedidosFiltrados().length > visibles().length) {
+    <button type="button" class="mas-button" (click)="mostrarMas()">Mostrar más ({{ pedidosFiltrados().length - visibles().length }} restantes)</button>
+  }
+  <p class="card-help">"Recibido en HAERO" son las cajas que Almacén registró aquí al dar entrada. El estado lo decide Intelisis: un pedido cancelado allá ya no se puede recibir.</p>
+</section>
 
-<!-- Detalle de un pedido (botón "Ver"). -->
+<!-- Detalle de un pedido. -->
 @if (detalle(); as pedido) {
   <div class="detalle-fondo" (click)="cerrarDetalle()">
     <section class="detalle" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo" (click)="$event.stopPropagation()">
       <header class="detalle-header">
         <div>
-          <p class="eyebrow">Pedido</p>
+          <p class="eyebrow">Pedido de Intelisis</p>
           <h2 id="detalle-titulo">{{ pedido.numero }}</h2>
         </div>
         <button type="button" class="detalle-cerrar" (click)="cerrarDetalle()" aria-label="Cerrar detalle">✕</button>
@@ -162,17 +104,19 @@
 
       <dl class="detalle-datos">
         <div><dt>Fecha</dt><dd>{{ pedido.fecha | date: 'dd/MM/yyyy' }}</dd></div>
+        <div><dt>Entrega</dt><dd>{{ (pedido.fechaEntrega | date: 'dd/MM/yyyy') ?? '—' }}</dd></div>
         <div><dt>Proveedor</dt><dd>{{ pedido.proveedor }}</dd></div>
+        <div><dt>Contrato</dt><dd>{{ pedido.contrato ?? '—' }}</dd></div>
         <div>
           <dt>Estado</dt>
           <dd><span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span></dd>
         </div>
-        <div><dt>Cajas recibidas</dt><dd>{{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} ({{ avance(pedido) }}%)</dd></div>
+        <div><dt>Recibido en HAERO</dt><dd>{{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} cajas ({{ avance(pedido) }}%)</dd></div>
       </dl>
       <div class="detalle-avance" aria-hidden="true"><span [style.width.%]="avance(pedido)"></span></div>
 
-      @if (pedido.motivoCancelacion) {
-        <p class="message error">Cancelado: {{ pedido.motivoCancelacion }}</p>
+      @if (pedido.estado === 'CANCELADO') {
+        <p class="message error">Cancelado en Intelisis: no recibir.</p>
       }
 
       <h3>Claves del pedido</h3>
@@ -181,18 +125,22 @@
           <thead>
             <tr>
               <th>Clave</th>
+              <th>CUCOP</th>
               <th class="number">Esperadas</th>
-              <th class="number">Recibidas</th>
-              <th class="number">Faltan</th>
+              <th class="number">Recibidas en HAERO</th>
+              <th class="number">Recibidas en Intelisis</th>
+              <th class="number">Canceladas</th>
             </tr>
           </thead>
           <tbody>
             @for (partida of pedido.partidas; track partida.clave) {
               <tr>
                 <td><strong>{{ partida.clave }}</strong><small>{{ partida.nombreGenerico }}</small></td>
+                <td>{{ partida.cucop ?? '—' }}</td>
                 <td class="number">{{ partida.cantidadEsperada }}</td>
                 <td class="number">{{ partida.cantidadRecibida }}</td>
-                <td class="number">{{ partida.cantidadEsperada - partida.cantidadRecibida > 0 ? partida.cantidadEsperada - partida.cantidadRecibida : '—' }}</td>
+                <td class="number">{{ partida.recibidaIntelisis ?? '—' }}</td>
+                <td class="number">{{ partida.canceladaIntelisis ? partida.canceladaIntelisis : '—' }}</td>
               </tr>
             }
           </tbody>

@@ -1,5 +1,6 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AlmacenApi } from '../almacen-api';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
 import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar } from '../../shared/sidebar/sidebar';
@@ -30,9 +31,15 @@ export class PanelAlmacen {
   private readonly solicitudes = inject(SolicitudesAlmacen);
 
   readonly items = ALMACEN_MENU;
+  // Avisos de Intelisis "por revisar" sin atender (cancelaciones y cambios en lotes).
+  readonly avisosPorRevisar = signal(0);
 
   constructor() {
     recargarAlmacen();
+    inject(AlmacenApi).resumenAvisosIntelisis().subscribe({
+      next: (resumen) => this.avisosPorRevisar.set(resumen.REVISAR ?? 0),
+      error: () => {},
+    });
   }
 
   // Solo se capitaliza la primera letra ("Lunes, 28 de septiembre de 2026").

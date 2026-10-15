@@ -13,8 +13,8 @@ export const ALMACEN_MENU: ItemMenu[] = [
       { etiqueta: 'Inventario', routerLink: '/almacen/recepcion/inventario', etiquetaExtra: 'HU21' },
       { etiqueta: 'Registrar entrada', routerLink: '/almacen/recepcion/entrada', etiquetaExtra: 'HU10' },
       { etiqueta: 'Pedidos', routerLink: '/almacen/recepcion/pedidos', etiquetaExtra: 'HU22' },
-      { etiqueta: 'Cancelar pedido', routerLink: '/almacen/recepcion/cancelar-pedido', etiquetaExtra: 'HU11' },
-      { etiqueta: 'Comparar con Intelisis', routerLink: '/almacen/recepcion/intelisis' },
+      { etiqueta: 'Pedidos cancelados', routerLink: '/almacen/recepcion/cancelar-pedido', etiquetaExtra: 'HU11' },
+      { etiqueta: 'Intelisis: avisos y comparación', routerLink: '/almacen/recepcion/intelisis' },
     ],
   },
   {
