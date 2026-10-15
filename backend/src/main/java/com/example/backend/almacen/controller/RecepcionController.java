@@ -1,6 +1,5 @@
 package com.example.backend.almacen.controller;
 
-import com.example.backend.almacen.dto.AsociarCodigoRequest;
 import com.example.backend.almacen.dto.RegistrarEntradaRequest;
 import com.example.backend.almacen.dto.RegistrarEntradaResponse;
 import com.example.backend.almacen.dto.RegistroIntelisisResponse;
@@ -26,12 +25,6 @@ public class RecepcionController {
     @GetMapping("/codigos-barras/{codigo}")
     public ResponseEntity<ResolverCodigoResponse> resolverCodigo(@PathVariable String codigo) {
         return ResponseEntity.ok(servicioRecepcion.resolverCodigo(codigo));
-    }
-
-    @PostMapping("/codigos-barras")
-    public ResponseEntity<Void> asociarCodigo(@RequestBody AsociarCodigoRequest request) {
-        servicioRecepcion.asociarCodigo(request);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     /** Registros de Intelisis para elegir al recibir (tipo=ENTRADA) o al dar de alta lo que ya hay (tipo=ALTA_INICIAL). */

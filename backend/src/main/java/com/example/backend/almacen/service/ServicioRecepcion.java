@@ -1,6 +1,5 @@
 package com.example.backend.almacen.service;
 
-import com.example.backend.almacen.dto.AsociarCodigoRequest;
 import com.example.backend.almacen.dto.RegistrarEntradaRequest;
 import com.example.backend.almacen.dto.RegistrarEntradaResponse;
 import com.example.backend.almacen.dto.RegistroIntelisisResponse;
@@ -65,7 +64,7 @@ public class ServicioRecepcion {
     public ResolverCodigoResponse resolverCodigo(String codigo) {
         CodigoBarras codigoBarras = codigoBarrasRepository.findById(codigo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Código no registrado; asócialo a una clave y proveedor"));
+                        "Código no registrado; asócialo a su clave al registrar la entrada o el alta inicial"));
 
         return new ResolverCodigoResponse(
                 codigoBarras.getMedicamento().getClave(),
@@ -74,20 +73,9 @@ public class ServicioRecepcion {
         );
     }
 
-    public void asociarCodigo(AsociarCodigoRequest request) {
-        if (codigoBarrasRepository.existsById(request.getCodigo())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ese código ya está asociado a una clave");
-        }
-
-        Medicamento medicamento = medicamentoRepository.findById(request.getClave())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Clave de medicamento no encontrada"));
-
-        CodigoBarras codigoBarras = new CodigoBarras();
-        codigoBarras.setCodigo(request.getCodigo());
-        codigoBarras.setMedicamento(medicamento);
-        codigoBarras.setProveedor(request.getProveedor());
-        codigoBarrasRepository.save(codigoBarras);
-    }
+    // Ya no hay "asociar código" por separado: un código solo se asocia a su clave al
+    // registrar una entrada o un alta inicial, para que ninguna clave quede "dada de alta"
+    // sin existencia en HAERO.
 
     /** Registros de Intelisis que se pueden elegir para una clave (ENTRADA o ALTA_INICIAL). */
     public List<RegistroIntelisisResponse> registrosIntelisis(String clave, String tipo) {

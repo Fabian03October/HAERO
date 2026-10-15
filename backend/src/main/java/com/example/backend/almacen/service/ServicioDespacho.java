@@ -74,17 +74,15 @@ public class ServicioDespacho {
     // ---------- HU12: existencias por ubicacion ----------
 
     public List<ExistenciaResponse> listarExistencias(String clave, String numeroLote, String ubicacion) {
-        List<Existencia> existencias = existenciaRepository.findAll().stream()
+        // Una sola lectura: con ella se calcula el lote FEFO de cada clave y se filtra.
+        List<Existencia> todas = existenciaRepository.findAllConLote();
+        Map<String, Long> loteFefoPorClave = lotesFefo(todas);
+
+        List<Existencia> existencias = todas.stream()
                 .filter(e -> clave == null || clave.isBlank() || e.getLote().getMedicamento().getClave().equalsIgnoreCase(clave))
                 .filter(e -> numeroLote == null || numeroLote.isBlank() || e.getLote().getNumeroLote().equalsIgnoreCase(numeroLote))
                 .filter(e -> ubicacion == null || ubicacion.isBlank() || e.getUbicacion().equalsIgnoreCase(ubicacion))
                 .toList();
-
-        Map<String, Long> loteFefoPorClave = new HashMap<>();
-        for (Existencia e : existencias) {
-            String claveMedicamento = e.getLote().getMedicamento().getClave();
-            loteFefoPorClave.computeIfAbsent(claveMedicamento, this::idDelLoteFefo);
-        }
 
         return existencias.stream()
                 .map(e -> {
@@ -109,16 +107,29 @@ public class ServicioDespacho {
                 .toList();
     }
 
-    private Long idDelLoteFefo(String claveMedicamento) {
-        for (Lote lote : lotesDisponiblesOrdenadosPorCaducidad(claveMedicamento)) {
-            int disponible = existenciaRepository.findByLoteId(lote.getId()).stream()
-                    .mapToInt(Existencia::getCantidadCajas)
-                    .sum();
-            if (disponible > 0) {
-                return lote.getId();
+    /**
+     * El lote que debe salir primero de cada clave (HU15): el DISPONIBLE, no vencido y
+     * con cajas, que caduca antes. Se calcula en memoria con las existencias ya leídas,
+     * en lugar de volver a consultar la base por cada clave y cada lote.
+     */
+    private Map<String, Long> lotesFefo(List<Existencia> existencias) {
+        LocalDate hoy = LocalDate.now();
+        Map<Long, Integer> cajasPorLote = new HashMap<>();
+        Map<Long, Lote> lotes = new HashMap<>();
+        for (Existencia e : existencias) {
+            Lote lote = e.getLote();
+            if (!"DISPONIBLE".equals(lote.getEstatus()) || lote.getCaducidad().isBefore(hoy)) {
+                continue;
             }
+            cajasPorLote.merge(lote.getId(), e.getCantidadCajas(), Integer::sum);
+            lotes.putIfAbsent(lote.getId(), lote);
         }
-        return null;
+        Map<String, Long> fefo = new HashMap<>();
+        lotes.values().stream()
+                .filter(lote -> cajasPorLote.getOrDefault(lote.getId(), 0) > 0)
+                .sorted(Comparator.comparing(Lote::getCaducidad).thenComparing(Lote::getId))
+                .forEach(lote -> fefo.putIfAbsent(lote.getMedicamento().getClave(), lote.getId()));
+        return fefo;
     }
 
     // ---------- HU13: solicitud de Farmacia ----------

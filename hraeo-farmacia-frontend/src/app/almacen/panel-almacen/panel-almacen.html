@@ -95,7 +95,7 @@
               </div>
               <a class="card-link" routerLink="/almacen/recepcion/pedidos">Ver todos →</a>
             </div>
-            @if (pedidos.pendientes().length) {
+            @if (pedidos.porRecibirAhora().length) {
               <ul class="order-list">
                 @for (pedido of pedidosEnInicio(); track pedido.numero) {
                   <li>
@@ -112,7 +112,7 @@
                 <a class="more-link" routerLink="/almacen/recepcion/pedidos">Ver {{ pedidosRestantes() === 1 ? 'el pedido restante' : 'los ' + pedidosRestantes() + ' pedidos restantes' }} →</a>
               }
             } @else {
-              <p class="empty-box">No hay pedidos pendientes. Todo lo pedido ya se recibió.</p>
+              <p class="empty-box">No hay pedidos con entrega en los últimos 60 días ni próximos. Los más antiguos se ven en Pedidos.</p>
             }
           </section>
         </div>

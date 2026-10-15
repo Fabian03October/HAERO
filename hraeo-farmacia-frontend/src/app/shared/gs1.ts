@@ -77,13 +77,33 @@ function camposCrudos(texto: string): Map<string, string> | null {
       resto = resto.slice(FIJOS[ai]);
     } else {
       // Longitud variable: termina en el separador GS, al llegar al máximo o al final del texto.
+      // Algunos lectores de "pistola" no mandan el GS; entonces se corta antes de una
+      // caducidad (17 + AAMMDD válida) pegada al valor, como "IIP2307217250228…".
       const fin = resto.indexOf(GS);
-      const largo = Math.min(fin < 0 ? resto.length : fin, VARIABLES[ai]);
+      const pegada = fin < 0 ? caducidadPegada(resto.slice(0, VARIABLES[ai] + 8)) : -1;
+      const largo = Math.min(pegada > 0 ? pegada : fin < 0 ? resto.length : fin, VARIABLES[ai]);
       campos.set(ai, resto.slice(0, largo));
       resto = resto.slice(largo);
     }
   }
   return campos;
+}
+
+/**
+ * Posición de una caducidad "(17)AAMMDD" pegada dentro de un valor variable cuando el
+ * lector no mandó el separador: debe ser una fecha válida y lo que sigue debe ser el
+ * final del texto u otro AI conocido. -1 si no hay.
+ */
+function caducidadPegada(texto: string): number {
+  const patron = /17(\d{6})/g;
+  let coincidencia: RegExpExecArray | null;
+  while ((coincidencia = patron.exec(texto))) {
+    const posicion = coincidencia.index;
+    const despues = texto.slice(posicion + 8);
+    if (posicion > 0 && fechaGs1(coincidencia[1]) && (!despues || /^(10|21|22)/.test(despues))) return posicion;
+    patron.lastIndex = posicion + 1;
+  }
+  return -1;
 }
 
 /** AAMMDD → AAAA-MM-DD. DD = 00 es el último día del mes (regla GS1). */

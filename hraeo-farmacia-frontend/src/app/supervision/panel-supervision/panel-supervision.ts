@@ -1,5 +1,6 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AlmacenApi } from '../../almacen/almacen-api';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
 import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar } from '../../shared/sidebar/sidebar';
@@ -44,7 +45,7 @@ export class PanelSupervision {
       { titulo: 'Riesgo de desabasto', valor: cuenta.DESABASTO, detalle: `En su mínimo o por debajo (${MESES_STOCK_MINIMO} meses de CPM)`, ruta: '/supervision/alertas', tono: 'danger' },
       { titulo: 'Riesgo de sobreabasto', valor: cuenta.SOBREABASTO, detalle: `En su máximo o por encima (${MESES_STOCK_MAXIMO} meses de CPM)`, ruta: '/supervision/alertas', tono: 'warning' },
       { titulo: 'Claves en rango', valor: cuenta.NORMAL, detalle: 'Entre su mínimo y su máximo', ruta: '/supervision/cpm', tono: 'success' },
-      { titulo: 'Sin consumo', valor: cuenta.SIN_CONSUMO, detalle: 'Sin salidas ni CPM de la hoja', ruta: '/supervision/cpm', tono: 'info' },
+      { titulo: 'Sin consumo', valor: cuenta.SIN_CONSUMO, detalle: 'Sin salidas a Farmacia registradas en HAERO', ruta: '/supervision/cpm', tono: 'info' },
     ];
   });
 
@@ -52,9 +53,16 @@ export class PanelSupervision {
   readonly alertas = computed(() => this.rotacion.alertasActivas().slice(0, ALERTAS_EN_INICIO));
   readonly alertasRestantes = computed(() => this.rotacion.alertasActivas().length - this.alertas().length);
 
+  // Avisos de Intelisis "por revisar" sin atender (cancelaciones y cambios en lotes); Supervisión solo los consulta.
+  readonly avisosPorRevisar = signal(0);
+
   constructor() {
     // Lo vigente en el servidor al entrar, aunque nadie de Almacén esté conectado (HU17 CA4).
     this.rotacion.recargar();
+    inject(AlmacenApi).resumenAvisosIntelisis().subscribe({
+      next: (resumen) => this.avisosPorRevisar.set(resumen.REVISAR ?? 0),
+      error: () => {},
+    });
   }
 
   medicamento(clave: string): string {

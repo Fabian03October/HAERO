@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -72,20 +73,51 @@ public class ServicioRotacion {
     // ---------- HU16: CPM ----------
 
     public List<RotacionResponse> listar() {
-        List<YearMonth> ventana = ventana(LocalDate.now());
-        int mesesHistorial = mesesHistorial(ventana);
-
+        Contexto contexto = contexto();
         return medicamentoRepository.findAll().stream()
-                .map(m -> calcular(m, ventana, mesesHistorial))
+                .map(m -> calcular(m, contexto))
                 .toList();
     }
 
     public RotacionResponse obtener(String clave) {
         Medicamento medicamento = medicamentoRepository.findById(clave)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Medicamento no encontrado"));
+        return calcular(medicamento, contexto());
+    }
 
-        List<YearMonth> ventana = ventana(LocalDate.now());
-        return calcular(medicamento, ventana, mesesHistorial(ventana));
+    /**
+     * Datos que necesita el calculo de TODAS las claves, leidos una sola vez:
+     * las salidas de la ventana agrupadas por clave y mes, y la existencia
+     * vigente por clave. Antes se releian completos por cada clave, lo que con
+     * el catalogo de Intelisis (cientos de claves) volvia lenta la pantalla.
+     */
+    private record Contexto(List<YearMonth> ventana, int mesesHistorial,
+                            Map<String, Map<YearMonth, Integer>> salidasPorClaveYMes,
+                            Map<String, Integer> existenciaVigentePorClave,
+                            Map<Long, Integer> existenciaPorLote) {
+    }
+
+    private Contexto contexto() {
+        LocalDate hoy = LocalDate.now();
+        List<YearMonth> ventana = ventana(hoy);
+        LocalDateTime desde = ventana.get(0).atDay(1).atStartOfDay();
+        LocalDateTime hasta = ventana.get(ventana.size() - 1).atEndOfMonth().atTime(23, 59, 59, 999_000_000);
+
+        Map<String, Map<YearMonth, Integer>> salidas = movimientoRepository.findByFechaBetweenOrderByFechaDesc(desde, hasta).stream()
+                .filter(m -> TIPO_SALIDA_FARMACIA.equals(m.getTipo()))
+                .collect(Collectors.groupingBy(m -> m.getExistencia().getLote().getMedicamento().getClave(),
+                        Collectors.groupingBy(m -> YearMonth.from(m.getFecha()), Collectors.summingInt(Movimiento::getCantidadCajas))));
+
+        List<Existencia> existencias = existenciaRepository.findAllConLote();
+        // Sin contar los lotes ya vencidos (aunque sigan "DISPONIBLE").
+        Map<String, Integer> existenciaVigente = existencias.stream()
+                .filter(e -> !e.getLote().getCaducidad().isBefore(hoy))
+                .collect(Collectors.groupingBy(e -> e.getLote().getMedicamento().getClave(), Collectors.summingInt(Existencia::getCantidadCajas)));
+        Map<Long, Integer> existenciaPorLote = existencias.stream()
+                .filter(e -> e.getLote().getId() != null)
+                .collect(Collectors.groupingBy(e -> e.getLote().getId(), Collectors.summingInt(Existencia::getCantidadCajas)));
+
+        return new Contexto(ventana, mesesHistorial(ventana), salidas, existenciaVigente, existenciaPorLote);
     }
 
     /** Los 6 meses calendario ya cerrados (no incluye el mes en curso), del mas antiguo al mas reciente. */
@@ -115,20 +147,12 @@ public class ServicioRotacion {
         return (int) ventana.stream().filter(mes -> !mes.isBefore(primerMes)).count();
     }
 
-    private RotacionResponse calcular(Medicamento medicamento, List<YearMonth> ventana, int mesesHistorial) {
+    private RotacionResponse calcular(Medicamento medicamento, Contexto contexto) {
         String clave = medicamento.getClave();
-        LocalDateTime desde = ventana.get(0).atDay(1).atStartOfDay();
-        LocalDateTime hasta = ventana.get(ventana.size() - 1).atEndOfMonth().atTime(23, 59, 59, 999_000_000);
+        int mesesHistorial = contexto.mesesHistorial();
+        Map<YearMonth, Integer> cajasPorMes = contexto.salidasPorClaveYMes().getOrDefault(clave, Map.of());
 
-        List<Movimiento> salidasDeLaClave = movimientoRepository.findByFechaBetweenOrderByFechaDesc(desde, hasta).stream()
-                .filter(m -> TIPO_SALIDA_FARMACIA.equals(m.getTipo()))
-                .filter(m -> m.getExistencia().getLote().getMedicamento().getClave().equals(clave))
-                .toList();
-
-        Map<YearMonth, Integer> cajasPorMes = salidasDeLaClave.stream()
-                .collect(Collectors.groupingBy(m -> YearMonth.from(m.getFecha()), Collectors.summingInt(Movimiento::getCantidadCajas)));
-
-        List<ConsumoMesResponse> meses = ventana.stream()
+        List<ConsumoMesResponse> meses = contexto.ventana().stream()
                 .map(mes -> new ConsumoMesResponse(mes.format(FORMATO_MES), cajasPorMes.getOrDefault(mes, 0)))
                 .toList();
 
@@ -148,7 +172,7 @@ public class ServicioRotacion {
             origenCpm = "SISTEMA";
         }
 
-        int existenciaActual = existenciaVigente(clave);
+        int existenciaActual = contexto.existenciaVigentePorClave().getOrDefault(clave, 0);
         double stockMinimo = Math.ceil(cpm * MESES_STOCK_MINIMO);
         double stockMaximo = Math.ceil(cpm * MESES_STOCK_MAXIMO);
 
@@ -165,16 +189,6 @@ public class ServicioRotacion {
 
         return new RotacionResponse(clave, medicamento.getNombreGenerico(), cpm, origenCpm, mesesHistorial,
                 existenciaActual, stockMinimo, stockMaximo, estado, meses);
-    }
-
-    /** Suma la existencia de los lotes de la clave, sin contar los ya vencidos (aunque sigan "DISPONIBLE"). */
-    private int existenciaVigente(String medicamentoClave) {
-        LocalDate hoy = LocalDate.now();
-        return existenciaRepository.findAll().stream()
-                .filter(e -> e.getLote().getMedicamento().getClave().equals(medicamentoClave))
-                .filter(e -> !e.getLote().getCaducidad().isBefore(hoy))
-                .mapToInt(Existencia::getCantidadCajas)
-                .sum();
     }
 
     // ---------- HU17: alertas de stock minimo y maximo ----------
@@ -204,28 +218,39 @@ public class ServicioRotacion {
      */
     @Scheduled(fixedDelayString = "PT1H")
     public void evaluarAlertas() {
-        List<YearMonth> ventana = ventana(LocalDate.now());
-        int mesesHistorial = mesesHistorial(ventana);
+        Contexto contexto = contexto();
+
+        // Todas las alertas abiertas en una sola consulta, de la mas antigua a la mas reciente.
+        List<Alerta> abiertas = new ArrayList<>(alertaRepository.findByFechaFinIsNullOrderByFechaInicioDesc());
+        Collections.reverse(abiertas);
+        Map<String, List<Alerta>> abiertasDeStock = abiertas.stream()
+                .filter(a -> a.getLote() == null)
+                .collect(Collectors.groupingBy(a -> a.getMedicamento().getClave() + "|" + a.getTipo()));
+        Map<Long, List<Alerta>> abiertasDeCaducidad = abiertas.stream()
+                .filter(a -> a.getLote() != null && "CADUCIDAD_PROXIMA".equals(a.getTipo()))
+                .collect(Collectors.groupingBy(a -> a.getLote().getId()));
 
         for (Medicamento medicamento : medicamentoRepository.findAll()) {
-            RotacionResponse rotacion = calcular(medicamento, ventana, mesesHistorial);
+            RotacionResponse rotacion = calcular(medicamento, contexto);
 
             if ("SIN_CONSUMO".equals(rotacion.getEstado())) {
                 continue; // sin historial de consumo no se puede evaluar un umbral confiable
             }
 
             actualizarAlerta(medicamento, "DESABASTO", "DESABASTO".equals(rotacion.getEstado()),
-                    rotacion.getExistenciaActual(), rotacion.getStockMinimo());
+                    rotacion.getExistenciaActual(), rotacion.getStockMinimo(),
+                    abiertasDeStock.getOrDefault(medicamento.getClave() + "|DESABASTO", List.of()));
             actualizarAlerta(medicamento, "SOBREABASTO", "SOBREABASTO".equals(rotacion.getEstado()),
-                    rotacion.getExistenciaActual(), rotacion.getStockMaximo());
+                    rotacion.getExistenciaActual(), rotacion.getStockMaximo(),
+                    abiertasDeStock.getOrDefault(medicamento.getClave() + "|SOBREABASTO", List.of()));
         }
 
-        evaluarAlertasCaducidad();
+        evaluarAlertasCaducidad(contexto.existenciaPorLote(), abiertasDeCaducidad);
     }
 
-    private void actualizarAlerta(Medicamento medicamento, String tipo, boolean debeEstarActiva, int existenciaActual, double limite) {
-        List<Alerta> abiertas = cerrarDuplicadas(
-                alertaRepository.findByMedicamentoClaveAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(medicamento.getClave(), tipo));
+    private void actualizarAlerta(Medicamento medicamento, String tipo, boolean debeEstarActiva, int existenciaActual, double limite,
+                                  List<Alerta> abiertasOrdenadas) {
+        List<Alerta> abiertas = cerrarDuplicadas(abiertasOrdenadas);
 
         if (debeEstarActiva && abiertas.isEmpty()) {
             Alerta alerta = new Alerta();
@@ -249,26 +274,22 @@ public class ServicioRotacion {
      * ya vencido no entra aqui: ese caso lo bloquea ServicioDespacho y lo
      * atiende HU19 (apartar caducados), no esta alerta.
      */
-    private void evaluarAlertasCaducidad() {
+    private void evaluarAlertasCaducidad(Map<Long, Integer> existenciaPorLote, Map<Long, List<Alerta>> abiertasPorLote) {
         LocalDate hoy = LocalDate.now();
         LocalDate limite = hoy.plusMonths(MESES_ALERTA_CADUCIDAD);
 
         for (Lote lote : loteRepository.findByEstatus(ESTATUS_LOTE_DISPONIBLE)) {
             boolean porVencer = !lote.getCaducidad().isBefore(hoy) && lote.getCaducidad().isBefore(limite);
-            int existenciaDelLote = existenciaDelLote(lote.getId());
+            int existenciaDelLote = existenciaPorLote.getOrDefault(lote.getId(), 0);
 
             // Un lote sin existencia (ya se despacho/canjeo todo) no amerita alerta.
-            actualizarAlertaCaducidad(lote, porVencer && existenciaDelLote > 0, existenciaDelLote);
+            actualizarAlertaCaducidad(lote, porVencer && existenciaDelLote > 0, existenciaDelLote,
+                    abiertasPorLote.getOrDefault(lote.getId(), List.of()));
         }
     }
 
-    private int existenciaDelLote(Long loteId) {
-        return existenciaRepository.findByLoteId(loteId).stream().mapToInt(Existencia::getCantidadCajas).sum();
-    }
-
-    private void actualizarAlertaCaducidad(Lote lote, boolean debeEstarActiva, int existenciaActual) {
-        List<Alerta> abiertas = cerrarDuplicadas(
-                alertaRepository.findByLoteIdAndTipoAndFechaFinIsNullOrderByFechaInicioAsc(lote.getId(), "CADUCIDAD_PROXIMA"));
+    private void actualizarAlertaCaducidad(Lote lote, boolean debeEstarActiva, int existenciaActual, List<Alerta> abiertasOrdenadas) {
+        List<Alerta> abiertas = cerrarDuplicadas(abiertasOrdenadas);
 
         if (debeEstarActiva && abiertas.isEmpty()) {
             Alerta alerta = new Alerta();

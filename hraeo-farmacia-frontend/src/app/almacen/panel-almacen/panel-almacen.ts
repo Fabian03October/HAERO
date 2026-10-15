@@ -69,14 +69,14 @@ export class PanelAlmacen {
   });
 
   readonly proximosASalir = computed(() => this.lotesOrdenados().slice(0, LOTES_EN_INICIO));
-  readonly pedidosEnInicio = computed(() => this.pedidos.pendientes().slice(0, PEDIDOS_EN_INICIO));
-  readonly pedidosRestantes = computed(() => this.pedidos.pendientes().length - this.pedidosEnInicio().length);
+  readonly pedidosEnInicio = computed(() => this.pedidos.porRecibirAhora().slice(0, PEDIDOS_EN_INICIO));
+  readonly pedidosRestantes = computed(() => this.pedidos.porRecibirAhora().length - this.pedidosEnInicio().length);
   readonly lotesPorCaducar = computed(() => this.lotesOrdenados().filter((lote) => lote.porCaducar).length);
 
   readonly indicadores = computed(() => [
     {
       titulo: 'Pedidos por recibir',
-      valor: this.pedidos.pendientes().length,
+      valor: this.pedidos.porRecibirAhora().length,
       detalle: `${this.cajasPendientes()} cajas pendientes de entrada`,
       ruta: '/almacen/recepcion/entrada',
       tono: 'info',
@@ -115,7 +115,7 @@ export class PanelAlmacen {
   }
 
   private cajasPendientes(): number {
-    return this.pedidos.pendientes().reduce((total, pedido) => total + pedido.cajasEsperadas - pedido.cajasRecibidas, 0);
+    return this.pedidos.porRecibirAhora().reduce((total, pedido) => total + pedido.cajasEsperadas - pedido.cajasRecibidas, 0);
   }
 
   private caducaPronto(caducidad: string): boolean {
