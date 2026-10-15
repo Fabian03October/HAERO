@@ -42,6 +42,20 @@ public class Pedido {
     @JoinColumn(name = "usuario_cancelacion_id")
     private Usuario usuarioCancelacion;
 
+    // Los pedidos se leen de Intelisis (V18): su contrato, entrega comprometida y estatus allá.
+    @Column(nullable = false, length = 10)
+    private String origen = "HAERO";
+
+    @Column(length = 60)
+    private String contrato;
+
+    @Column(name = "fecha_entrega")
+    private LocalDate fechaEntrega;
+
+    // PENDIENTE, CONCLUIDO o CANCELADO, tal como está en Intelisis.
+    @Column(name = "estatus_intelisis", length = 15)
+    private String estatusIntelisis;
+
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoDetalle> partidas = new ArrayList<>();
 }

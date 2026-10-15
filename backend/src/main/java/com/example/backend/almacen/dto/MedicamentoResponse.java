@@ -29,4 +29,9 @@ public class MedicamentoResponse {
     private String descripcionCompleta;
     private String origen;
     private LocalDateTime sincronizadoEn;
+
+    // Dada de alta en HAERO = ya tiene al menos un código de barras. Solo las claves
+    // dadas de alta entran al inventario y se pueden despachar.
+    private boolean dadoDeAlta;
+    private int codigosBarras;
 }

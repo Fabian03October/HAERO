@@ -66,6 +66,21 @@ td small { color: #8c8a86; font-size: 11px; }
 
 .search:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
 .motivo { display: block; max-width: 160px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; }
+.vencido { display: block; color: #a9463e; font-weight: 800; }
+.mas-button {
+  display: block;
+  margin: 12px auto 4px;
+  padding: 8px 18px;
+  border: 1px solid #ddd4c8;
+  border-radius: 999px;
+  background: #fff;
+  color: #9f2241;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.mas-button:hover { background: #f6e9ed; }
 
 @media (max-width: 640px) {
   .search { max-width: none; }

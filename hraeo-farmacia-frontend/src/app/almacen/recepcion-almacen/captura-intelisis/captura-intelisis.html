@@ -1,0 +1,124 @@
+@if (mensaje()) {
+  <div class="message" [class]="'message ' + tipoMensaje()" role="status">{{ mensaje() }}</div>
+}
+
+<section class="card entry-card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">{{ esAlta() ? 'Alta inicial · lo que ya está en los anaqueles' : 'Caja que llegó' }}</p>
+      <h2>{{ esAlta() ? 'Dar de alta con la existencia de Intelisis' : 'Datos de la entrada' }}</h2>
+    </div>
+    @if (codigo()) {
+      <button type="button" class="link-add" (click)="limpiar()">Empezar otra caja</button>
+    }
+  </div>
+
+  <div class="entry-form">
+    <!-- 1) Escanear -->
+    <label><span class="paso">1</span> Escanea la caja
+      <div class="scanner-control">
+        <input [(ngModel)]="codigoEscaneado" (keyup.enter)="escanearCodigo()" placeholder="Escanea el código de barras y presiona Enter" />
+        <button type="button" title="Buscar código" (click)="escanearCodigo()">▣</button>
+        <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
+      </div>
+    </label>
+    @if (camaraAbierta()) {
+      <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
+    }
+
+    @if (codigoNuevo()) {
+      <label>Clave de esta caja (código nuevo)
+        <input list="claves-captura" [(ngModel)]="claveEscrita" (change)="elegirClave(claveEscrita)" placeholder="Busca la clave o el nombre del medicamento" />
+      </label>
+      <datalist id="claves-captura">
+        @for (medicamento of catalogo.catalogo(); track medicamento.clave) {
+          <option [value]="medicamento.clave + ' · ' + medicamento.nombreGenerico"></option>
+        }
+      </datalist>
+    }
+
+    @if (clave()) {
+      <div class="pedido-resumen">
+        <span><strong>{{ clave() }}</strong> · {{ nombre() || 'Medicamento' }}</span>
+        <span>{{ codigoNuevo() ? 'Código nuevo: se asocia al confirmar' : 'Código reconocido' }}</span>
+      </div>
+
+      <!-- 2) Elegir el registro de Intelisis -->
+      <div class="bloque">
+        <p class="titulo-paso"><span class="paso">2</span> Elige el registro de Intelisis</p>
+        <p class="card-help">
+          {{ esAlta()
+            ? 'Existencia actual del almacén de medicamentos por lote. Lote y caducidad son los de Intelisis.'
+            : 'Entradas que Intelisis registró (compras, donaciones y traspasos). Lote, caducidad, proveedor y pedido son los de Intelisis.' }}
+        </p>
+        @if (cargandoRegistros()) {
+          <p class="card-help">Leyendo registros de Intelisis…</p>
+        } @else if (registros().length) {
+          <ul class="registros">
+            @for (registro of registros(); track registro.origen + registro.idIntelisis + registro.lote) {
+              <li>
+                <button type="button" class="registro" [class.elegido]="esSeleccionado(registro)" [class.bloqueado]="registro.bloqueo" [disabled]="!!registro.bloqueo" (click)="elegir(registro)">
+                  <span class="registro-linea">
+                    <strong>Lote {{ registro.lote }}</strong>
+                    <span>Caduca {{ registro.caducidad ? formatoFecha(registro.caducidad) : 'sin dato' }}</span>
+                    <span class="cajas">{{ registro.cajas !== null ? (registro.cajas | number: '1.0-2') + ' cajas' : (registro.piezas | number: '1.0-0') + ' piezas' }}</span>
+                  </span>
+                  <small>
+                    {{ registro.movimiento }}{{ registro.fecha ? ' · ' + formatoFecha(registro.fecha) : '' }}{{ registro.proveedor ? ' · ' + registro.proveedor : '' }}
+                    {{ registro.numeroPedido ? ' · pedido ' + registro.numeroPedido : '' }}{{ registro.contrato ? ' · contrato ' + registro.contrato : '' }}
+                    {{ registro.referencia ? ' · ' + registro.referencia : '' }}
+                  </small>
+                  @if (registro.bloqueo) {
+                    <small class="motivo">{{ registro.bloqueo }}</small>
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    <!-- 3) Ubicación y cajas -->
+    @if (seleccionado(); as registro) {
+      <div class="bloque">
+        <p class="titulo-paso"><span class="paso">3</span> Ubicación y cajas que contaste</p>
+        @for (fila of ubicaciones; track $index; let i = $index) {
+          <div class="form-row">
+            <label>Ubicación {{ ubicaciones.length > 1 ? i + 1 : '' }}
+              <input [(ngModel)]="fila.ubicacion" placeholder="Sector 5" />
+            </label>
+            <label>Cajas
+              <span class="inline-control">
+                <input type="number" min="1" [(ngModel)]="fila.cajas" placeholder="0" />
+                @if (ubicaciones.length > 1) {
+                  <button type="button" class="link-remove" title="Quitar ubicación" (click)="quitarUbicacion(i)">✕</button>
+                }
+              </span>
+            </label>
+          </div>
+        }
+        <button type="button" class="link-add" (click)="agregarUbicacion()">+ Repartir en otra ubicación</button>
+
+        <p class="card-help">
+          Contaste {{ totalCajas() }} cajas ·
+          @if (registro.cajas !== null) {
+            Intelisis dice {{ registro.cajas | number: '1.0-2' }}.
+            @if (diferencia()) {
+              <strong class="diferencia">Diferencia: {{ diferencia()! > 0 ? '+' : '' }}{{ diferencia() }} cajas; queda registrada.</strong>
+            }
+          } @else {
+            Intelisis tiene {{ registro.piezas | number: '1.0-0' }} piezas y no se sabe cuántas trae la caja.
+          }
+        </p>
+        <label>Observaciones (opcional)
+          <input [(ngModel)]="observaciones" maxlength="300" placeholder="Por ejemplo, por qué no coinciden las cajas" />
+        </label>
+
+        <button class="primary-button" type="button" [disabled]="guardando()" (click)="confirmar()">
+          {{ guardando() ? 'Guardando…' : (esAlta() ? 'Confirmar alta' : 'Confirmar entrada') }}
+        </button>
+      </div>
+    }
+  </div>
+</section>

@@ -1,5 +1,6 @@
 package com.example.backend.intelisis;
 
+import com.example.backend.intelisis.dto.AvisoIntelisisResponse;
 import com.example.backend.intelisis.dto.ComparacionClaveResponse;
 import com.example.backend.intelisis.dto.EstadoIntelisisResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +44,8 @@ public class ServicioIntelisis {
                 "SELECT TOP 1 estatus, origen, inicio, fin, duracion_ms, error FROM intelisis_sincronizacion "
                         + "WHERE estatus <> 'EN_CURSO' ORDER BY id DESC");
         List<Map<String, Object>> ultimaOk = haero.queryForList(
-                "SELECT TOP 1 fin, articulos, proveedores, lotes_existencia, recepciones, lotes_recepcion FROM intelisis_sincronizacion "
+                "SELECT TOP 1 fin, articulos, proveedores, lotes_existencia, recepciones, lotes_recepcion, medicamentos, pedidos, entradas_inv "
+                        + "FROM intelisis_sincronizacion "
                         + "WHERE estatus = 'OK' ORDER BY id DESC");
 
         Map<String, Object> u = ultima.isEmpty() ? Map.of() : ultima.get(0);
@@ -58,13 +61,16 @@ public class ServicioIntelisis {
                 (String) u.get("error"),
                 fechaHora(ok.get("fin")),
                 entero(ok.get("articulos")), entero(ok.get("proveedores")), entero(ok.get("lotes_existencia")),
-                entero(ok.get("recepciones")), entero(ok.get("lotes_recepcion")));
+                entero(ok.get("recepciones")), entero(ok.get("lotes_recepcion")),
+                entero(ok.get("medicamentos")), entero(ok.get("pedidos")), entero(ok.get("entradas_inv")));
     }
 
     /**
-     * Compara, por clave, la existencia vigente de HAERO (cajas cargadas por
-     * Excel) contra la del almacen principal en Intelisis (clave "-1"). En
-     * ambos lados se ignoran los lotes ya caducados.
+     * Compara en cajas, por clave, la existencia vigente de HAERO contra la del almacen
+     * principal en Intelisis (diseno aprobado: HAERO lleva el control y Supervision ve,
+     * por ejemplo, 20 contra 50). Intelisis guarda piezas en la clave "-1" y cajas en la
+     * clave base (antes de la Conversion); se pasa todo a cajas con las piezas por caja
+     * del catalogo. En ambos lados se ignoran los lotes ya caducados.
      */
     public List<ComparacionClaveResponse> comparacion() {
         String sql = """
@@ -76,17 +82,23 @@ public class ServicioIntelisis {
                     WHERE e.cantidad_cajas > 0 AND l.caducidad >= CAST(GETDATE() AS date)
                     GROUP BY l.medicamento_clave
                 ), i AS (
-                    SELECT x.clave_base AS clave, MIN(x.articulo) AS articulo, SUM(x.existencia) AS cantidad,
-                           COUNT(*) AS lotes, MIN(x.fecha_caducidad) AS proxima
+                    SELECT x.clave_base AS clave, MAX(x.articulo) AS articulo,
+                           SUM(CASE WHEN x.articulo = x.clave_base THEN x.existencia * m.piezas_por_caja ELSE x.existencia END) AS piezas,
+                           -- Sin piezas por caja no se sabe cuántas cajas son: queda vacío en lugar de contar de menos.
+                           CASE WHEN MAX(m.piezas_por_caja) IS NULL THEN NULL
+                                ELSE SUM(CASE WHEN x.articulo = x.clave_base THEN x.existencia ELSE x.existencia / m.piezas_por_caja END) END AS cajas,
+                           COUNT(DISTINCT x.serie_lote) AS lotes, MIN(x.fecha_caducidad) AS proxima
                     FROM intelisis_existencia_lote x
-                    WHERE x.almacen = ? AND x.articulo = x.clave_base + '-1'
+                    LEFT JOIN medicamento m ON m.clave = x.clave_base AND m.piezas_por_caja > 0
+                    WHERE x.almacen = ? AND x.articulo IN (x.clave_base, x.clave_base + '-1')
                       AND (x.fecha_caducidad IS NULL OR x.fecha_caducidad >= CAST(GETDATE() AS date))
                     GROUP BY x.clave_base
                 )
                 SELECT COALESCE(h.clave, i.clave) AS clave,
                        COALESCE(m.nombre_generico, a.descripcion) AS nombre,
                        h.cajas, h.lotes AS h_lotes, h.proxima AS h_proxima, m.piezas_por_caja,
-                       i.articulo, i.cantidad, a.unidad, a.unidad_cantidad, i.lotes AS i_lotes, i.proxima AS i_proxima
+                       i.articulo, i.piezas, CAST(ROUND(i.cajas, 2) AS DECIMAL(19, 2)) AS i_cajas,
+                       i.lotes AS i_lotes, i.proxima AS i_proxima
                 FROM h
                 FULL OUTER JOIN i ON i.clave = h.clave
                 LEFT JOIN medicamento m ON m.clave = COALESCE(h.clave, i.clave)
@@ -98,14 +110,66 @@ public class ServicioIntelisis {
             boolean enHaero = rs.getObject("cajas") != null;
             boolean enIntelisis = rs.getObject("articulo") != null;
             String estado = enHaero && enIntelisis ? "EN_AMBOS" : enHaero ? "SOLO_HAERO" : "SOLO_INTELISIS";
-            double unidadCantidad = rs.getDouble("unidad_cantidad");
-            Double unidadCantidadONull = rs.wasNull() ? null : unidadCantidad;
             return new ComparacionClaveResponse(
                     rs.getString("clave"), rs.getString("nombre"), estado,
                     enteroONull(rs, "cajas"), enteroONull(rs, "h_lotes"), fecha(rs, "h_proxima"), enteroONull(rs, "piezas_por_caja"),
-                    rs.getString("articulo"), rs.getBigDecimal("cantidad"), rs.getString("unidad"), unidadCantidadONull,
+                    rs.getString("articulo"), rs.getBigDecimal("piezas"), rs.getBigDecimal("i_cajas"),
                     enteroONull(rs, "i_lotes"), fecha(rs, "i_proxima"));
         }, almacenPrincipal);
+    }
+
+    // ---------- Avisos de cambios en Intelisis ----------
+
+    /** Los 500 más recientes, pendientes (sin revisar) o revisados; los "por revisar" primero. */
+    public List<AvisoIntelisisResponse> avisos(boolean pendientes) {
+        String sql = """
+                SELECT TOP (500) a.id, a.fecha, a.tipo, a.nivel, a.titulo, a.detalle, a.medicamento_clave, a.lote_id, a.pedido_id,
+                       a.revisado_en, u.nombre_completo AS revisado_por
+                FROM aviso_intelisis a
+                LEFT JOIN usuario u ON u.id = a.revisado_por
+                WHERE {FILTRO}
+                ORDER BY CASE WHEN a.nivel = 'REVISAR' THEN 0 ELSE 1 END, a.fecha DESC, a.id DESC
+                """.replace("{FILTRO}", pendientes ? "a.revisado_en IS NULL" : "a.revisado_en IS NOT NULL");
+        return haero.query(sql, (rs, n) -> new AvisoIntelisisResponse(
+                rs.getLong("id"), fechaHora(rs.getTimestamp("fecha")), rs.getString("tipo"), rs.getString("nivel"),
+                rs.getString("titulo"), rs.getString("detalle"), rs.getString("medicamento_clave"),
+                largoONull(rs, "lote_id"), largoONull(rs, "pedido_id"), fechaHora(rs.getTimestamp("revisado_en")),
+                rs.getString("revisado_por")));
+    }
+
+    /** Cuántos avisos sin revisar hay de cada nivel (para el aviso del Inicio y los contadores). */
+    public Map<String, Integer> resumenAvisos() {
+        Map<String, Integer> resumen = new LinkedHashMap<>();
+        resumen.put("REVISAR", 0);
+        resumen.put("INFO", 0);
+        haero.query("SELECT nivel, COUNT(*) AS total FROM aviso_intelisis WHERE revisado_en IS NULL GROUP BY nivel",
+                rs -> {
+                    resumen.put(rs.getString("nivel"), rs.getInt("total"));
+                });
+        return resumen;
+    }
+
+    /** Marca un aviso como revisado por el usuario. Regresa false si no existe o ya estaba revisado. */
+    public boolean marcarRevisado(long id, String nombreUsuario) {
+        return haero.update("""
+                UPDATE aviso_intelisis
+                SET revisado_en = SYSDATETIME(), revisado_por = (SELECT id FROM usuario WHERE nombre_usuario = ?)
+                WHERE id = ? AND revisado_en IS NULL
+                """, nombreUsuario, id) > 0;
+    }
+
+    /** Marca como revisados todos los avisos informativos pendientes; los "por revisar" se quedan. */
+    public int marcarInformativosRevisados(String nombreUsuario) {
+        return haero.update("""
+                UPDATE aviso_intelisis
+                SET revisado_en = SYSDATETIME(), revisado_por = (SELECT id FROM usuario WHERE nombre_usuario = ?)
+                WHERE revisado_en IS NULL AND nivel = 'INFO'
+                """, nombreUsuario);
+    }
+
+    private static Long largoONull(ResultSet rs, String columna) throws SQLException {
+        long valor = rs.getLong(columna);
+        return rs.wasNull() ? null : valor;
     }
 
     private static Integer enteroONull(ResultSet rs, String columna) throws SQLException {

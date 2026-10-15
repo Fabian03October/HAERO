@@ -9,6 +9,7 @@ import { MovimientosExternos } from '../almacen/movimientos-especiales/externos/
 import { ReporteMermas } from './reportes/mermas/reporte-mermas';
 import { ReporteCanjes } from './reportes/canjes/reporte-canjes';
 import { ReporteExternos } from './reportes/externos/reporte-externos';
+import { ComparacionIntelisis } from '../almacen/recepcion-almacen/intelisis/comparacion-intelisis';
 import { roleGuard } from '../auth/role-guard';
 
 export const SUPERVISION_ROUTES: Routes = [
@@ -26,6 +27,8 @@ export const SUPERVISION_ROUTES: Routes = [
       { path: 'existencias', component: Existencias },
       { path: 'salidas', component: SalidasRegistradas },
       { path: 'prestamos', component: MovimientosExternos, data: { soloLectura: true } },
+      // HAERO contra Intelisis: avisos y diferencias en cajas (solo consulta).
+      { path: 'intelisis', component: ComparacionIntelisis },
     ],
   },
   // Reportes que el documento de la Iteración 2 deja anunciados (HU18, HU19, HU20).

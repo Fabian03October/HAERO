@@ -1,63 +1,42 @@
-import { Component, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { PedidosAlmacen } from '../../pedidos-almacen';
-import { mensajeDeError } from '../../almacen-api';
-import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
-// Recepción · Cancelar pedido (HU11). Un pedido cancelado ya no puede recibirse;
-// el backend rechaza cualquier entrada contra él.
+// Recepción · Pedidos cancelados (HU11), solo consulta. La cancelación se registra en
+// Intelisis; aquí Almacén ve qué pedidos y partidas NO debe recibir. Registrar entrada
+// tampoco deja recibir un pedido cancelado, y cada cancelación nueva deja un aviso.
 @Component({
   selector: 'app-cancelar-pedido',
-  imports: [FormsModule],
+  imports: [DatePipe],
   templateUrl: './cancelar-pedido.html',
   styleUrls: ['../recepcion-comun.css', './cancelar-pedido.css'],
 })
 export class CancelarPedido {
   protected readonly pedidos = inject(PedidosAlmacen);
-  private readonly notificaciones = inject(Notificaciones);
+  readonly buscar = signal('');
 
-  mensaje = '';
-  tipoMensaje: 'success' | 'error' = 'success';
-  // Id del pedido elegido en el select ('' = ninguno).
-  pedidoACancelar = '';
-  motivoCancelacion = '';
-  readonly guardando = signal(false);
-
-  cancelarPedido(): void {
-    const pedido = this.pedidos.buscar(Number(this.pedidoACancelar));
-    if (!pedido) {
-      this.mostrarMensaje('Selecciona un pedido para cancelar.', 'error');
-      return;
-    }
-    const motivo = this.motivoCancelacion.trim();
-    if (!motivo) {
-      this.mostrarMensaje('Indica el motivo de cancelación.', 'error');
-      return;
-    }
-
-    this.guardando.set(true);
-    this.pedidos.cancelar(pedido.id, motivo).subscribe({
-      next: () => {
-        this.guardando.set(false);
-        this.mostrarMensaje(`Pedido ${pedido.numero} cancelado (${motivo}). Ya no puede seleccionarse para recepción.`, 'success', 'Pedido cancelado');
-        this.pedidoACancelar = '';
-        this.motivoCancelacion = '';
-      },
-      error: (error) => {
-        this.guardando.set(false);
-        this.mostrarMensaje(mensajeDeError(error, 'No se pudo cancelar el pedido.'), 'error');
-      },
-    });
+  constructor() {
+    this.pedidos.recargar();
   }
 
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error', titulo = 'Listo'): void {
-    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
-    if (tipo === 'success') {
-      this.mensaje = '';
-      this.notificaciones.exito(titulo, texto);
-      return;
-    }
-    this.mensaje = texto;
-    this.tipoMensaje = tipo;
+  private coincide(texto: string): boolean {
+    const filtro = this.buscar().trim().toLowerCase();
+    return !filtro || texto.toLowerCase().includes(filtro);
   }
+
+  // Los cancelados más recientes primero.
+  readonly cancelados = computed(() =>
+    [...this.pedidos.cancelados()]
+      .sort((a, b) => (b.fechaCancelacion ?? b.fecha).localeCompare(a.fechaCancelacion ?? a.fecha))
+      .filter((pedido) => this.coincide(`${pedido.numero} ${pedido.proveedor} ${pedido.contrato ?? ''} ${pedido.clave} ${pedido.medicamento}`)),
+  );
+
+  readonly partidasCanceladas = computed(() =>
+    this.pedidos
+      .conPartidasCanceladas()
+      .flatMap((pedido) =>
+        pedido.partidas.filter((partida) => (partida.canceladaIntelisis ?? 0) > 0).map((partida) => ({ pedido, partida })),
+      )
+      .filter(({ pedido, partida }) => this.coincide(`${pedido.numero} ${pedido.proveedor} ${partida.clave} ${partida.nombreGenerico}`)),
+  );
 }

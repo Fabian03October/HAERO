@@ -18,4 +18,7 @@ public class ExistenciaResponse {
     private Integer cajas;
     private boolean fefo;
     private String proveedor;
+    // De qué registro de Intelisis salió el lote y cuándo entró a HAERO.
+    private String movimientoIntelisis;
+    private LocalDate fechaIngreso;
 }

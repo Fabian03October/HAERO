@@ -25,6 +25,17 @@ public class PedidoDetalle {
     @Column(name = "cantidad_esperada", nullable = false)
     private Integer cantidadEsperada;
 
+    // Lo que Almacén recibió físicamente en HAERO. La sincronización nunca lo toca.
     @Column(name = "cantidad_recibida", nullable = false)
     private Integer cantidadRecibida = 0;
+
+    // Lo que dice Intelisis de esta partida (V18).
+    @Column(length = 20)
+    private String cucop;
+
+    @Column(name = "recibida_intelisis")
+    private Integer recibidaIntelisis;
+
+    @Column(name = "cancelada_intelisis")
+    private Integer canceladaIntelisis;
 }

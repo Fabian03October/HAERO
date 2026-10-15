@@ -15,6 +15,13 @@
           </div>
         </header>
 
+        @if (avisosPorRevisar() > 0) {
+          <a class="aviso-intelisis" routerLink="/almacen/recepcion/intelisis">
+            <strong>{{ avisosPorRevisar() }} {{ avisosPorRevisar() === 1 ? 'aviso de Intelisis por revisar' : 'avisos de Intelisis por revisar' }}</strong>
+            <span>Pedidos o partidas cancelados (no recibir) o cambios de Intelisis en lotes que ya están en HAERO. HAERO no los modificó.</span>
+          </a>
+        }
+
         <section class="kpi-grid" aria-label="Indicadores del almacén">
           @for (item of indicadores(); track item.titulo) {
             <a class="kpi" [class]="'kpi ' + item.tono" [routerLink]="item.ruta">

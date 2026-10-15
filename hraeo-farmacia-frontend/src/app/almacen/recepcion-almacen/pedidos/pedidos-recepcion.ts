@@ -2,20 +2,15 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Pedido, PedidosAlmacen } from '../../pedidos-almacen';
-import { SolicitudesAlmacen } from '../../solicitudes-almacen';
-import { mensajeDeError } from '../../almacen-api';
-import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
-type FiltroPedidos = 'TODOS' | 'POR_RECIBIR' | 'RECIBIDOS' | 'CANCELADOS';
+type FiltroPedidos = 'POR_RECIBIR' | 'RECIBIDOS' | 'CANCELADOS' | 'TODOS';
 
-interface PartidaCaptura {
-  clave: string;
-  cantidadEsperada: number;
-}
+// Se pintan de a poco: Intelisis trae cientos de pedidos del último año.
+const PEDIDOS_POR_TANDA = 100;
 
-// Recepción · Pedidos (HU22). Consulta de pedidos y captura manual de uno nuevo.
-// Un pedido puede traer varias claves (partidas); el backend valida que cada
-// clave exista en el catálogo de medicamentos.
+// Recepción · Pedidos (HU22), solo consulta. Los pedidos se leen de Intelisis, con
+// su contrato y entrega comprometida; ahí se capturan y se cancelan. HAERO muestra
+// aparte lo que Almacén recibió físicamente contra cada pedido.
 @Component({
   selector: 'app-pedidos-recepcion',
   imports: [FormsModule, DatePipe],
@@ -25,18 +20,16 @@ interface PartidaCaptura {
 })
 export class PedidosRecepcion {
   protected readonly pedidos = inject(PedidosAlmacen);
-  private readonly notificaciones = inject(Notificaciones);
-  protected readonly catalogo = inject(SolicitudesAlmacen);
 
-  mensaje = '';
-  tipoMensaje: 'success' | 'error' = 'success';
+  constructor() {
+    this.pedidos.recargar();
+  }
 
-  // Lista de pedidos: los más recientes primero (así llegan del servicio),
-  // filtrables por estado y con búsqueda por número, proveedor, clave o medicamento.
-  readonly filtroEstado = signal<FiltroPedidos>('TODOS');
+  readonly filtroEstado = signal<FiltroPedidos>('POR_RECIBIR');
   readonly busqueda = signal('');
+  readonly limite = signal(PEDIDOS_POR_TANDA);
 
-  // Pedido abierto en el detalle (botón "Ver").
+  // Pedido abierto en el detalle.
   readonly detalleId = signal<number | null>(null);
   readonly detalle = computed(() => this.pedidos.pedidos().find((pedido) => pedido.id === this.detalleId()) ?? null);
 
@@ -52,14 +45,20 @@ export class PedidosRecepcion {
     return pedido.cajasEsperadas ? Math.min(100, Math.round((pedido.cajasRecibidas / pedido.cajasEsperadas) * 100)) : 0;
   }
 
+  /** La entrega comprometida ya pasó y el pedido sigue por recibir. */
+  vencido(pedido: Pedido): boolean {
+    const estado = this.pedidos.estadoTexto(pedido);
+    return !!pedido.fechaEntrega && (estado === 'Pendiente' || estado === 'Parcial') && pedido.fechaEntrega < new Date().toLocaleDateString('en-CA');
+  }
+
   readonly filtros = computed(() => {
     const todos = this.pedidos.pedidos();
     const contar = (filtro: FiltroPedidos) => todos.filter((pedido) => this.cumpleEstado(pedido, filtro)).length;
     return [
-      { valor: 'TODOS' as const, etiqueta: 'Todos', total: todos.length },
       { valor: 'POR_RECIBIR' as const, etiqueta: 'Por recibir', total: contar('POR_RECIBIR') },
       { valor: 'RECIBIDOS' as const, etiqueta: 'Recibidos', total: contar('RECIBIDOS') },
       { valor: 'CANCELADOS' as const, etiqueta: 'Cancelados', total: contar('CANCELADOS') },
+      { valor: 'TODOS' as const, etiqueta: 'Todos', total: todos.length },
     ];
   });
 
@@ -68,12 +67,28 @@ export class PedidosRecepcion {
     return this.pedidos.pedidos().filter((pedido) => {
       if (!this.cumpleEstado(pedido, this.filtroEstado())) return false;
       if (!texto) return true;
-      const partidas = pedido.partidas.map((partida) => `${partida.clave} ${partida.nombreGenerico}`).join(' ');
+      const partidas = pedido.partidas.map((partida) => `${partida.clave} ${partida.nombreGenerico} ${partida.cucop ?? ''}`).join(' ');
       // La fecha se busca como se ve en la tabla (06/10/2026) y como AAAA-MM-DD.
       const [anio, mes, dia] = pedido.fecha.slice(0, 10).split('-');
-      return `${pedido.numero} ${dia}/${mes}/${anio} ${pedido.fecha} ${pedido.proveedor} ${partidas}`.toLowerCase().includes(texto);
+      return `${pedido.numero} ${dia}/${mes}/${anio} ${pedido.fecha} ${pedido.proveedor} ${pedido.contrato ?? ''} ${partidas}`.toLowerCase().includes(texto);
     });
   });
+
+  readonly visibles = computed(() => this.pedidosFiltrados().slice(0, this.limite()));
+
+  elegirFiltro(filtro: FiltroPedidos): void {
+    this.filtroEstado.set(filtro);
+    this.limite.set(PEDIDOS_POR_TANDA);
+  }
+
+  buscar(texto: string): void {
+    this.busqueda.set(texto);
+    this.limite.set(PEDIDOS_POR_TANDA);
+  }
+
+  mostrarMas(): void {
+    this.limite.update((limite) => limite + PEDIDOS_POR_TANDA);
+  }
 
   private cumpleEstado(pedido: Pedido, filtro: FiltroPedidos): boolean {
     const estado = this.pedidos.estadoTexto(pedido);
@@ -81,77 +96,5 @@ export class PedidosRecepcion {
     if (filtro === 'RECIBIDOS') return estado === 'Recibido';
     if (filtro === 'CANCELADOS') return estado === 'Cancelado';
     return true;
-  }
-  readonly guardando = signal(false);
-
-  numero = '';
-  fecha = new Date().toLocaleDateString('en-CA');
-  proveedor = '';
-  partidas: PartidaCaptura[] = [this.partidaVacia()];
-
-  agregarPartida(): void {
-    this.partidas = [...this.partidas, this.partidaVacia()];
-  }
-
-  quitarPartida(indice: number): void {
-    this.partidas = this.partidas.filter((_, i) => i !== indice);
-  }
-
-  registrarPedido(): void {
-    const partidas = this.partidas
-      .map((partida) => ({ clave: partida.clave.trim(), cantidadEsperada: Number(partida.cantidadEsperada) }))
-      .filter((partida) => partida.clave || partida.cantidadEsperada);
-
-    if (!this.numero.trim() || !this.fecha || !this.proveedor.trim()) {
-      this.mostrarMensaje('Completa número, fecha y proveedor.', 'error');
-      return;
-    }
-    if (!partidas.length) {
-      this.mostrarMensaje('Agrega al menos una clave con sus cajas esperadas.', 'error');
-      return;
-    }
-    if (partidas.some((partida) => !partida.clave || !Number.isInteger(partida.cantidadEsperada) || partida.cantidadEsperada <= 0)) {
-      this.mostrarMensaje('Cada partida necesita una clave y cajas esperadas (entero mayor a cero).', 'error');
-      return;
-    }
-    if (new Set(partidas.map((partida) => partida.clave)).size !== partidas.length) {
-      this.mostrarMensaje('Hay claves repetidas en el pedido. Junta las cajas en una sola partida.', 'error');
-      return;
-    }
-    if (this.pedidos.existe(this.numero)) {
-      this.mostrarMensaje('Ya existe un pedido con ese número.', 'error');
-      return;
-    }
-
-    const numero = this.numero.trim();
-    this.guardando.set(true);
-    this.pedidos.registrar({ numeroPedido: numero, fecha: this.fecha, proveedor: this.proveedor.trim(), partidas }).subscribe({
-      next: () => {
-        this.guardando.set(false);
-        this.mostrarMensaje(`Pedido ${numero} registrado y disponible para recepción.`, 'success', 'Pedido registrado');
-        this.numero = '';
-        this.proveedor = '';
-        this.partidas = [this.partidaVacia()];
-      },
-      error: (error) => {
-        this.guardando.set(false);
-        this.mostrarMensaje(mensajeDeError(error, 'No se pudo registrar el pedido.'), 'error');
-      },
-    });
-  }
-
-  private mostrarMensaje(texto: string, tipo: 'success' | 'error', titulo = 'Listo'): void {
-    // Lo que sí se hizo se avisa con un popup; errores e indicaciones se quedan junto al formulario.
-    if (tipo === 'success') {
-      this.mensaje = '';
-      this.notificaciones.exito(titulo, texto);
-      return;
-    }
-    this.mensaje = texto;
-    this.tipoMensaje = tipo;
-  }
-
-  private partidaVacia(): PartidaCaptura {
-    return { clave: '', cantidadEsperada: 0 };
   }
 }

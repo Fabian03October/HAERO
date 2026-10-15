@@ -1,7 +1,7 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción · Integración Intelisis</p>
-  <h1>Comparar con Intelisis</h1>
-  <p>Existencia vigente por clave: lo cargado en HAERO contra el almacén de medicamentos en Intelisis. Solo consulta; no cambia nada.</p>
+  <h1>Intelisis: avisos y comparación</h1>
+  <p>Lo que cambió en Intelisis y, en cajas, si cuadra con lo que tiene Almacén en HAERO. Intelisis solo se consulta; esta pantalla no cambia nada.</p>
 </header>
 
 @if (error()) {
@@ -26,9 +26,11 @@
           }
         </h2>
       </div>
-      <button type="button" class="primary-button" (click)="sincronizar()" [disabled]="!e.disponible || e.enCurso">
-        {{ e.enCurso ? 'Sincronizando…' : 'Sincronizar ahora' }}
-      </button>
+      @if (!soloLectura) {
+        <button type="button" class="primary-button" (click)="sincronizar()" [disabled]="!e.disponible || e.enCurso">
+          {{ e.enCurso ? 'Sincronizando…' : 'Sincronizar ahora' }}
+        </button>
+      }
     </div>
 
     @if (!e.disponible) {
@@ -36,7 +38,15 @@
     } @else {
       @if (e.datosAl) {
         <div class="counters">
-          <span>{{ e.articulos | number }} artículos</span>
+          @if (e.medicamentos != null) {
+            <span>{{ e.medicamentos | number }} medicamentos en el catálogo</span>
+          }
+          @if (e.pedidos != null) {
+            <span>{{ e.pedidos | number }} pedidos</span>
+          }
+          @if (e.entradasInv != null) {
+            <span>{{ e.entradasInv | number }} donaciones y traspasos</span>
+          }
           <span>{{ e.lotesExistencia | number }} lotes con existencia</span>
           <span>{{ e.recepciones | number }} recepciones</span>
           <span>{{ e.proveedores | number }} proveedores</span>
@@ -53,6 +63,8 @@
     }
   </section>
 }
+
+<app-avisos-intelisis />
 
 <section class="card">
   <div class="card-heading">
@@ -83,14 +95,15 @@
           <th>Clave</th>
           <th>Estado</th>
           <th class="number">HAERO (cajas)</th>
+          <th class="number">Intelisis (cajas)</th>
+          <th class="number">Diferencia</th>
           <th>HAERO próx. caducidad</th>
-          <th class="number">Intelisis (su unidad)</th>
           <th>Intelisis próx. caducidad</th>
         </tr>
       </thead>
       <tbody>
         @if (cargando()) {
-          <tr><td colspan="6" class="empty">Cargando…</td></tr>
+          <tr><td colspan="7" class="empty">Cargando…</td></tr>
         } @else {
           @for (fila of visibles(); track fila.clave) {
             <tr>
@@ -101,24 +114,34 @@
                   <strong>{{ fila.haeroCajas | number }}</strong><small>{{ fila.haeroLotes }} {{ fila.haeroLotes === 1 ? 'lote' : 'lotes' }}</small>
                 } @else { — }
               </td>
-              <td>{{ (fila.haeroProximaCaducidad | date: 'dd/MM/yyyy') ?? '—' }}</td>
               <td class="number">
-                @if (fila.intelisisCantidad != null) {
-                  <strong>{{ fila.intelisisCantidad | number: '1.0-2' }} <span class="unidad">{{ fila.intelisisUnidad?.toLowerCase() }}</span></strong>
-                  <small>{{ fila.intelisisLotes }} {{ fila.intelisisLotes === 1 ? 'lote' : 'lotes' }}@if (piezasEstimadas(fila); as piezas) { · ≈ {{ piezas | number }} pzas (estimado)}</small>
+                @if (fila.intelisisPiezas != null) {
+                  <strong>{{ fila.intelisisCajas != null ? (fila.intelisisCajas | number: '1.0-2') : '¿?' }}</strong>
+                  <small>{{ fila.intelisisPiezas | number: '1.0-0' }} piezas · {{ fila.intelisisLotes }} {{ fila.intelisisLotes === 1 ? 'lote' : 'lotes' }}</small>
                 } @else { — }
               </td>
+              <td class="number">
+                @if (diferencia(fila); as dif) {
+                  <strong [class]="dif > 0 ? 'mas-intelisis' : 'mas-haero'">{{ dif > 0 ? '+' : '' }}{{ dif | number: '1.0-2' }}</strong>
+                  <small>{{ dif > 0 ? 'más en Intelisis' : 'más en HAERO' }}</small>
+                } @else if (diferencia(fila) === null) {
+                  <small>Sin piezas por caja</small>
+                } @else {
+                  <span class="cuadra">Cuadra</span>
+                }
+              </td>
+              <td>{{ (fila.haeroProximaCaducidad | date: 'dd/MM/yyyy') ?? '—' }}</td>
               <td>{{ (fila.intelisisProximaCaducidad | date: 'dd/MM/yyyy') ?? '—' }}</td>
             </tr>
           } @empty {
-            <tr><td colspan="6" class="empty">{{ filas().length ? 'Ninguna clave coincide con el filtro o la búsqueda.' : 'Todavía no hay datos para comparar.' }}</td></tr>
+            <tr><td colspan="7" class="empty">{{ filas().length ? 'Ninguna clave coincide con el filtro o la búsqueda.' : 'Todavía no hay datos para comparar.' }}</td></tr>
           }
         }
       </tbody>
     </table>
   </div>
   <p class="card-help">
-    En ambos lados se ignoran los lotes caducados. Intelisis guarda muchas claves en miligramos, mililitros o UI en lugar de piezas;
-    por eso su cantidad no se convierte a cajas hasta confirmar la unidad con Almacén y Farmacia. El "≈ pzas" es solo una estimación.
+    HAERO lleva el control: si Intelisis tiene más, falta dar de alta o recibir en HAERO, o hay que ajustar Intelisis. Intelisis guarda
+    piezas; se pasan a cajas con las piezas por caja del catálogo (una fracción es una caja abierta). En ambos lados se ignoran los lotes caducados.
   </p>
 </section>

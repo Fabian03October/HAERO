@@ -21,6 +21,22 @@ h2 { margin: 0; color: #611232; font-size: 18px; }
 
 .hero h1 { margin: 4px 0 6px; color: #611232; font-size: clamp(24px, 3vw, 30px); }
 .hero-date { margin: 0; color: #6f7271; font-size: 12px; }
+
+/* Avisos de Intelisis por revisar (cancelaciones y cambios en lotes que ya están en HAERO). */
+.aviso-intelisis {
+  display: grid;
+  gap: 3px;
+  padding: 14px 18px;
+  border: 1px solid #f1cdc8;
+  border-left: 5px solid #b6483f;
+  border-radius: 12px;
+  background: #fff6f4;
+  color: #98423b;
+  font-size: 13px;
+  text-decoration: none;
+}
+.aviso-intelisis strong { font-size: 15px; }
+.aviso-intelisis:hover { background: #ffefeb; }
 .hero-text { max-width: 520px; margin: 0; color: #6f7271; font-size: 14px; }
 
 /* Indicadores */

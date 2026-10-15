@@ -1,9 +1,10 @@
 package com.example.backend.almacen.service;
 
-import com.example.backend.almacen.dto.CrearPedidoRequest;
-import com.example.backend.almacen.repository.MedicamentoRepository;
+import com.example.backend.almacen.dto.PedidoResponse;
+import com.example.backend.almacen.entity.Medicamento;
+import com.example.backend.almacen.entity.Pedido;
+import com.example.backend.almacen.entity.PedidoDetalle;
 import com.example.backend.almacen.repository.PedidoRepository;
-import com.example.backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,14 +12,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * PU-01 (HU22): registrar pedido con numero duplicado.
+ * HU22 y HU11: los pedidos se leen de Intelisis (solo consulta). Se muestran con su
+ * contrato y estatus de Intelisis, y lo que Almacén recibió en HAERO por separado.
  */
 @ExtendWith(MockitoExtension.class)
 class ServicioPedidosTest {
@@ -26,45 +30,66 @@ class ServicioPedidosTest {
     @Mock
     private PedidoRepository pedidoRepository;
 
-    @Mock
-    private MedicamentoRepository medicamentoRepository;
-
-    @Mock
-    private UsuarioRepository usuarioRepository;
-
     private ServicioPedidos servicioPedidos;
 
     @BeforeEach
     void configurar() {
-        servicioPedidos = new ServicioPedidos(pedidoRepository, medicamentoRepository, usuarioRepository);
+        servicioPedidos = new ServicioPedidos(pedidoRepository);
+    }
+
+    private Pedido pedidoDeIntelisis() {
+        Medicamento medicamento = new Medicamento();
+        medicamento.setClave("010.000.0104.00");
+        medicamento.setNombreGenerico("PARACETAMOL");
+
+        Pedido pedido = new Pedido();
+        pedido.setId(1L);
+        pedido.setNumeroPedido("PP-8632");
+        pedido.setProveedor("Glenmark Pharmaceuticals");
+        pedido.setEstatus("ACTIVO");
+        pedido.setFecha(LocalDate.of(2026, 10, 12));
+        pedido.setOrigen("INTELISIS");
+        pedido.setContrato("IB-HRAEO-AD-B-C-310-2025");
+        pedido.setEstatusIntelisis("PENDIENTE");
+
+        PedidoDetalle detalle = new PedidoDetalle();
+        detalle.setPedido(pedido);
+        detalle.setMedicamento(medicamento);
+        detalle.setCantidadEsperada(56);
+        detalle.setCantidadRecibida(20);
+        detalle.setCucop("25301169");
+        detalle.setRecibidaIntelisis(0);
+        detalle.setCanceladaIntelisis(0);
+        pedido.getPartidas().add(detalle);
+        return pedido;
     }
 
     @Test
-    void crearPedido_conNumeroDuplicado_lanza400YNoLoGuarda() {
-        CrearPedidoRequest request = new CrearPedidoRequest();
-        request.setNumeroPedido("PED-2026-0148");
+    void listar_devuelveElPedidoConSuContratoYLoRecibidoEnHaeroAparte() {
+        when(pedidoRepository.findAll()).thenReturn(List.of(pedidoDeIntelisis()));
 
-        when(pedidoRepository.existsByNumeroPedido("PED-2026-0148")).thenReturn(true);
+        PedidoResponse respuesta = servicioPedidos.listarPedidos(null).get(0);
 
-        assertThatThrownBy(() -> servicioPedidos.crearPedido(request))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Ya existe un pedido con ese número");
-
-        verify(pedidoRepository, never()).save(any());
+        assertThat(respuesta.getContrato()).isEqualTo("IB-HRAEO-AD-B-C-310-2025");
+        assertThat(respuesta.getEstatusIntelisis()).isEqualTo("PENDIENTE");
+        assertThat(respuesta.getPartidas().get(0).getCantidadRecibida()).isEqualTo(20);
+        assertThat(respuesta.getPartidas().get(0).getRecibidaIntelisis()).isZero();
+        assertThat(respuesta.getPartidas().get(0).getCucop()).isEqualTo("25301169");
     }
 
     @Test
-    void crearPedido_sinPartidas_lanza400() {
-        CrearPedidoRequest request = new CrearPedidoRequest();
-        request.setNumeroPedido("PED-2026-0200");
-        request.setPartidas(null);
+    void listar_porEstatus_usaElFiltro() {
+        when(pedidoRepository.findByEstatus("CANCELADO")).thenReturn(List.of());
 
-        when(pedidoRepository.existsByNumeroPedido("PED-2026-0200")).thenReturn(false);
+        assertThat(servicioPedidos.listarPedidos("CANCELADO")).isEmpty();
+    }
 
-        assertThatThrownBy(() -> servicioPedidos.crearPedido(request))
+    @Test
+    void obtener_conIdInexistente_lanza404() {
+        when(pedidoRepository.findById(9L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> servicioPedidos.obtenerPedido(9L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("al menos una partida");
-
-        verify(pedidoRepository, never()).save(any());
+                .hasMessageContaining("Pedido no encontrado");
     }
 }

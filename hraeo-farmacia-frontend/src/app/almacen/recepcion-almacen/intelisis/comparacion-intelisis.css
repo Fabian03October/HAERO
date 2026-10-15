@@ -7,6 +7,10 @@ td small { display: block; }
 td small.nombre { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
 .unidad { color: #8c8a86; font-size: 11px; font-weight: 600; }
 
+.mas-intelisis { color: #25627b; }
+.mas-haero { color: #9a651c; }
+.cuadra { color: #176a4b; font-size: 12px; font-weight: 800; }
+
 .pill { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
 .pill.en_ambos { background: #edf9f3; color: #176a4b; }
 .pill.solo_haero { background: #fff8ec; color: #9a651c; }

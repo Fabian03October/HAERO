@@ -1,16 +1,16 @@
 package com.example.backend.almacen.controller;
 
-import com.example.backend.almacen.dto.CancelarPedidoRequest;
-import com.example.backend.almacen.dto.CrearPedidoRequest;
 import com.example.backend.almacen.dto.PedidoResponse;
 import com.example.backend.almacen.service.ServicioPedidos;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Pedidos de Intelisis, solo consulta (HU22 y HU11). En HAERO ya no se capturan ni se
+ * cancelan pedidos: eso se hace en Intelisis y llega con la sincronizacion.
+ */
 @RestController
 @RequestMapping("/api/almacen/pedidos")
 public class PedidoController {
@@ -29,17 +29,5 @@ public class PedidoController {
     @GetMapping("/{id}")
     public ResponseEntity<PedidoResponse> obtener(@PathVariable Long id) {
         return ResponseEntity.ok(servicioPedidos.obtenerPedido(id));
-    }
-
-    @PostMapping
-    public ResponseEntity<PedidoResponse> crear(@RequestBody CrearPedidoRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(servicioPedidos.crearPedido(request));
-    }
-
-    @PatchMapping("/{id}/cancelar")
-    public ResponseEntity<PedidoResponse> cancelar(@PathVariable Long id,
-                                                    @RequestBody CancelarPedidoRequest request,
-                                                    Authentication authentication) {
-        return ResponseEntity.ok(servicioPedidos.cancelarPedido(id, request, authentication.getName()));
     }
 }

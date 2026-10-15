@@ -29,4 +29,7 @@ public class EstadoIntelisisResponse {
     private Integer lotesExistencia;
     private Integer recepciones;
     private Integer lotesRecepcion;
+    private Integer medicamentos;
+    private Integer pedidos;
+    private Integer entradasInv;
 }

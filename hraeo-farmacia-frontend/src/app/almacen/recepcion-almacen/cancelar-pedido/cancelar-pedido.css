@@ -15,3 +15,18 @@
 .cancel-list strong { color: #9b443c; }
 .cancel-list span,
 .cancel-list small { color: #6f7271; }
+
+.buscador {
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 12px;
+  border: 1px solid #ddd4c8;
+  border-radius: 10px;
+  background: #fdfcfa;
+  color: #2b2b2b;
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+.buscador:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.lista-scroll { max-height: 520px; overflow-y: auto; }

@@ -29,14 +29,9 @@ export interface Medicamento {
   descripcionCompleta: string | null;
   origen: 'HAERO' | 'INTELISIS';
   sincronizadoEn: string | null;
-}
-
-export interface CrearMedicamentoRequest {
-  clave: string;
-  nombreGenerico: string;
-  presentacion: string;
-  piezasPorCaja?: number | null;
-  descripcion?: string | null;
+  // Dada de alta en HAERO = ya tiene código de barras; solo esas entran al inventario.
+  dadoDeAlta: boolean;
+  codigosBarras: number;
 }
 
 export interface Existencia {
@@ -51,6 +46,9 @@ export interface Existencia {
   // true en las existencias del lote que se debe despachar primero (HU15).
   fefo: boolean;
   proveedor: string;
+  // Registro de Intelisis del que salió el lote y día en que entró a HAERO.
+  movimientoIntelisis: string | null;
+  fechaIngreso: string | null;
 }
 
 export interface FiltroExistencias {
@@ -61,11 +59,20 @@ export interface FiltroExistencias {
 
 export type EstatusPedido = 'ACTIVO' | 'CANCELADO';
 
+// Estatus del pedido en Intelisis (los pedidos se leen de allá; en HAERO no se capturan).
+export type EstatusPedidoIntelisis = 'PENDIENTE' | 'CONCLUIDO' | 'CANCELADO';
+
 export interface PartidaPedido {
   clave: string;
   nombreGenerico: string;
+  // Lo esperado según Intelisis (sin lo cancelado).
   cantidadEsperada: number;
+  // Lo que Almacén recibió físicamente en HAERO.
   cantidadRecibida: number;
+  cucop: string | null;
+  // Lo que dice Intelisis: recibido allá y cancelado.
+  recibidaIntelisis: number | null;
+  canceladaIntelisis: number | null;
 }
 
 export interface Pedido {
@@ -76,13 +83,11 @@ export interface Pedido {
   fecha: string;
   partidas: PartidaPedido[];
   motivoCancelacion: string | null;
-}
-
-export interface CrearPedidoRequest {
-  numeroPedido: string;
-  fecha: string;
-  proveedor: string;
-  partidas: { clave: string; cantidadEsperada: number }[];
+  origen: 'HAERO' | 'INTELISIS';
+  contrato: string | null;
+  fechaEntrega: string | null;
+  estatusIntelisis: EstatusPedidoIntelisis | null;
+  fechaCancelacion: string | null;
 }
 
 export interface UbicacionCantidad {
@@ -90,13 +95,42 @@ export interface UbicacionCantidad {
   cajas: number;
 }
 
-export interface RegistrarEntradaRequest {
-  pedidoId: number;
+// COMPRA (Ent. Compra), INV (donación o traspaso) o EXISTENCIA (alta inicial).
+export type OrigenRegistroIntelisis = 'COMPRA' | 'INV' | 'EXISTENCIA';
+
+// ENTRADA (HU10) o ALTA_INICIAL (HU21, lo que ya está en los anaqueles).
+export type TipoCapturaIntelisis = 'ENTRADA' | 'ALTA_INICIAL';
+
+// Registro de Intelisis que Almacén elige al recibir: lote, caducidad y cantidades son los de Intelisis.
+export interface RegistroIntelisis {
+  origen: OrigenRegistroIntelisis;
+  idIntelisis: number | null;
+  movimiento: string;
+  referencia: string | null;
+  fecha: string | null;
   clave: string;
-  proveedor: string;
-  numeroLote: string;
-  caducidad: string;
+  lote: string;
+  caducidad: string | null;
+  piezas: number | null;
+  // null si no se sabe cuántas piezas trae la caja.
+  cajas: number | null;
+  proveedor: string | null;
+  pedidoId: number | null;
+  numeroPedido: string | null;
+  contrato: string | null;
+  // Por qué no se puede recibir; null si se puede.
+  bloqueo: string | null;
+  loteHaeroId: number | null;
+}
+
+export interface RegistrarEntradaRequest {
+  codigo: string;
+  clave: string;
+  origen: OrigenRegistroIntelisis;
+  idIntelisis: number | null;
+  lote: string;
   ubicaciones: UbicacionCantidad[];
+  observaciones?: string;
 }
 
 export interface RegistrarEntradaResponse {
@@ -104,6 +138,9 @@ export interface RegistrarEntradaResponse {
   numeroLote: string;
   caducidad: string;
   existencias: UbicacionCantidad[];
+  movimientoIntelisis: string | null;
+  cajasIntelisis: number | null;
+  cajasConfirmadas: number;
 }
 
 export interface ResolverCodigoResponse {
@@ -116,13 +153,6 @@ export interface AsociarCodigoRequest {
   codigo: string;
   clave: string;
   proveedor: string;
-}
-
-export interface CargaInicialResponse {
-  exito: boolean;
-  totalRenglones: number;
-  lotesCreados: number;
-  errores: { fila: number; mensaje: string }[];
 }
 
 export type EstatusSolicitud = 'PENDIENTE' | 'PARCIAL' | 'ATENDIDA';
@@ -367,6 +397,34 @@ export interface EstadoIntelisis {
   lotesExistencia: number | null;
   recepciones: number | null;
   lotesRecepcion: number | null;
+  medicamentos: number | null;
+  pedidos: number | null;
+  entradasInv: number | null;
+}
+
+export type TipoAvisoIntelisis =
+  | 'CLAVE_NUEVA'
+  | 'PEDIDO_NUEVO'
+  | 'PEDIDO_CANCELADO'
+  | 'PARTIDA_CANCELADA'
+  | 'LOTE_CAMBIO'
+  | 'LOTE_POR_DAR_DE_ALTA'
+  | 'CARGA_INICIAL';
+
+// Aviso de un cambio en Intelisis. INFO = para enterarse; REVISAR = afecta lo que
+// Almacén ya movió en HAERO (HAERO no lo tocó).
+export interface AvisoIntelisis {
+  id: number;
+  fecha: string;
+  tipo: TipoAvisoIntelisis;
+  nivel: 'INFO' | 'REVISAR';
+  titulo: string;
+  detalle: string | null;
+  clave: string | null;
+  loteId: number | null;
+  pedidoId: number | null;
+  revisadoEn: string | null;
+  revisadoPor: string | null;
 }
 
 export type EstadoComparacion = 'EN_AMBOS' | 'SOLO_HAERO' | 'SOLO_INTELISIS';
@@ -380,10 +438,9 @@ export interface ComparacionClave {
   haeroProximaCaducidad: string | null;
   piezasPorCaja: number | null;
   intelisisArticulo: string | null;
-  // En la unidad de Intelisis (piezas, mg, ml, UI...), sin convertir a cajas.
-  intelisisCantidad: number | null;
-  intelisisUnidad: string | null;
-  intelisisUnidadCantidad: number | null;
+  // Piezas en Intelisis y su equivalente en cajas (null si no se sabe cuántas piezas trae la caja).
+  intelisisPiezas: number | null;
+  intelisisCajas: number | null;
   intelisisLotes: number | null;
   intelisisProximaCaducidad: string | null;
 }
@@ -433,10 +490,6 @@ export class AlmacenApi {
     return this.http.get<Medicamento>(`${API_BASE_URL}/almacen/medicamentos/${encodeURIComponent(clave)}`, this.cabeceras());
   }
 
-  crearMedicamento(request: CrearMedicamentoRequest): Observable<Medicamento> {
-    return this.http.post<Medicamento>(`${API_BASE_URL}/almacen/medicamentos`, request, this.cabeceras());
-  }
-
   // ---------- Existencias (HU12) ----------
   listarExistencias(filtro: FiltroExistencias = {}): Observable<Existencia[]> {
     const params: Record<string, string> = {};
@@ -456,14 +509,6 @@ export class AlmacenApi {
     return this.http.get<Pedido>(`${API_BASE_URL}/almacen/pedidos/${id}`, this.cabeceras());
   }
 
-  crearPedido(request: CrearPedidoRequest): Observable<Pedido> {
-    return this.http.post<Pedido>(`${API_BASE_URL}/almacen/pedidos`, request, this.cabeceras());
-  }
-
-  cancelarPedido(id: number, motivo: string): Observable<Pedido> {
-    return this.http.patch<Pedido>(`${API_BASE_URL}/almacen/pedidos/${id}/cancelar`, { motivo }, this.cabeceras());
-  }
-
   // ---------- Recepción ----------
   resolverCodigo(codigo: string): Observable<ResolverCodigoResponse> {
     return this.http.get<ResolverCodigoResponse>(`${API_BASE_URL}/almacen/codigos-barras/${encodeURIComponent(codigo)}`, this.cabeceras());
@@ -477,11 +522,8 @@ export class AlmacenApi {
     return this.http.post<RegistrarEntradaResponse>(`${API_BASE_URL}/almacen/entradas`, request, this.cabeceras());
   }
 
-  // ---------- Carga inicial (HU21): el backend solo lee CSV ----------
-  cargarInventarioInicial(csv: string, nombreArchivo = 'inventario.csv'): Observable<CargaInicialResponse> {
-    const datos = new FormData();
-    datos.append('archivo', new Blob([csv], { type: 'text/csv;charset=utf-8' }), nombreArchivo);
-    return this.http.post<CargaInicialResponse>(`${API_BASE_URL}/almacen/carga-inicial`, datos, this.cabeceras());
+  registrosIntelisis(clave: string, tipo: TipoCapturaIntelisis): Observable<RegistroIntelisis[]> {
+    return this.http.get<RegistroIntelisis[]>(`${API_BASE_URL}/almacen/registros-intelisis`, { ...this.cabeceras(), params: { clave, tipo } });
   }
 
   // ---------- Movimientos (HU14 CA5, HU16) ----------
@@ -578,6 +620,23 @@ export class AlmacenApi {
 
   comparacionIntelisis(): Observable<ComparacionClave[]> {
     return this.http.get<ComparacionClave[]>(`${API_BASE_URL}/almacen/intelisis/comparacion`, this.cabeceras());
+  }
+
+  /** Avisos pendientes (sin revisar) o ya revisados. */
+  avisosIntelisis(pendientes: boolean): Observable<AvisoIntelisis[]> {
+    return this.http.get<AvisoIntelisis[]>(`${API_BASE_URL}/almacen/intelisis/avisos`, { ...this.cabeceras(), params: { pendientes } });
+  }
+
+  resumenAvisosIntelisis(): Observable<{ REVISAR: number; INFO: number }> {
+    return this.http.get<{ REVISAR: number; INFO: number }>(`${API_BASE_URL}/almacen/intelisis/avisos/resumen`, this.cabeceras());
+  }
+
+  marcarAvisoRevisado(id: number): Observable<{ mensaje: string }> {
+    return this.http.post<{ mensaje: string }>(`${API_BASE_URL}/almacen/intelisis/avisos/${id}/revisado`, {}, this.cabeceras());
+  }
+
+  marcarInformativosRevisados(): Observable<{ mensaje: string }> {
+    return this.http.post<{ mensaje: string }>(`${API_BASE_URL}/almacen/intelisis/avisos/informativos/revisados`, {}, this.cabeceras());
   }
 
   /** Arranca la sincronización en segundo plano; el avance se ve en estadoIntelisis(). */
