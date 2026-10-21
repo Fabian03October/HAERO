@@ -5,12 +5,165 @@
   />
   <div class="shell">
     <app-sidebar [items]="items" />
-    <div class="main">
-      <div class="card">
-        <h1>Bienvenido/a, {{ session.usuarioActual()?.nombreCompleto }}</h1>
-        <p>Acceso al módulo de Dispensación.</p>
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="hero-date">{{ fechaHoy }}</p>
+            <h1>{{ saludo }}, {{ primerNombre() }}</h1>
+            <p class="hero-text">Este es el resumen de Farmacia: lo que hay que recibir, lo entregado hoy y lo pendiente de dar de baja en Intelisis.</p>
+          </div>
+        </header>
+
+        @if (diaPendiente(); as dia) {
+          <a class="aviso-baja" routerLink="/farmacia/baja-intelisis">
+            <strong>Falta dar de baja en Intelisis el día {{ dia.fecha }}</strong>
+            <span>{{ dia.claves }} claves · {{ dia.piezas.toLocaleString('es-MX') }} piezas entregadas a {{ dia.pacientes }} pacientes. Abre el resumen del día para capturar la baja por volumen.</span>
+          </a>
+        }
+
+        <section class="kpi-grid" aria-label="Indicadores de Farmacia">
+          @for (item of indicadores(); track item.titulo) {
+            <a [class]="'kpi ' + item.tono" [routerLink]="item.ruta">
+              <span class="kpi-title">{{ item.titulo }}<span class="hu">{{ item.historia }}</span></span>
+              <strong>{{ numero(item.valor) }}</strong>
+              <small>{{ item.detalle }}</small>
+            </a>
+          }
+        </section>
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Baja por volumen en Intelisis · HU31</p>
+                <h2>Resumen del día</h2>
+              </div>
+              <a class="card-link" routerLink="/farmacia/baja-intelisis">Ver resumen completo →</a>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Clave Intelisis</th>
+                    <th>Medicamento</th>
+                    <th>Lote</th>
+                    <th class="number">Piezas</th>
+                    <th class="number">Pacientes</th>
+                    <th>Intelisis</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (renglon of resumenEnInicio(); track renglon.claveIntelisis + renglon.lote) {
+                    <tr>
+                      <td><strong>{{ renglon.claveIntelisis }}</strong></td>
+                      <td>{{ renglon.medicamento }}</td>
+                      <td>{{ renglon.lote }}</td>
+                      <td class="number">{{ renglon.piezas }}</td>
+                      <td class="number">{{ renglon.pacientes }}</td>
+                      <td>
+                        @if (renglon.dadoDeBaja) {
+                          <span class="pill success">Dado de baja</span>
+                        } @else {
+                          <span class="pill warning">Pendiente</span>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty">Aún no hay entregas hoy. Aquí aparecerá lo entregado por clave y lote (HU28 y HU31).</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="card-foot">
+              <span>
+                Día anterior:
+                @switch (verificacionAyer()) {
+                  @case ('CUADRA') { <span class="pill success">Verificado · cuadra</span> }
+                  @case ('DIFERENCIA') { <span class="pill danger">Con diferencia</span> }
+                  @default { <span class="pill">Sin verificar</span> }
+                }
+                <span class="hu">HU32</span>
+              </span>
+              <button class="btn" type="button" [disabled]="!resumenDia().length">Dado de baja en Intelisis</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Recepción · HU26</p>
+                <h2>Despachos de Almacén por recibir</h2>
+              </div>
+              <a class="card-link" routerLink="/farmacia/inventario/recepcion">Ver todos →</a>
+            </div>
+            @if (despachosEnInicio().length) {
+              <ul class="order-list">
+                @for (despacho of despachosEnInicio(); track despacho.folio) {
+                  <li>
+                    <div class="order-top">
+                      <strong>{{ despacho.folio }}</strong>
+                      <span>{{ despacho.claves }} {{ despacho.claves === 1 ? 'clave' : 'claves' }} · {{ despacho.cajas }} cajas</span>
+                    </div>
+                    <small>Despachada {{ despacho.fecha }} · {{ despacho.medicamentos }}</small>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="empty-box">No hay despachos por recibir. Aquí aparecerá lo que Almacén despache a Farmacia (HU26).</p>
+            }
+          </section>
+        </div>
+
+        <section class="card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Regla FEFO · HU30</p>
+              <h2>Próximos a salir en Farmacia</h2>
+            </div>
+            <a class="card-link" routerLink="/farmacia/inventario/existencias">Ver existencias →</a>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Clave</th>
+                  <th>Medicamento</th>
+                  <th>Lote</th>
+                  <th>Caducidad</th>
+                  <th class="number">Piezas</th>
+                  <th>Prioridad</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (lote of lotesEnInicio(); track lote.clave + lote.lote) {
+                  <tr>
+                    <td><strong>{{ lote.clave }}</strong></td>
+                    <td>{{ lote.medicamento }}</td>
+                    <td>{{ lote.lote }}</td>
+                    <td>
+                      {{ lote.caducidad }}
+                      @if (lote.porCaducar) {
+                        <span class="pill warning">Por caducar</span>
+                      }
+                    </td>
+                    <td class="number">{{ lote.piezas }}</td>
+                    <td>
+                      @if (lote.fefo) {
+                        <span class="pill success">Sale primero</span>
+                      } @else {
+                        <span class="pill">En espera</span>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="6" class="empty">El inventario de Farmacia está vacío. Se llena con el alta inicial (HU25) y la recepción (HU26).</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
-      <div class="empty-area">Área de trabajo del módulo (se habilita en la iteración correspondiente)</div>
-    </div>
+    </main>
   </div>
 </div>

@@ -1,0 +1,100 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Inventario · HU26</p>
+            <h1>Recepción de despachos de Almacén</h1>
+            <p class="hero-text">Confirma lo que realmente llegó de cada despacho de Almacén. Lo recibido entra al inventario de Farmacia con su mismo lote y caducidad; si llega algo distinto, se registra la diferencia con su motivo y Almacén la ve.</p>
+          </div>
+        </header>
+
+        @if (error()) {
+          <div class="banner error">{{ error() }}</div>
+        }
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="barra">
+              <h2>Despachado por Almacén</h2>
+              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar por folio, clave o medicamento" />
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Solicitud</th>
+                    <th>Medicamento</th>
+                    <th class="number">Pedidas</th>
+                    <th class="number">Despachadas</th>
+                    <th>Recepción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (solicitud of despachadas(); track solicitud.id) {
+                    <tr class="fila" [class.elegida]="seleccionada()?.id === solicitud.id" (click)="elegir(solicitud)">
+                      <td><strong>{{ folio(solicitud.id) }}</strong><small class="sub">{{ solicitud.fecha | date: 'dd/MM/yyyy HH:mm' }}</small></td>
+                      <td>{{ solicitud.clave }}<small class="sub">{{ solicitud.nombreGenerico }}</small></td>
+                      <td class="number">{{ solicitud.cantidadSolicitada }}</td>
+                      <td class="number">{{ solicitud.cantidadAtendida }}</td>
+                      <td><span class="estado aviso">Por confirmar</span></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : 'Almacén todavía no ha despachado ninguna solicitud de Farmacia.' }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="nota">Las cantidades están en cajas. El estado de la recepción se guarda cuando exista el endpoint de recepción de Farmacia.</p>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Confirmar lo que llegó</p>
+                <h2>{{ seleccionada() ? folio(seleccionada()!.id) : 'Elige un despacho' }}</h2>
+              </div>
+            </div>
+            @if (seleccionada(); as solicitud) {
+              <dl class="datos">
+                <div><dt>Clave</dt><dd>{{ solicitud.clave }}</dd></div>
+                <div><dt>Medicamento</dt><dd>{{ solicitud.nombreGenerico }}</dd></div>
+                <div><dt>Despachadas por Almacén</dt><dd>{{ solicitud.cantidadAtendida }} cajas</dd></div>
+              </dl>
+              <p class="fefo-nota">Los lotes y caducidades de este despacho aparecerán aquí; para verlos, Farmacia necesita el endpoint de recepción.</p>
+              <div class="field">
+                <label for="recibidas">Cajas que llegaron</label>
+                <input id="recibidas" type="number" min="0" [ngModel]="cajasRecibidas()" (ngModelChange)="cajasRecibidas.set($event === null || $event === '' ? null : +$event)" />
+              </div>
+              @if (diferencia() !== 0) {
+                <div class="banner warn">Diferencia de {{ diferencia() > 0 ? '+' : '' }}{{ diferencia() }} cajas contra lo despachado. Escribe el motivo; Almacén lo verá.</div>
+                <div class="field">
+                  <label for="motivo">Motivo de la diferencia</label>
+                  <input id="motivo" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" placeholder="Ej. llegó una caja dañada" />
+                </div>
+              }
+              <div class="card-foot">
+                <span>
+                  @if (faltantes().length) {
+                    Falta: {{ faltantes().join(', ') }}.
+                  } @else {
+                    Lista para confirmar.
+                  }
+                </span>
+                <button class="btn" type="button" disabled title="Necesita el endpoint de recepción de Farmacia">Confirmar recepción</button>
+              </div>
+            } @else {
+              <p class="empty-box">Elige un despacho de la lista para confirmar lo que llegó.</p>
+            }
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

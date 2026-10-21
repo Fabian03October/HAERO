@@ -1,0 +1,12 @@
+<input [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" [placeholder]="placeholder()" autocomplete="off" />
+@if (error()) {
+  <p class="hint">No se pudo cargar el catálogo de medicamentos.</p>
+} @else if (resultados().length) {
+  <ul class="resultados">
+    @for (medicamento of resultados(); track medicamento.clave) {
+      <li><button type="button" (click)="elegir(medicamento)"><strong>{{ medicamento.clave }}</strong> {{ medicamento.nombreGenerico }}</button></li>
+    }
+  </ul>
+} @else if (busqueda().trim()) {
+  <p class="hint">Ninguna clave dada de alta coincide.</p>
+}

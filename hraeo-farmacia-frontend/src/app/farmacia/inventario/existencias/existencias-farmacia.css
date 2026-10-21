@@ -1,0 +1,3 @@
+/* Existencias de Farmacia: los lotes vencidos se muestran en gris. */
+.aviso { margin: -6px 0 12px; }
+tr.vencido td { color: #8c8a86; }

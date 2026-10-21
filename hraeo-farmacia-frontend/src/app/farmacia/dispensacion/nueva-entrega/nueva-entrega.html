@@ -1,0 +1,230 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Dispensación · HU28 · HU29 · HU30</p>
+            <h1>Nueva entrega</h1>
+            <p class="hero-text">Registra la entrega de una receta: el paciente, las claves indicadas y cada caja escaneada. Ya no se da una baja en Intelisis por paciente; se da una sola al día con el resumen.</p>
+          </div>
+        </header>
+
+        @if (mensaje()) {
+          <div class="banner" [class.error]="tipoMensaje() === 'error'" [class.warn]="tipoMensaje() === 'warn'" [class.info]="tipoMensaje() === 'info'">{{ mensaje() }}</div>
+        }
+
+        <div class="entrega">
+          <!-- Paciente y receta -->
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Paso 1 · HU28</p>
+                <h2>Paciente y receta</h2>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="expediente">Expediente</label>
+              <div class="en-linea">
+                <input id="expediente" [ngModel]="expediente()" (ngModelChange)="expediente.set($event)"(keyup.enter)="buscarPaciente()" placeholder="Escribe o escanea el expediente" autocomplete="off" />
+                <button class="btn secondary" type="button" (click)="buscarPaciente()">Buscar</button>
+              </div>
+            </div>
+            <div class="paciente">
+              <span>Paciente</span>
+              <strong>—</strong>
+              <small>El nombre se trae de Intelisis; no se teclea.</small>
+            </div>
+            @if (avisoPaciente()) {
+              <p class="hint pendiente">{{ avisoPaciente() }}</p>
+            }
+
+            <div class="field">
+              <label for="folio">Folio de la receta</label>
+              <input id="folio" [ngModel]="folioReceta()" (ngModelChange)="folioReceta.set($event)"placeholder="Ej. R-2026-004512" autocomplete="off" />
+            </div>
+
+            <div class="field">
+              <label>Claves de la receta</label>
+              @if (elegida(); as medicamento) {
+                <div class="elegida">
+                  <div><strong>{{ medicamento.clave }}</strong><span>{{ medicamento.nombreGenerico }}</span></div>
+                  <button class="link" type="button" (click)="elegida.set(null)">Cambiar</button>
+                </div>
+                <div class="en-linea">
+                  <input type="number" min="1" [(ngModel)]="cantidadIndicada" placeholder="Piezas indicadas" (keyup.enter)="agregarClave()" />
+                  <button class="btn" type="button" (click)="agregarClave()">Agregar</button>
+                </div>
+              } @else {
+                <app-buscador-medicamento [excluir]="clavesEnReceta()" (elegido)="elegirMedicamento($event)" />
+              }
+            </div>
+
+            @if (claves().length) {
+              <ul class="claves">
+                @for (item of claves(); track item.clave) {
+                  <li>
+                    <div>
+                      <strong>{{ item.clave }}</strong>
+                      <span>{{ item.medicamento }}</span>
+                      <small>{{ item.indicada }} piezas indicadas</small>
+                    </div>
+                    <button class="link danger" type="button" (click)="quitarClave(item.clave)">Quitar</button>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+
+          <!-- Cajas -->
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Paso 2 · HU28 · HU30</p>
+                <h2>Escanea las cajas</h2>
+              </div>
+            </div>
+
+            <div class="scanner">
+              <input #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanear()" placeholder="Escanea el código de la caja y presiona Enter" autocomplete="off" />
+              <button type="button" title="Agregar caja" (click)="escanear()">▣</button>
+              <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
+            </div>
+            @if (camaraAbierta()) {
+              <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
+            }
+
+            <p class="fefo"><strong>Regla FEFO (HU30):</strong> aquí se mostrará el lote de Farmacia que debe salir primero y se bloqueará uno posterior. Necesita el inventario de Farmacia (HU27). Los lotes vencidos ya se bloquean al escanear.</p>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Lote</th>
+                    <th>Caducidad</th>
+                    <th>Clave de la receta</th>
+                    <th class="number">Piezas</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (caja of cajas(); track caja.id) {
+                    <tr>
+                      <td>
+                        @if (caja.lote) {
+                          <strong>{{ caja.lote }}</strong>
+                        } @else {
+                          <input class="celda" [ngModel]="caja.lote" (ngModelChange)="actualizarCaja(caja.id, { lote: $event })" placeholder="Lote" />
+                        }
+                        <small class="gtin">{{ caja.gtin }}</small>
+                      </td>
+                      <td>
+                        @if (caja.caducidad && caja.lote) {
+                          {{ fecha(caja.caducidad) }}
+                        } @else {
+                          <input class="celda" type="date" [ngModel]="caja.caducidad" (ngModelChange)="actualizarCaja(caja.id, { caducidad: $event })" />
+                        }
+                      </td>
+                      <td>
+                        <select class="celda" [ngModel]="caja.clave" (ngModelChange)="actualizarCaja(caja.id, { clave: $event })">
+                          <option value="">Elige la clave</option>
+                          @for (item of claves(); track item.clave) {
+                            @if (!item.noDispensada) {
+                              <option [value]="item.clave">{{ item.clave }} · {{ item.medicamento }}</option>
+                            }
+                          }
+                        </select>
+                      </td>
+                      <td class="number">
+                        <input class="celda corta"type="number" min="1" [ngModel]="caja.piezas || null" (ngModelChange)="actualizarCaja(caja.id, { piezas: +$event })" />
+                      </td>
+                      <td><button class="link danger" type="button" (click)="quitarCaja(caja.id)">Quitar</button></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty">Escanea la primera caja. Si el código es GS1, el lote y la caducidad se llenan solos.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- Resumen de la receta -->
+        <section class="card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Paso 3 · HU29</p>
+              <h2>Resumen de la receta</h2>
+            </div>
+            @if (estadoReceta(); as estado) {
+              <span class="estado" [class]="'estado ' + estado">{{ estadoTexto[estado] }}</span>
+            }
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Clave</th>
+                  <th>Medicamento</th>
+                  <th class="number">Indicada</th>
+                  <th class="number">Entregada</th>
+                  <th class="number">Pendiente</th>
+                  <th>Estado</th>
+                  <th>Sin existencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of resumen(); track item.clave) {
+                  <tr [class.excede]="item.excede">
+                    <td><strong>{{ item.clave }}</strong></td>
+                    <td>{{ item.medicamento }}</td>
+                    <td class="number">{{ item.indicada }}</td>
+                    <td class="number">{{ item.entregada }}</td>
+                    <td class="number">{{ item.pendiente }}</td>
+                    <td>
+                      <span class="estado" [class]="'estado ' + item.estado">{{ estadoTexto[item.estado] }}</span>
+                      @if (item.excede) {
+                        <small class="error-text">Más de lo indicado</small>
+                      }
+                    </td>
+                    <td>
+                      <label class="check">
+                        <input type="checkbox" [checked]="item.noDispensada" (change)="marcarNoDispensada(item.clave, $any($event.target).checked)" />
+                        No dispensada
+                      </label>
+                      @if (item.noDispensada) {
+                        <input class="celda motivo" [ngModel]="item.motivo" (ngModelChange)="cambiarMotivo(item.clave, $event)" placeholder="Motivo" />
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="7" class="empty">Agrega las claves de la receta en el paso 1.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-foot">
+            <span>
+              @if (faltantes().length) {
+                Falta: {{ faltantes().join(', ') }}.
+              } @else {
+                Lista para guardar. El registro de entregas se conecta cuando exista el endpoint de dispensaciones de Farmacia.
+              }
+            </span>
+            <div class="acciones">
+              <button class="btn secondary" type="button" (click)="limpiarTodo()">Limpiar</button>
+              <button class="btn" type="button" disabled title="Necesita el endpoint de dispensaciones de Farmacia">Confirmar entrega</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>

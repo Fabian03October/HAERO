@@ -1,0 +1,90 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Inventario · HU27</p>
+            <h1>Existencias de Farmacia</h1>
+            <p class="hero-text">Lo que hay en Farmacia por clave, lote y caducidad. Es independiente del inventario de Almacén: lo despachado solo suma aquí cuando Farmacia lo recibe.</p>
+          </div>
+        </header>
+
+        <section class="kpi-grid" aria-label="Totales del inventario de Farmacia">
+          <div class="kpi success"><span class="kpi-title">Piezas disponibles</span><strong>{{ numero(totales().piezas) }}</strong><small>Sin contar los lotes vencidos</small></div>
+          <div class="kpi"><span class="kpi-title">Lotes y claves</span><strong>{{ totales().lotes }}</strong><small>{{ totales().claves }} {{ totales().claves === 1 ? 'clave' : 'claves' }}</small></div>
+          <div class="kpi warning"><span class="kpi-title">Por caducar</span><strong>{{ totales().porCaducar }}</strong><small>En los próximos {{ mesesAlerta }} meses</small></div>
+          <div class="kpi danger"><span class="kpi-title">Vencidos</span><strong>{{ totales().vencidos }}</strong><small>No disponibles · dar de baja (HU35)</small></div>
+        </section>
+
+        <section class="card">
+          <div class="barra">
+            <div class="filtros" role="tablist" aria-label="Estado del lote">
+              @for (opcion of filtros(); track opcion.valor) {
+                <button type="button" role="tab" [class.activo]="filtro() === opcion.valor" [attr.aria-selected]="filtro() === opcion.valor" (click)="filtro.set(opcion.valor)">
+                  {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
+                </button>
+              }
+            </div>
+            <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscarEscaneado()" placeholder="Buscar por clave, medicamento o lote, o escanear la caja" />
+          </div>
+          @if (avisoBusqueda()) {
+            <p class="hint aviso">{{ avisoBusqueda() }}</p>
+          }
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Clave</th>
+                  <th>Medicamento</th>
+                  <th>Lote</th>
+                  <th>Caducidad</th>
+                  <th class="number">Piezas</th>
+                  <th class="number">Cajas</th>
+                  <th>Prioridad</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (lote of lotesFiltrados(); track lote.clave + lote.lote) {
+                  <tr [class.vencido]="lote.estado === 'VENCIDO'">
+                    <td><strong>{{ lote.clave }}</strong></td>
+                    <td>{{ lote.medicamento }}</td>
+                    <td>{{ lote.lote }}</td>
+                    <td>
+                      {{ fecha(lote.caducidad) }}
+                      @if (lote.porCaducar) {
+                        <span class="pill warning">Por caducar</span>
+                      }
+                    </td>
+                    <td class="number">{{ numero(lote.piezas) }}</td>
+                    <td class="number">{{ lote.cajas ?? '—' }}</td>
+                    <td>
+                      @switch (lote.estado) {
+                        @case ('FEFO') { <span class="pill success">Sale primero</span> }
+                        @case ('VENCIDO') { <span class="pill danger">Vencido · no disponible</span> }
+                        @default { <span class="pill">En espera</span> }
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  @if (lotes().length) {
+                    <tr><td colspan="7" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
+                  } @else {
+                    <tr><td colspan="7" class="empty">El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes (HU25) y la recepción de los despachos de Almacén (HU26).</td></tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="nota">Las cajas se calculan con las piezas por caja del catálogo; las piezas sueltas no completan una caja.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>

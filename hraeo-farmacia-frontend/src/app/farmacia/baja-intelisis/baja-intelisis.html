@@ -1,0 +1,129 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Baja en Intelisis · HU31 · HU32</p>
+            <h1>Resumen del día para Intelisis</h1>
+            <p class="hero-text">Todo lo entregado en el día por clave y lote, para dar una sola baja por volumen en Intelisis sin revisar las impresiones una por una. HAERO no escribe en Intelisis: la baja la captura la persona responsable.</p>
+          </div>
+        </header>
+
+        @if (diasPendientes().length) {
+          <div class="banner warn">Días entregados que falta dar de baja: {{ diasPendientesTexto() }}.</div>
+        }
+
+        <section class="card">
+          <div class="barra">
+            <div class="en-linea dia">
+              <label for="dia">Día</label>
+              <input id="dia" type="date" [ngModel]="dia()" (ngModelChange)="dia.set($event)" />
+              <span class="estado" [class.aviso]="estadoDia() === 'PENDIENTE'" [class.ok]="estadoDia() === 'VERIFICADO'">{{ estadoTexto[estadoDia()] }}</span>
+            </div>
+            <div class="acciones">
+              <button class="btn secondary" type="button" [disabled]="!resumen().length">Imprimir</button>
+              <button class="btn secondary" type="button" [disabled]="!resumen().length">Descargar Excel</button>
+            </div>
+          </div>
+
+          <section class="kpi-grid" aria-label="Totales del día">
+            <div class="kpi"><span class="kpi-title">Claves</span><strong>{{ totales().claves }}</strong><small>Con entregas en el día</small></div>
+            <div class="kpi success"><span class="kpi-title">Piezas a dar de baja</span><strong>{{ totales().piezas.toLocaleString('es-MX') }}</strong><small>Ya restadas las devoluciones</small></div>
+            <div class="kpi warning"><span class="kpi-title">Pacientes</span><strong>{{ totales().pacientes }}</strong><small>Atendidos en el día</small></div>
+            <div class="kpi danger"><span class="kpi-title">Con diferencia</span><strong>{{ conDiferencia() }}</strong><small>Contra lo capturado en Intelisis</small></div>
+          </section>
+
+          <h2 class="titulo-tabla">Consumo de pacientes · "Consumo Farmacia"</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Clave Intelisis</th>
+                  <th>Medicamento</th>
+                  <th>Lote</th>
+                  <th class="number">Piezas</th>
+                  <th class="number">Cajas</th>
+                  <th class="number">Pacientes</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (renglon of resumen(); track renglon.claveIntelisis + renglon.lote) {
+                  <tr>
+                    <td><strong>{{ renglon.claveIntelisis }}</strong></td>
+                    <td>{{ renglon.medicamento }}</td>
+                    <td>{{ renglon.lote }}</td>
+                    <td class="number">{{ renglon.piezas }}</td>
+                    <td class="number">{{ cajas(renglon) }}</td>
+                    <td class="number">{{ renglon.pacientes }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="6" class="empty">No hay entregas en este día. El resumen se arma con las entregas (HU28) menos las devoluciones (HU34).</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="nota">La clave se muestra como se captura en Intelisis (con "-1") y en piezas; las cajas son de referencia.</p>
+
+          <h2 class="titulo-tabla">Bajas por caducidad o daño (aparte, no son consumo)</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Clave Intelisis</th><th>Lote</th><th class="number">Piezas</th><th>Motivo</th></tr></thead>
+              <tbody>
+                @for (baja of bajas(); track baja.claveIntelisis + baja.lote) {
+                  <tr><td><strong>{{ baja.claveIntelisis }}</strong></td><td>{{ baja.lote }}</td><td class="number">{{ baja.piezas }}</td><td>{{ baja.motivo }}</td></tr>
+                } @empty {
+                  <tr><td colspan="4" class="empty">Sin bajas en este día (HU35).</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-foot">
+            <div class="en-linea folio">
+              <label for="folio">Folio del movimiento en Intelisis (opcional)</label>
+              <input id="folio" [ngModel]="folioIntelisis()" (ngModelChange)="folioIntelisis.set($event)" placeholder="Ej. 245871" />
+            </div>
+            <button class="btn" type="button" disabled title="Necesita el endpoint de cortes diarios de Farmacia">Dado de baja en Intelisis</button>
+          </div>
+          <p class="nota">Al marcar el día como dado de baja, las entregas de ese día ya no se pueden cancelar; las correcciones se hacen con una devolución.</p>
+        </section>
+
+        <section class="card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Verificación · HU32</p>
+              <h2>HAERO contra lo dado de baja en Intelisis</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Clave Intelisis</th><th>Lote</th><th class="number">Entregado en HAERO</th><th class="number">Baja en Intelisis</th><th class="number">Diferencia</th><th>Resultado</th></tr>
+              </thead>
+              <tbody>
+                @for (renglon of verificacionConResultado(); track renglon.claveIntelisis + renglon.lote) {
+                  <tr>
+                    <td><strong>{{ renglon.claveIntelisis }}</strong></td>
+                    <td>{{ renglon.lote }}</td>
+                    <td class="number">{{ renglon.haero }}</td>
+                    <td class="number">{{ renglon.intelisis }}</td>
+                    <td class="number">{{ renglon.diferencia > 0 ? '+' : '' }}{{ renglon.diferencia }}</td>
+                    <td><span class="estado" [class.ok]="renglon.resultado === 'CUADRA'" [class.mal]="renglon.resultado !== 'CUADRA'">{{ resultadoTexto[renglon.resultado] }}</span></td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="6" class="empty">La verificación aparece después de dar la baja: HAERO lee de Intelisis los "Consumo Farmacia" y "Devolucion Farmacia" del almacén 25301 y los compara por clave y lote.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
