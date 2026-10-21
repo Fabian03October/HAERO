@@ -1,0 +1,7 @@
+/* Recetas parciales: lista a la izquierda, detalle y claves pendientes a la derecha. */
+.claves { display: grid; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+.claves li { display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; background: #faf8f4; }
+.clave-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #4a4a4a; }
+.clave-top strong { color: #611232; }
+.claves small { color: #6f7271; font-size: 12px; }
+.claves .motivo { color: #9a651c; font-weight: 600; }

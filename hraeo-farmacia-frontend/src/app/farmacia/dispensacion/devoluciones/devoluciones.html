@@ -1,0 +1,114 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Dispensación · HU34</p>
+            <h1>Devoluciones</h1>
+            <p class="hero-text">Medicamento que regresa un paciente o servicio. Se liga a su entrega y regresa al mismo lote de Farmacia; lo dañado no regresa al inventario y se registra como merma.</p>
+          </div>
+        </header>
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Paso 1</p>
+                <h2>Busca la entrega</h2>
+              </div>
+            </div>
+            <div class="en-linea">
+              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" placeholder="Folio de la entrega, expediente o escanea la caja" />
+              <button class="btn secondary" type="button" (click)="buscar()">Buscar</button>
+            </div>
+            @if (aviso()) {
+              <p class="hint pendiente">{{ aviso() }}</p>
+            }
+
+            @if (entrega(); as encontrada) {
+              <dl class="datos">
+                <div><dt>Entrega</dt><dd>{{ encontrada.folio }} · receta {{ encontrada.receta }}</dd></div>
+                <div><dt>Paciente</dt><dd>{{ encontrada.paciente }} (exp. {{ encontrada.expediente }})</dd></div>
+                <div><dt>Fecha</dt><dd>{{ encontrada.fecha }}</dd></div>
+              </dl>
+            }
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Clave</th>
+                    <th>Lote</th>
+                    <th class="number">Entregadas</th>
+                    <th class="number">Devuelve</th>
+                    <th>Dañado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (partida of partidas(); track partida.clave + partida.lote; let i = $index) {
+                    <tr [class.excede]="partida.excede">
+                      <td><strong>{{ partida.clave }}</strong><small class="sub">{{ partida.medicamento }}</small></td>
+                      <td>{{ partida.lote }}</td>
+                      <td class="number">{{ partida.entregada }}</td>
+                      <td class="number"><input class="celda corta" type="number" min="0" [max]="partida.entregada" [ngModel]="partida.devolver || null" (ngModelChange)="cambiarPartida(i, { devolver: +$event })" /></td>
+                      <td><input type="checkbox" [checked]="partida.danado" (change)="cambiarPartida(i, { danado: $any($event.target).checked })" /></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty">Busca la entrega para ver sus partidas. No se puede devolver más de lo que se entregó de cada lote.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <div class="field motivo">
+              <label for="motivo">Motivo de la devolución</label>
+              <input id="motivo" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" placeholder="Ej. cambio de tratamiento, alta del paciente" />
+            </div>
+
+            <div class="card-foot">
+              <span>
+                @if (entrega() && faltantes().length) {
+                  Falta: {{ faltantes().join(', ') }}.
+                } @else {
+                  Lo devuelto en buen estado regresa al lote; lo dañado se da de baja como merma (HU35).
+                }
+              </span>
+              <button class="btn" type="button" disabled title="Necesita el endpoint de devoluciones de Farmacia">Registrar devolución</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Resumen del día · HU31</p>
+                <h2>Devoluciones de hoy</h2>
+              </div>
+            </div>
+            @if (devolucionesHoy().length) {
+              <ul class="order-list">
+                @for (devolucion of devolucionesHoy(); track devolucion.folioEntrega + devolucion.lote + devolucion.hora) {
+                  <li>
+                    <div class="order-top"><strong>{{ devolucion.clave }}</strong><span>{{ devolucion.piezas }} piezas</span></div>
+                    <small>Lote {{ devolucion.lote }} · entrega {{ devolucion.folioEntrega }} · {{ devolucion.hora }}</small>
+                    @if (devolucion.danado) {
+                      <small class="pendiente">Dañado: se registró como merma</small>
+                    }
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="empty-box">Aún no hay devoluciones hoy.</p>
+            }
+            <p class="nota">Se restan en el resumen del día para la baja en Intelisis. Si la entrega ya se había dado de baja, el resumen la muestra como "Devolucion Farmacia" para capturarla así.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

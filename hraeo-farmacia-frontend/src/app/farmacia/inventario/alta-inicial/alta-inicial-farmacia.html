@@ -1,0 +1,123 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Inventario · HU25</p>
+            <h1>Alta inicial de Farmacia</h1>
+            <p class="hero-text">Da de alta lo que ya está en los estantes de Farmacia, caja por caja, para que el inventario arranque con lo que de verdad hay. No cuenta como recepción ni como entrega.</p>
+          </div>
+        </header>
+
+        @if (mensaje()) {
+          <div class="banner" [class.error]="tipoMensaje() === 'error'" [class.warn]="tipoMensaje() === 'warn'" [class.info]="tipoMensaje() === 'info'">{{ mensaje() }}</div>
+        }
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Caja del estante</p>
+                <h2>Escanea y cuenta</h2>
+              </div>
+            </div>
+
+            <div class="scanner">
+              <input #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanear()" placeholder="Escanea el código de la caja y presiona Enter" autocomplete="off" />
+              <button type="button" title="Leer código" (click)="escanear()">▣</button>
+              <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
+            </div>
+            @if (camaraAbierta()) {
+              <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
+            }
+
+            <div class="field">
+              <label>Clave</label>
+              @if (medicamento(); as elegido) {
+                <div class="en-linea elegido">
+                  <span><strong>{{ elegido.clave }}</strong> {{ elegido.nombreGenerico }}</span>
+                  <button class="link" type="button" (click)="medicamento.set(null)">Cambiar</button>
+                </div>
+              } @else {
+                <app-buscador-medicamento (elegido)="medicamento.set($event)" />
+              }
+            </div>
+
+            <div class="en-linea">
+              <div class="field">
+                <label for="lote">Lote</label>
+                <input id="lote" [ngModel]="lote()" (ngModelChange)="lote.set($event)" [readonly]="loteDelCodigo()" placeholder="Lote de la caja" />
+              </div>
+              <div class="field">
+                <label for="caducidad">Caducidad</label>
+                <input id="caducidad" type="date" [ngModel]="caducidad()" (ngModelChange)="caducidad.set($event)" [readonly]="loteDelCodigo()" />
+              </div>
+              <div class="field">
+                <label for="piezas">Piezas contadas</label>
+                <input id="piezas" type="number" min="1" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="agregar()" />
+              </div>
+            </div>
+            @if (vencido()) {
+              <div class="banner warn">Este lote ya venció. Se puede dar de alta para que quede registrado, pero no estará disponible para entregar; después se da de baja (HU35).</div>
+            }
+
+            <div class="acciones">
+              <button class="btn" type="button" (click)="agregar()">Agregar a la lista</button>
+              <button class="btn secondary" type="button" (click)="reiniciarCaja()">Limpiar caja</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Por dar de alta</p>
+                <h2>{{ cajas().length }} {{ cajas().length === 1 ? 'lote' : 'lotes' }} · {{ totalPiezas().toLocaleString('es-MX') }} piezas</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Clave</th>
+                    <th>Lote</th>
+                    <th>Caducidad</th>
+                    <th class="number">Piezas</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (caja of cajas(); track caja.id) {
+                    <tr>
+                      <td><strong>{{ caja.clave }}</strong><small class="sub">{{ caja.medicamento }}</small></td>
+                      <td>{{ caja.lote }}</td>
+                      <td>
+                        {{ fecha(caja.caducidad) }}
+                        @if (esVencida(caja)) {
+                          <span class="pill danger">Vencido</span>
+                        }
+                      </td>
+                      <td class="number">{{ caja.piezas }}</td>
+                      <td><button class="link danger" type="button" (click)="quitar(caja.id)">Quitar</button></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty">Escanea la primera caja del estante. Si vuelves a escanear el mismo lote, se suman las piezas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="card-foot">
+              <span>{{ totalClaves() }} {{ totalClaves() === 1 ? 'clave' : 'claves' }}. Cada alta queda con tu usuario, la fecha y la hora.</span>
+              <button class="btn" type="button" disabled title="Necesita el endpoint de alta inicial de Farmacia">Dar de alta</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

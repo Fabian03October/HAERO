@@ -1,0 +1,121 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Inventario · HU35</p>
+            <h1>Caducados y mermas</h1>
+            <p class="hero-text">Baja de lo que caduca, se daña o se extravía en Farmacia, con su motivo. Las bajas descuentan el inventario, no cuentan como entregas a pacientes y aparecen aparte en el resumen del día.</p>
+          </div>
+        </header>
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="barra">
+              <div class="filtros" role="tablist" aria-label="Vista">
+                <button type="button" role="tab" [class.activo]="vista() === 'SUGERIDOS'" (click)="vista.set('SUGERIDOS')">Vencidos por dar de baja <span>{{ vencidos().length }}</span></button>
+                <button type="button" role="tab" [class.activo]="vista() === 'REGISTRADAS'" (click)="vista.set('REGISTRADAS')">Bajas registradas <span>{{ registradas().length }}</span></button>
+              </div>
+            </div>
+
+            @if (vista() === 'SUGERIDOS') {
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th class="number">Piezas</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (lote of vencidos(); track lote.clave + lote.lote) {
+                      <tr class="fila" [class.elegida]="seleccionado()?.lote === lote.lote && seleccionado()?.clave === lote.clave" (click)="elegir(lote)">
+                        <td><strong>{{ lote.clave }}</strong><small class="sub">{{ lote.medicamento }}</small></td>
+                        <td>{{ lote.lote }}</td>
+                        <td>{{ fecha(lote.caducidad) }} <span class="pill danger">Vencido</span></td>
+                        <td class="number">{{ lote.piezas }}</td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="4" class="empty">No hay lotes vencidos en Farmacia. Se sugieren aquí a partir del inventario (HU27); nunca se dan de baja solos.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="nota">Para dar de baja un lote dañado o extraviado que no ha vencido, búscalo en Existencias.</p>
+            } @else {
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Fecha</th><th>Clave</th><th>Lote</th><th class="number">Piezas</th><th>Motivo</th><th>Registró</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (baja of registradas(); track baja.clave + baja.lote + baja.fecha) {
+                      <tr>
+                        <td>{{ fecha(baja.fecha) }}</td>
+                        <td><strong>{{ baja.clave }}</strong></td>
+                        <td>{{ baja.lote }}</td>
+                        <td class="number">{{ baja.piezas }}</td>
+                        <td>{{ motivoTexto[baja.motivo] }}@if (baja.detalle) {<small class="sub">{{ baja.detalle }}</small>}</td>
+                        <td>{{ baja.usuario }}</td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="6" class="empty">Aún no hay bajas registradas en Farmacia.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="nota">{{ piezasRegistradas().toLocaleString('es-MX') }} piezas dadas de baja. Base del reporte de mermas (Iteración 4).</p>
+            }
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Registrar baja</p>
+                <h2>{{ seleccionado()?.lote ?? 'Elige un lote' }}</h2>
+              </div>
+            </div>
+            @if (seleccionado(); as lote) {
+              <dl class="datos">
+                <div><dt>Clave</dt><dd>{{ lote.clave }}</dd></div>
+                <div><dt>Medicamento</dt><dd>{{ lote.medicamento }}</dd></div>
+                <div><dt>Piezas en Farmacia</dt><dd>{{ lote.piezas }}</dd></div>
+              </dl>
+              <div class="field">
+                <label for="piezas">Piezas que se dan de baja</label>
+                <input id="piezas" type="number" min="1" [max]="lote.piezas" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" />
+              </div>
+              <div class="field">
+                <label for="motivo">Motivo</label>
+                <select id="motivo" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)">
+                  @for (opcion of motivos; track opcion.valor) {
+                    <option [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field">
+                <label for="detalle">Detalle {{ motivo() === 'CADUCIDAD' ? '(opcional)' : '' }}</label>
+                <input id="detalle" [ngModel]="detalle()" (ngModelChange)="detalle.set($event)" placeholder="Ej. caja mojada, frasco roto" />
+              </div>
+              <div class="card-foot">
+                <span>
+                  @if (faltantes().length) {
+                    Falta: {{ faltantes().join(', ') }}.
+                  } @else {
+                    Lista para registrar. Queda con tu usuario, la fecha y el motivo.
+                  }
+                </span>
+                <button class="btn" type="button" disabled title="Necesita el endpoint de bajas de Farmacia">Dar de baja</button>
+              </div>
+            } @else {
+              <p class="empty-box">Elige un lote vencido de la lista. El sistema lo sugiere, pero la baja siempre la confirma una persona.</p>
+            }
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

@@ -1,0 +1,98 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Trazabilidad · HU33</p>
+            <h1>Trazabilidad de lote a paciente</h1>
+            <p class="hero-text">Dado un lote, su recorrido desde el pedido hasta los pacientes que lo recibieron; dado un expediente, los lotes que recibió el paciente. Sirve para actuar ante una alerta sanitaria o un retiro del proveedor.</p>
+          </div>
+        </header>
+
+        <section class="card">
+          <div class="barra">
+            <div class="filtros" role="tablist" aria-label="Buscar por">
+              <button type="button" role="tab" [class.activo]="modo() === 'LOTE'" (click)="cambiarModo('LOTE')">Por lote</button>
+              <button type="button" role="tab" [class.activo]="modo() === 'EXPEDIENTE'" (click)="cambiarModo('EXPEDIENTE')">Por expediente</button>
+            </div>
+            <div class="en-linea buscador">
+              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" [placeholder]="modo() === 'LOTE' ? 'Lote o escanea la caja' : 'Número de expediente'" />
+              <button class="btn" type="button" (click)="buscar()">Buscar</button>
+            </div>
+          </div>
+          @if (aviso()) {
+            <p class="hint pendiente">{{ aviso() }}</p>
+          }
+          <p class="privacidad">Solo Farmacia y Supervisión ven los datos de pacientes. Cada consulta queda registrada con tu usuario, la fecha y la hora.</p>
+        </section>
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Recorrido del lote</p>
+                <h2>Del pedido al paciente</h2>
+              </div>
+            </div>
+            <ol class="recorrido">
+              @for (paso of recorrido(); track paso.etapa) {
+                <li [class.hecho]="!!paso.fecha">
+                  <strong>{{ paso.etapa }}</strong>
+                  <span>{{ paso.fecha ?? 'Sin datos' }}</span>
+                  <small>{{ paso.detalle }}</small>
+                </li>
+              }
+            </ol>
+          </section>
+
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">{{ modo() === 'LOTE' ? 'Pacientes que recibieron el lote' : 'Lotes que recibió el paciente' }}</p>
+                <h2>Entregas</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    @if (modo() === 'LOTE') {
+                      <th>Paciente</th>
+                    } @else {
+                      <th>Clave · lote</th>
+                    }
+                    <th class="number">Piezas</th>
+                    <th>Entregó</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (entrega of entregas(); track entrega.folio + entrega.lote) {
+                    <tr>
+                      <td>{{ entrega.fecha }}<small class="sub">{{ entrega.folio }}</small></td>
+                      @if (modo() === 'LOTE') {
+                        <td>{{ entrega.paciente }}<small class="sub">Exp. {{ entrega.expediente }}</small></td>
+                      } @else {
+                        <td>{{ entrega.clave }}<small class="sub">Lote {{ entrega.lote }}</small></td>
+                      }
+                      <td class="number">{{ entrega.piezas }}</td>
+                      <td>{{ entrega.despachador }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="empty">Busca un {{ modo() === 'LOTE' ? 'lote' : 'expediente' }} para ver sus entregas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

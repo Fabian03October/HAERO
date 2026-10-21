@@ -1,0 +1,124 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Dispensación · HU29</p>
+            <h1>Recetas parciales y no dispensadas</h1>
+            <p class="hero-text">Recetas que se surtieron en parte o que no se pudieron surtir por falta de existencia, con lo pendiente de cada clave. Una receta parcial se completa con otra entrega ligada a la misma receta.</p>
+          </div>
+        </header>
+
+        <div class="two-columns">
+          <section class="card">
+            <div class="barra">
+              <div class="filtros" role="tablist" aria-label="Estado de la receta">
+                @for (filtro of filtros(); track filtro.valor) {
+                  <button type="button" role="tab" [class.activo]="filtroEstado() === filtro.valor" [attr.aria-selected]="filtroEstado() === filtro.valor" (click)="filtroEstado.set(filtro.valor)">
+                    {{ filtro.etiqueta }} <span>{{ filtro.total }}</span>
+                  </button>
+                }
+              </div>
+              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar por folio, expediente, paciente o clave" />
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Folio</th>
+                    <th>Paciente</th>
+                    <th>Fecha</th>
+                    <th class="number">Claves</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (receta of recetasFiltradas(); track receta.folio) {
+                    <tr class="fila" [class.elegida]="seleccionada()?.folio === receta.folio" (click)="seleccionada.set(receta)">
+                      <td><strong>{{ receta.folio }}</strong></td>
+                      <td>{{ receta.paciente }}<small class="sub">Exp. {{ receta.expediente }}</small></td>
+                      <td>{{ fecha(receta.fecha) }}</td>
+                      <td class="number">{{ receta.claves.length }}</td>
+                      <td><span class="estado" [class]="'estado ' + receta.estado">{{ estadoTexto[receta.estado] }}</span></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty">No hay recetas parciales ni no dispensadas. Aparecerán aquí cuando una entrega (HU28) quede incompleta.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="lateral">
+            <section class="card">
+              <div class="card-heading">
+                <div>
+                  <p class="eyebrow">Detalle</p>
+                  <h2>{{ seleccionada()?.folio ?? 'Elige una receta' }}</h2>
+                </div>
+              </div>
+              @if (seleccionada(); as receta) {
+                <dl class="datos">
+                  <div><dt>Paciente</dt><dd>{{ receta.paciente }}</dd></div>
+                  <div><dt>Expediente</dt><dd>{{ receta.expediente }}</dd></div>
+                  <div><dt>Entregó</dt><dd>{{ receta.despachador }}</dd></div>
+                </dl>
+                <ul class="claves">
+                  @for (item of receta.claves; track item.clave) {
+                    <li>
+                      <div class="clave-top">
+                        <strong>{{ item.clave }}</strong>
+                        @if (item.noDispensada) {
+                          <span class="estado NO_DISPENSADA">No dispensada</span>
+                        } @else {
+                          <span>{{ item.entregada }} de {{ item.indicada }} piezas</span>
+                        }
+                      </div>
+                      <small>{{ item.medicamento }}</small>
+                      @if (item.noDispensada) {
+                        <small class="motivo">Motivo: {{ item.motivo }}</small>
+                      } @else if (pendiente(item)) {
+                        <small class="motivo">Faltan {{ pendiente(item) }} piezas</small>
+                      }
+                    </li>
+                  }
+                </ul>
+                <a class="btn block" routerLink="/farmacia/dispensacion/nueva" [queryParams]="{ receta: receta.folio }">Completar entrega</a>
+              } @else {
+                <p class="empty-box">Al elegir una receta se ve lo entregado y lo pendiente de cada clave.</p>
+              }
+            </section>
+
+            <section class="card">
+              <div class="card-heading">
+                <div>
+                  <p class="eyebrow">Desabasto en Farmacia</p>
+                  <h2>Claves más pendientes</h2>
+                </div>
+              </div>
+              @if (clavesMasPendientes().length) {
+                <ul class="order-list">
+                  @for (item of clavesMasPendientes(); track item.clave) {
+                    <li>
+                      <div class="order-top"><strong>{{ item.clave }}</strong><span>{{ item.piezas }} piezas</span></div>
+                      <small>{{ item.medicamento }} · {{ item.recetas }} {{ item.recetas === 1 ? 'receta' : 'recetas' }}</small>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="empty-box">Sin claves pendientes. Sirve para pedir a Almacén lo que falta y es la base de las alertas de desabasto (Iteración 4).</p>
+              }
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
