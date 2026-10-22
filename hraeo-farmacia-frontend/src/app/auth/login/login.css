@@ -61,22 +61,6 @@
   color: rgb(255 255 255 / 80%);
 }
 
-.modules {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 26px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.modules li {
-  padding: 5px 12px;
-  border: 1px solid rgb(255 255 255 / 35%);
-  border-radius: 999px;
-  font-size: 12px;
-}
-
 .brand-foot {
   position: relative;
   margin: 0;
@@ -134,5 +118,5 @@
   .login-brand { flex: none; padding: 28px 24px 32px; }
   .brand-text h2 { font-size: 24px; }
   .brand-logo { width: 150px; margin-bottom: 18px; }
-  .modules, .brand-foot, .greca { display: none; }
+  .brand-foot, .greca { display: none; }
 }

@@ -34,6 +34,22 @@ interface CajaEscaneada {
 
 type EstadoClave = 'COMPLETA' | 'PARCIAL' | 'NO_DISPENSADA' | 'SIN_ENTREGAR';
 
+// Hay tres tipos de receta: unas traen nombre y expediente, otras la CURP y otras solo el
+// nombre; por eso el paciente se busca de tres formas.
+type ModoPaciente = 'EXPEDIENTE' | 'NOMBRE' | 'CURP';
+
+// Paciente leído de Intelisis (solo lectura); cada receta trae unos datos u otros.
+interface Paciente {
+  nombre: string;
+  expediente: string | null;
+  curp: string | null;
+}
+
+// Formato oficial de la CURP: 18 caracteres.
+const PATRON_CURP = /^[A-Z][AEIOUX][A-Z]{2}\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\d$/;
+// Letras mínimas para buscar por nombre.
+const MINIMO_NOMBRE = 3;
+
 // Farmacia · Nueva entrega (HU28 a HU30). Maquetado solo en el frontend:
 // - el catálogo de medicamentos ya existe en el backend y se usa;
 // - buscar al paciente en Intelisis, el lote FEFO de Farmacia y guardar la entrega
@@ -52,9 +68,20 @@ export class NuevaEntrega {
   readonly items = FARMACIA_MENU;
 
   // ---------- Paciente y receta ----------
-  readonly expediente = signal('');
+  readonly modoPaciente = signal<ModoPaciente>('EXPEDIENTE');
+  readonly busquedaPaciente = signal('');
+  readonly paciente = signal<Paciente | null>(null);
+  // Al buscar por nombre puede haber varios pacientes que se llamen igual.
+  readonly coincidencias = signal<Paciente[]>([]);
   readonly folioReceta = signal('');
   readonly avisoPaciente = signal('');
+
+  readonly modosPaciente: { valor: ModoPaciente; etiqueta: string; placeholder: string }[] = [
+    { valor: 'EXPEDIENTE', etiqueta: 'Expediente', placeholder: 'Escribe o escanea el número de expediente' },
+    { valor: 'NOMBRE', etiqueta: 'Nombre', placeholder: 'Nombre y apellidos del paciente' },
+    { valor: 'CURP', etiqueta: 'CURP', placeholder: 'CURP de 18 caracteres' },
+  ];
+  readonly placeholderPaciente = computed(() => this.modosPaciente.find((modo) => modo.valor === this.modoPaciente())!.placeholder);
 
   cantidadIndicada = 0;
   readonly claves = signal<ClaveReceta[]>([]);
@@ -97,7 +124,7 @@ export class NuevaEntrega {
   // Lo que falta para poder confirmar, en el orden en que se captura.
   readonly faltantes = computed(() => {
     const faltan: string[] = [];
-    if (!this.expediente().trim()) faltan.push('el expediente del paciente');
+    if (!this.paciente() && !this.busquedaPaciente().trim()) faltan.push('buscar al paciente por expediente, nombre o CURP');
     if (!this.folioReceta().trim()) faltan.push('el folio de la receta');
     if (!this.claves().length) faltan.push('al menos una clave de la receta');
     if (this.resumen().some((item) => item.excede)) faltan.push('corregir las claves con más piezas de las indicadas');
@@ -118,13 +145,48 @@ export class NuevaEntrega {
     this.folioReceta.set(inject(ActivatedRoute).snapshot.queryParamMap.get('receta') ?? '');
   }
 
+  cambiarModoPaciente(modo: ModoPaciente): void {
+    this.modoPaciente.set(modo);
+    this.busquedaPaciente.set('');
+    this.coincidencias.set([]);
+    this.avisoPaciente.set('');
+  }
+
+  cambiarBusquedaPaciente(valor: string): void {
+    // La CURP siempre va en mayúsculas.
+    this.busquedaPaciente.set(this.modoPaciente() === 'CURP' ? valor.toUpperCase() : valor);
+  }
+
   buscarPaciente(): void {
-    if (!this.expediente().trim()) {
-      this.avisoPaciente.set('Escribe o escanea el número de expediente.');
+    const texto = this.busquedaPaciente().trim();
+    const modo = this.modoPaciente();
+    if (!texto) {
+      this.avisoPaciente.set(this.placeholderPaciente() + '.');
       return;
     }
-    // HU28 CA1: el nombre se leerá de Intelisis en solo lectura con GET /api/farmacia/pacientes?expediente=.
-    this.avisoPaciente.set('La búsqueda del nombre en Intelisis se conecta cuando exista el endpoint de pacientes de Farmacia.');
+    if (modo === 'CURP' && !PATRON_CURP.test(texto)) {
+      this.avisoPaciente.set(`La CURP no tiene el formato correcto (18 caracteres, por ejemplo GOMA850312MOCRRN09). Lleva ${texto.length}.`);
+      return;
+    }
+    if (modo === 'NOMBRE' && texto.replace(/\s/g, '').length < MINIMO_NOMBRE) {
+      this.avisoPaciente.set(`Escribe al menos ${MINIMO_NOMBRE} letras del nombre.`);
+      return;
+    }
+    // HU28 CA1: el paciente se leerá de Intelisis en solo lectura con
+    // GET /api/farmacia/pacientes?expediente= | ?nombre= | ?curp=. Por nombre puede haber varios.
+    const dato = { EXPEDIENTE: 'expediente', NOMBRE: 'nombre', CURP: 'CURP' }[modo];
+    this.avisoPaciente.set(`La búsqueda por ${dato} en Intelisis se conecta cuando exista el endpoint de pacientes de Farmacia.`);
+  }
+
+  elegirPaciente(paciente: Paciente): void {
+    this.paciente.set(paciente);
+    this.coincidencias.set([]);
+    this.avisoPaciente.set('');
+  }
+
+  cambiarPaciente(): void {
+    this.paciente.set(null);
+    this.busquedaPaciente.set('');
   }
 
   // ---------- Claves de la receta ----------
@@ -224,7 +286,9 @@ export class NuevaEntrega {
   }
 
   limpiarTodo(): void {
-    this.expediente.set('');
+    this.busquedaPaciente.set('');
+    this.paciente.set(null);
+    this.coincidencias.set([]);
     this.folioReceta.set('');
     this.avisoPaciente.set('');
     this.claves.set([]);

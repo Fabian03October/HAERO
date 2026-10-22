@@ -29,18 +29,41 @@
               </div>
             </div>
 
-            <div class="field">
-              <label for="expediente">Expediente</label>
-              <div class="en-linea">
-                <input id="expediente" [ngModel]="expediente()" (ngModelChange)="expediente.set($event)"(keyup.enter)="buscarPaciente()" placeholder="Escribe o escanea el expediente" autocomplete="off" />
-                <button class="btn secondary" type="button" (click)="buscarPaciente()">Buscar</button>
+            @if (paciente(); as elegido) {
+              <div class="paciente">
+                <span>Paciente</span>
+                <strong>{{ elegido.nombre }}</strong>
+                <small>Expediente {{ elegido.expediente ?? '—' }} · CURP {{ elegido.curp ?? '—' }}</small>
+                <button class="link" type="button" (click)="cambiarPaciente()">Cambiar paciente</button>
               </div>
-            </div>
-            <div class="paciente">
-              <span>Paciente</span>
-              <strong>—</strong>
-              <small>El nombre se trae de Intelisis; no se teclea.</small>
-            </div>
+            } @else {
+              <div class="field">
+                <label for="paciente">Buscar al paciente por</label>
+                <div class="filtros modos" role="tablist" aria-label="Buscar al paciente por">
+                  @for (modo of modosPaciente; track modo.valor) {
+                    <button type="button" role="tab" [class.activo]="modoPaciente() === modo.valor" [attr.aria-selected]="modoPaciente() === modo.valor" (click)="cambiarModoPaciente(modo.valor)">{{ modo.etiqueta }}</button>
+                  }
+                </div>
+                <div class="en-linea">
+                  <input id="paciente" [ngModel]="busquedaPaciente()" (ngModelChange)="cambiarBusquedaPaciente($event)" (keyup.enter)="buscarPaciente()"
+                    [placeholder]="placeholderPaciente()" [attr.maxlength]="modoPaciente() === 'CURP' ? 18 : null" autocomplete="off" />
+                  <button class="btn secondary" type="button" (click)="buscarPaciente()">Buscar</button>
+                </div>
+                <p class="hint">Usa el dato que traiga la receta: expediente, nombre o CURP. Los datos del paciente se traen de Intelisis.</p>
+              </div>
+              @if (coincidencias().length) {
+                <ul class="coincidencias">
+                  @for (opcion of coincidencias(); track (opcion.expediente ?? '') + (opcion.curp ?? '') + opcion.nombre) {
+                    <li>
+                      <button type="button" (click)="elegirPaciente(opcion)">
+                        <strong>{{ opcion.nombre }}</strong>
+                        <small>Expediente {{ opcion.expediente ?? '—' }} · CURP {{ opcion.curp ?? '—' }}</small>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            }
             @if (avisoPaciente()) {
               <p class="hint pendiente">{{ avisoPaciente() }}</p>
             }
