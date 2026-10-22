@@ -5,7 +5,15 @@
 .paciente span { color: #6f7271; font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .paciente strong { color: #611232; font-size: 16px; }
 .paciente small { color: #8c8a86; font-size: 12px; }
+.paciente .link { justify-self: start; padding-left: 0; }
 p.pendiente { margin: -8px 0 16px; }
+
+.modos { margin-bottom: 8px; }
+.coincidencias { display: grid; gap: 6px; margin: -6px 0 16px; padding: 0; list-style: none; }
+.coincidencias button { display: grid; gap: 2px; width: 100%; padding: 10px 12px; border: 1px solid #e4ddd3; border-radius: 10px; background: #fff; font: inherit; text-align: left; cursor: pointer; }
+.coincidencias button:hover { border-color: #9f2241; background: #faf8f4; }
+.coincidencias strong { color: #611232; font-size: 13px; }
+.coincidencias small { color: #6f7271; font-size: 12px; }
 
 .elegida { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 10px 12px; border: 1px solid #e8c9d2; border-radius: 10px; background: #f6e9ed; }
 .elegida div { display: grid; gap: 2px; font-size: 13px; }
