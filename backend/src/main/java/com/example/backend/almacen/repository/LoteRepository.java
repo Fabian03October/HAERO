@@ -15,4 +15,7 @@ public interface LoteRepository extends JpaRepository<Lote, Long> {
     boolean existsByMedicamentoClaveAndNumeroLoteIgnoreCase(String medicamentoClave, String numeroLote);
 
     List<Lote> findByMedicamentoClaveAndNumeroLoteIgnoreCaseAndEstatus(String medicamentoClave, String numeroLote, String estatus);
+
+    // Trazabilidad de Farmacia (HU33): el lote buscado en cualquier clave.
+    List<Lote> findByNumeroLoteIgnoreCase(String numeroLote);
 }

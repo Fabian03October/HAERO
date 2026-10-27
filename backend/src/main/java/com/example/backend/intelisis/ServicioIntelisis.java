@@ -71,16 +71,36 @@ public class ServicioIntelisis {
      * por ejemplo, 20 contra 50). Intelisis guarda piezas en la clave "-1" y cajas en la
      * clave base (antes de la Conversion); se pasa todo a cajas con las piezas por caja
      * del catalogo. En ambos lados se ignoran los lotes ya caducados.
+     *
+     * En Intelisis Almacen y Farmacia son el mismo almacen 25301, asi que del lado de HAERO
+     * se suman las cajas de Almacen y las piezas de Farmacia pasadas a cajas: un despacho a
+     * Farmacia no es una diferencia (HU27 CA6).
      */
     public List<ComparacionClaveResponse> comparacion() {
         String sql = """
-                WITH h AS (
+                WITH ha AS (
                     SELECT l.medicamento_clave AS clave, SUM(e.cantidad_cajas) AS cajas,
-                           COUNT(DISTINCT l.id) AS lotes, MIN(l.caducidad) AS proxima
+                           COUNT(DISTINCT l.numero_lote) AS lotes, MIN(l.caducidad) AS proxima
                     FROM existencia e
                     JOIN lote l ON l.id = e.lote_id
                     WHERE e.cantidad_cajas > 0 AND l.caducidad >= CAST(GETDATE() AS date)
                     GROUP BY l.medicamento_clave
+                ), hf AS (
+                    SELECT f.medicamento_clave AS clave, SUM(f.piezas) AS piezas,
+                           COUNT(*) AS lotes, MIN(f.caducidad) AS proxima
+                    FROM farmacia_lote f
+                    WHERE f.piezas > 0 AND f.caducidad >= CAST(GETDATE() AS date)
+                    GROUP BY f.medicamento_clave
+                ), h AS (
+                    SELECT COALESCE(ha.clave, hf.clave) AS clave, ha.cajas AS cajas_almacen, hf.piezas AS piezas_farmacia,
+                           CAST(COALESCE(ha.cajas, 0) + CASE WHEN mh.piezas_por_caja > 0 THEN COALESCE(hf.piezas, 0) * 1.0 / mh.piezas_por_caja ELSE 0 END
+                                AS DECIMAL(19, 2)) AS cajas,
+                           -- Un lote puede estar en los dos lados; se cuenta el mayor como aproximación.
+                           CASE WHEN COALESCE(ha.lotes, 0) > COALESCE(hf.lotes, 0) THEN ha.lotes ELSE hf.lotes END AS lotes,
+                           CASE WHEN hf.proxima IS NULL OR ha.proxima < hf.proxima THEN ha.proxima ELSE hf.proxima END AS proxima
+                    FROM ha
+                    FULL OUTER JOIN hf ON hf.clave = ha.clave
+                    LEFT JOIN medicamento mh ON mh.clave = COALESCE(ha.clave, hf.clave)
                 ), i AS (
                     SELECT x.clave_base AS clave, MAX(x.articulo) AS articulo,
                            SUM(CASE WHEN x.articulo = x.clave_base THEN x.existencia * m.piezas_por_caja ELSE x.existencia END) AS piezas,
@@ -96,7 +116,7 @@ public class ServicioIntelisis {
                 )
                 SELECT COALESCE(h.clave, i.clave) AS clave,
                        COALESCE(m.nombre_generico, a.descripcion) AS nombre,
-                       h.cajas, h.lotes AS h_lotes, h.proxima AS h_proxima, m.piezas_por_caja,
+                       h.cajas, h.cajas_almacen, h.piezas_farmacia, h.lotes AS h_lotes, h.proxima AS h_proxima, m.piezas_por_caja,
                        i.articulo, i.piezas, CAST(ROUND(i.cajas, 2) AS DECIMAL(19, 2)) AS i_cajas,
                        i.lotes AS i_lotes, i.proxima AS i_proxima
                 FROM h
@@ -112,7 +132,8 @@ public class ServicioIntelisis {
             String estado = enHaero && enIntelisis ? "EN_AMBOS" : enHaero ? "SOLO_HAERO" : "SOLO_INTELISIS";
             return new ComparacionClaveResponse(
                     rs.getString("clave"), rs.getString("nombre"), estado,
-                    enteroONull(rs, "cajas"), enteroONull(rs, "h_lotes"), fecha(rs, "h_proxima"), enteroONull(rs, "piezas_por_caja"),
+                    rs.getBigDecimal("cajas"), enteroONull(rs, "cajas_almacen"), enteroONull(rs, "piezas_farmacia"),
+                    enteroONull(rs, "h_lotes"), fecha(rs, "h_proxima"), enteroONull(rs, "piezas_por_caja"),
                     rs.getString("articulo"), rs.getBigDecimal("piezas"), rs.getBigDecimal("i_cajas"),
                     enteroONull(rs, "i_lotes"), fecha(rs, "i_proxima"));
         }, almacenPrincipal);

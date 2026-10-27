@@ -19,7 +19,10 @@ public class ComparacionClaveResponse {
     // EN_AMBOS, SOLO_HAERO o SOLO_INTELISIS.
     private String estado;
 
-    private Integer haeroCajas;
+    // Almacén + Farmacia en cajas (las piezas de Farmacia entre las piezas por caja).
+    private BigDecimal haeroCajas;
+    private Integer haeroCajasAlmacen;
+    private Integer farmaciaPiezas;
     private Integer haeroLotes;
     private LocalDate haeroProximaCaducidad;
     private Integer piezasPorCaja;
