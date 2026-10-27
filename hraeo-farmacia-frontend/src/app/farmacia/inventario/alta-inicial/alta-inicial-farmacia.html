@@ -113,7 +113,7 @@
             </div>
             <div class="card-foot">
               <span>{{ totalClaves() }} {{ totalClaves() === 1 ? 'clave' : 'claves' }}. Cada alta queda con tu usuario, la fecha y la hora.</span>
-              <button class="btn" type="button" disabled title="Necesita el endpoint de alta inicial de Farmacia">Dar de alta</button>
+              <button class="btn" type="button" [disabled]="!cajas().length || guardando()" (click)="darDeAlta()">{{ guardando() ? 'Guardando…' : 'Dar de alta' }}</button>
             </div>
           </section>
         </div>

@@ -15,7 +15,11 @@
           </div>
         </header>
 
-        <section class="kpi-grid" aria-label="Totales del inventario de Farmacia">
+        @if (error()) {
+        <div class="banner error">{{ error() }}</div>
+      }
+
+      <section class="kpi-grid" aria-label="Totales del inventario de Farmacia">
           <div class="kpi success"><span class="kpi-title">Piezas disponibles</span><strong>{{ numero(totales().piezas) }}</strong><small>Sin contar los lotes vencidos</small></div>
           <div class="kpi"><span class="kpi-title">Lotes y claves</span><strong>{{ totales().lotes }}</strong><small>{{ totales().claves }} {{ totales().claves === 1 ? 'clave' : 'claves' }}</small></div>
           <div class="kpi warning"><span class="kpi-title">Por caducar</span><strong>{{ totales().porCaducar }}</strong><small>En los próximos {{ mesesAlerta }} meses</small></div>
@@ -76,7 +80,7 @@
                   @if (lotes().length) {
                     <tr><td colspan="7" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
                   } @else {
-                    <tr><td colspan="7" class="empty">El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes (HU25) y la recepción de los despachos de Almacén (HU26).</td></tr>
+                    <tr><td colspan="7" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes (HU25) y la recepción de los despachos de Almacén (HU26).' }}</td></tr>
                   }
                 }
               </tbody>

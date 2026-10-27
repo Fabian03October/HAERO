@@ -15,6 +15,15 @@
           </div>
         </header>
 
+        @if (error()) {
+          <div class="banner error">{{ error() }}</div>
+        }
+        @if (aviso()) {
+          <div class="banner info">{{ aviso() }}</div>
+        }
+        @if (corte()?.cambiosDespuesDeLaBaja) {
+          <div class="banner warn">Hubo {{ corte()!.cambiosDespuesDeLaBaja }} movimientos después de marcar este día: vuelve a capturar la diferencia en Intelisis y márcalo otra vez.</div>
+        }
         @if (diasPendientes().length) {
           <div class="banner warn">Días entregados que falta dar de baja: {{ diasPendientesTexto() }}.</div>
         }
@@ -23,12 +32,12 @@
           <div class="barra">
             <div class="en-linea dia">
               <label for="dia">Día</label>
-              <input id="dia" type="date" [ngModel]="dia()" (ngModelChange)="dia.set($event)" />
+              <input id="dia" type="date" [ngModel]="dia()" (ngModelChange)="cambiarDia($event)" />
               <span class="estado" [class.aviso]="estadoDia() === 'PENDIENTE'" [class.ok]="estadoDia() === 'VERIFICADO'">{{ estadoTexto[estadoDia()] }}</span>
             </div>
             <div class="acciones">
-              <button class="btn secondary" type="button" [disabled]="!resumen().length">Imprimir</button>
-              <button class="btn secondary" type="button" [disabled]="!resumen().length">Descargar Excel</button>
+              <button class="btn secondary" type="button" [disabled]="!hayMovimientos()" (click)="imprimir()">Imprimir</button>
+              <button class="btn secondary" type="button" [disabled]="!hayMovimientos()" (click)="descargarExcel()">Descargar Excel</button>
             </div>
           </div>
 
@@ -70,13 +79,27 @@
           </div>
           <p class="nota">La clave se muestra como se captura en Intelisis (con "-1") y en piezas; las cajas son de referencia.</p>
 
+          @if (devolucionesPosteriores().length) {
+            <h2 class="titulo-tabla">Devoluciones de días ya dados de baja · "Devolucion Farmacia"</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Clave Intelisis</th><th>Medicamento</th><th>Lote</th><th class="number">Piezas</th></tr></thead>
+                <tbody>
+                  @for (renglon of devolucionesPosteriores(); track renglon.claveIntelisis + renglon.lote) {
+                    <tr><td><strong>{{ renglon.claveIntelisis }}</strong></td><td>{{ renglon.medicamento }}</td><td>{{ renglon.lote }}</td><td class="number">{{ renglon.piezas }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
           <h2 class="titulo-tabla">Bajas por caducidad o daño (aparte, no son consumo)</h2>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Clave Intelisis</th><th>Lote</th><th class="number">Piezas</th><th>Motivo</th></tr></thead>
               <tbody>
-                @for (baja of bajas(); track baja.claveIntelisis + baja.lote) {
-                  <tr><td><strong>{{ baja.claveIntelisis }}</strong></td><td>{{ baja.lote }}</td><td class="number">{{ baja.piezas }}</td><td>{{ baja.motivo }}</td></tr>
+                @for (baja of bajas(); track baja.claveIntelisis + baja.lote + baja.motivo) {
+                  <tr><td><strong>{{ baja.claveIntelisis }}</strong></td><td>{{ baja.lote }}</td><td class="number">{{ baja.piezas }}</td><td>{{ motivoTexto[baja.motivo] ?? baja.motivo }}</td></tr>
                 } @empty {
                   <tr><td colspan="4" class="empty">Sin bajas en este día (HU35).</td></tr>
                 }
@@ -89,7 +112,7 @@
               <label for="folio">Folio del movimiento en Intelisis (opcional)</label>
               <input id="folio" [ngModel]="folioIntelisis()" (ngModelChange)="folioIntelisis.set($event)" placeholder="Ej. 245871" />
             </div>
-            <button class="btn" type="button" disabled title="Necesita el endpoint de cortes diarios de Farmacia">Dado de baja en Intelisis</button>
+            <button class="btn" type="button" [disabled]="!hayMovimientos() || trabajando()" (click)="marcarDadoDeBaja()">{{ estadoDia() === 'PENDIENTE' ? 'Dado de baja en Intelisis' : 'Volver a marcar' }}</button>
           </div>
           <p class="nota">Al marcar el día como dado de baja, las entregas de ese día ya no se pueden cancelar; las correcciones se hacen con una devolución.</p>
         </section>
@@ -100,7 +123,11 @@
               <p class="eyebrow">Verificación · HU32</p>
               <h2>HAERO contra lo dado de baja en Intelisis</h2>
             </div>
+            <button class="btn secondary" type="button" [disabled]="estadoDia() === 'PENDIENTE' || trabajando()" (click)="verificar()">Verificar con Intelisis</button>
           </div>
+          @if (verificacion().length) {
+            <p class="nota">Datos de Intelisis de la última sincronización: {{ fechaHora(sincronizadoEn()) }} · {{ conDiferencia() ? conDiferencia() + ' renglones con diferencia.' : 'Todo cuadra.' }}</p>
+          }
           <div class="table-wrap">
             <table>
               <thead>

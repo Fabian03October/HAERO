@@ -23,7 +23,7 @@
             </div>
             <div class="en-linea buscador">
               <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" [placeholder]="modo() === 'LOTE' ? 'Lote o escanea la caja' : 'Número de expediente'" />
-              <button class="btn" type="button" (click)="buscar()">Buscar</button>
+              <button class="btn" type="button" [disabled]="buscando()" (click)="buscar()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
             </div>
           </div>
           @if (aviso()) {

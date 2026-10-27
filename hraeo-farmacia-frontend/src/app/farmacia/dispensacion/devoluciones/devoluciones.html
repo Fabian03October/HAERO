@@ -24,17 +24,30 @@
               </div>
             </div>
             <div class="en-linea">
-              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" placeholder="Folio de la entrega, expediente o escanea la caja" />
-              <button class="btn secondary" type="button" (click)="buscar()">Buscar</button>
+              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" placeholder="Folio de la entrega o de la receta, expediente o escanea la caja" />
+              <button class="btn secondary" type="button" [disabled]="buscando()" (click)="buscar()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
             </div>
+            @if (error()) {
+              <div class="banner error">{{ error() }}</div>
+            }
             @if (aviso()) {
               <p class="hint pendiente">{{ aviso() }}</p>
+            }
+            @if (encontradas().length) {
+              <ul class="order-list">
+                @for (opcion of encontradas(); track opcion.id) {
+                  <li class="fila" (click)="elegirEntrega(opcion)">
+                    <div class="order-top"><strong>{{ opcion.folio }}</strong><span>receta {{ opcion.receta }}</span></div>
+                    <small>{{ opcion.paciente }} · {{ opcion.partidas.length }} {{ opcion.partidas.length === 1 ? 'lote' : 'lotes' }}</small>
+                  </li>
+                }
+              </ul>
             }
 
             @if (entrega(); as encontrada) {
               <dl class="datos">
                 <div><dt>Entrega</dt><dd>{{ encontrada.folio }} · receta {{ encontrada.receta }}</dd></div>
-                <div><dt>Paciente</dt><dd>{{ encontrada.paciente }} (exp. {{ encontrada.expediente }})</dd></div>
+                <div><dt>Paciente</dt><dd>{{ encontrada.paciente }} (exp. {{ encontrada.expediente ?? '—' }})</dd></div>
                 <div><dt>Fecha</dt><dd>{{ encontrada.fecha }}</dd></div>
               </dl>
             }
@@ -79,7 +92,7 @@
                   Lo devuelto en buen estado regresa al lote; lo dañado se da de baja como merma (HU35).
                 }
               </span>
-              <button class="btn" type="button" disabled title="Necesita el endpoint de devoluciones de Farmacia">Registrar devolución</button>
+              <button class="btn" type="button" [disabled]="!entrega() || faltantes().length > 0 || guardando()" (click)="registrar()">{{ guardando() ? 'Guardando…' : 'Registrar devolución' }}</button>
             </div>
           </section>
 

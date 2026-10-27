@@ -4,34 +4,15 @@ import { RouterLink } from '@angular/router';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
 import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
+import { mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
+import { ClaveReceta, FarmaciaApi, Receta } from '../../farmacia-api';
 
 type EstadoReceta = 'PARCIAL' | 'NO_DISPENSADA';
+type RecetaPendiente = Receta & { estado: EstadoReceta };
 
-// Clave de una receta con lo que falta por surtir.
-interface ClavePendiente {
-  clave: string;
-  medicamento: string;
-  indicada: number;
-  entregada: number;
-  noDispensada: boolean;
-  motivo: string;
-}
-
-// Receta surtida en parte o no dispensada (HU29).
-interface RecetaPendiente {
-  folio: string;
-  expediente: string;
-  paciente: string;
-  fecha: string;
-  despachador: string;
-  estado: EstadoReceta;
-  claves: ClavePendiente[];
-}
-
-// Farmacia · Recetas parciales y no dispensadas (HU29). Maquetado solo en el frontend:
-// la lista se llena cuando exista el endpoint de recetas de Farmacia; mientras tanto se
-// muestra vacía con sus filtros y el detalle de cada receta.
+// Farmacia · Recetas parciales y no dispensadas (HU29): las recetas que quedaron con algo
+// pendiente o sin surtir, con lo entregado y lo pendiente de cada clave.
 @Component({
   selector: 'app-recetas-parciales',
   imports: [FormsModule, RouterLink, Topbar, Sidebar],
@@ -47,6 +28,21 @@ export class RecetasParciales {
   readonly filtroEstado = signal<EstadoReceta | ''>('');
   readonly busqueda = signal('');
   readonly seleccionada = signal<RecetaPendiente | null>(null);
+  readonly cargando = signal(true);
+  readonly error = signal('');
+
+  constructor() {
+    inject(FarmaciaApi).recetas().subscribe({
+      next: (lista) => {
+        this.recetas.set(lista as RecetaPendiente[]);
+        this.cargando.set(false);
+      },
+      error: (error) => {
+        this.error.set(mensajeDeError(error, 'No se pudieron cargar las recetas.'));
+        this.cargando.set(false);
+      },
+    });
+  }
 
   readonly estadoTexto: Record<EstadoReceta, string> = {
     PARCIAL: 'Parcial',
@@ -69,7 +65,7 @@ export class RecetasParciales {
       if (this.filtroEstado() && receta.estado !== this.filtroEstado()) return false;
       if (!texto) return true;
       const claves = receta.claves.map((item) => `${item.clave} ${item.medicamento}`).join(' ');
-      return `${receta.folio} ${receta.expediente} ${receta.paciente} ${claves}`.toLowerCase().includes(texto);
+      return `${receta.folio} ${receta.expediente ?? ''} ${receta.paciente} ${claves}`.toLowerCase().includes(texto);
     });
   });
 
@@ -89,7 +85,7 @@ export class RecetasParciales {
     return [...porClave.values()].sort((a, b) => b.piezas - a.piezas).slice(0, 5);
   });
 
-  pendiente(item: ClavePendiente): number {
+  pendiente(item: ClaveReceta): number {
     return Math.max(0, item.indicada - item.entregada);
   }
 

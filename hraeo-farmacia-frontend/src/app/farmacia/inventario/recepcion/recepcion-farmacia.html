@@ -18,6 +18,9 @@
         @if (error()) {
           <div class="banner error">{{ error() }}</div>
         }
+        @if (aviso()) {
+          <div class="banner info">{{ aviso() }}</div>
+        }
 
         <div class="two-columns">
           <section class="card">
@@ -37,57 +40,82 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (solicitud of despachadas(); track solicitud.id) {
-                    <tr class="fila" [class.elegida]="seleccionada()?.id === solicitud.id" (click)="elegir(solicitud)">
-                      <td><strong>{{ folio(solicitud.id) }}</strong><small class="sub">{{ solicitud.fecha | date: 'dd/MM/yyyy HH:mm' }}</small></td>
-                      <td>{{ solicitud.clave }}<small class="sub">{{ solicitud.nombreGenerico }}</small></td>
-                      <td class="number">{{ solicitud.cantidadSolicitada }}</td>
-                      <td class="number">{{ solicitud.cantidadAtendida }}</td>
+                  @for (despacho of despachadas(); track despacho.solicitudId) {
+                    <tr class="fila" [class.elegida]="seleccionada()?.solicitudId === despacho.solicitudId" (click)="elegir(despacho)">
+                      <td><strong>{{ folio(despacho.solicitudId) }}</strong><small class="sub">{{ despacho.fechaSolicitud | date: 'dd/MM/yyyy HH:mm' }}</small></td>
+                      <td>{{ despacho.clave }}<small class="sub">{{ despacho.medicamento }}</small></td>
+                      <td class="number">{{ despacho.cajasPedidas }}</td>
+                      <td class="number">{{ despacho.cajasDespachadas }}</td>
                       <td><span class="estado aviso">Por confirmar</span></td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : 'Almacén todavía no ha despachado ninguna solicitud de Farmacia.' }}</td></tr>
+                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : 'No hay despachos de Almacén por recibir.' }}</td></tr>
                   }
                 </tbody>
               </table>
             </div>
-            <p class="nota">Las cantidades están en cajas. El estado de la recepción se guarda cuando exista el endpoint de recepción de Farmacia.</p>
+            <p class="nota">Las cantidades están en cajas; al recibir se pasan a piezas con las piezas por caja del catálogo.</p>
           </section>
 
           <section class="card">
             <div class="card-heading">
               <div>
                 <p class="eyebrow">Confirmar lo que llegó</p>
-                <h2>{{ seleccionada() ? folio(seleccionada()!.id) : 'Elige un despacho' }}</h2>
+                <h2>{{ seleccionada() ? folio(seleccionada()!.solicitudId) : 'Elige un despacho' }}</h2>
               </div>
             </div>
-            @if (seleccionada(); as solicitud) {
+
+            @if (seleccionada(); as despacho) {
               <dl class="datos">
-                <div><dt>Clave</dt><dd>{{ solicitud.clave }}</dd></div>
-                <div><dt>Medicamento</dt><dd>{{ solicitud.nombreGenerico }}</dd></div>
-                <div><dt>Despachadas por Almacén</dt><dd>{{ solicitud.cantidadAtendida }} cajas</dd></div>
+                <div><dt>Clave</dt><dd>{{ despacho.clave }}</dd></div>
+                <div><dt>Medicamento</dt><dd>{{ despacho.medicamento }}</dd></div>
+                <div><dt>Despachadas por Almacén</dt><dd>{{ despacho.cajasDespachadas }} cajas{{ despacho.piezasPorCaja ? ' · ' + despacho.piezasPorCaja + ' piezas por caja' : '' }}</dd></div>
               </dl>
-              <p class="fefo-nota">Los lotes y caducidades de este despacho aparecerán aquí; para verlos, Farmacia necesita el endpoint de recepción.</p>
-              <div class="field">
-                <label for="recibidas">Cajas que llegaron</label>
-                <input id="recibidas" type="number" min="0" [ngModel]="cajasRecibidas()" (ngModelChange)="cajasRecibidas.set($event === null || $event === '' ? null : +$event)" />
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Lote</th>
+                      <th>Caducidad</th>
+                      <th class="number">Despachadas</th>
+                      <th class="number">Llegaron</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (partida of despacho.partidas; track partida.movimientoId) {
+                      <tr>
+                        <td><strong>{{ partida.lote }}</strong><small class="sub">{{ partida.despachadoPor }} · {{ partida.fechaDespacho | date: 'dd/MM/yyyy HH:mm' }}</small></td>
+                        <td>{{ partida.caducidad | date: 'dd/MM/yyyy' }}</td>
+                        <td class="number">{{ partida.cajas }}</td>
+                        <td class="number">
+                          <input class="celda corta" type="number" min="0" [ngModel]="recibidas()[partida.movimientoId]" (ngModelChange)="cambiarRecibidas(partida.movimientoId, $event)" />
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
               </div>
+
               @if (diferencia() !== 0) {
                 <div class="banner warn">Diferencia de {{ diferencia() > 0 ? '+' : '' }}{{ diferencia() }} cajas contra lo despachado. Escribe el motivo; Almacén lo verá.</div>
+              }
+              @if (faltantes().includes('el motivo de la diferencia') || diferencia() !== 0) {
                 <div class="field">
                   <label for="motivo">Motivo de la diferencia</label>
                   <input id="motivo" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" placeholder="Ej. llegó una caja dañada" />
                 </div>
               }
+
               <div class="card-foot">
                 <span>
                   @if (faltantes().length) {
                     Falta: {{ faltantes().join(', ') }}.
                   } @else {
-                    Lista para confirmar.
+                    Lista para confirmar. Entra al inventario de Farmacia con el mismo lote y caducidad.
                   }
                 </span>
-                <button class="btn" type="button" disabled title="Necesita el endpoint de recepción de Farmacia">Confirmar recepción</button>
+                <button class="btn" type="button" [disabled]="faltantes().length > 0 || guardando()" (click)="confirmar()">{{ guardando() ? 'Guardando…' : 'Confirmar recepción' }}</button>
               </div>
             } @else {
               <p class="empty-box">Elige un despacho de la lista para confirmar lo que llegó.</p>
