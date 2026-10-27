@@ -6,9 +6,11 @@ import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../../../shared/gs1';
-import { Medicamento } from '../../../almacen/almacen-api';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Medicamento, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
+import { FarmaciaApi, LoteFarmacia, Receta, RecetaIntelisis } from '../../farmacia-api';
 
 // Clave indicada en la receta, con lo que se le va entregando (HU28, HU29).
 interface ClaveReceta {
@@ -36,7 +38,7 @@ type EstadoClave = 'COMPLETA' | 'PARCIAL' | 'NO_DISPENSADA' | 'SIN_ENTREGAR';
 
 // Hay tres tipos de receta: unas traen nombre y expediente, otras la CURP y otras solo el
 // nombre; por eso el paciente se busca de tres formas.
-type ModoPaciente = 'EXPEDIENTE' | 'NOMBRE' | 'CURP';
+type ModoPaciente = 'EXPEDIENTE' | 'NOMBRE' | 'CURP' | 'FOLIO';
 
 // Paciente leído de Intelisis (solo lectura); cada receta trae unos datos u otros.
 interface Paciente {
@@ -50,10 +52,11 @@ const PATRON_CURP = /^[A-Z][AEIOUX][A-Z]{2}\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}
 // Letras mínimas para buscar por nombre.
 const MINIMO_NOMBRE = 3;
 
-// Farmacia · Nueva entrega (HU28 a HU30). Maquetado solo en el frontend:
-// - el catálogo de medicamentos ya existe en el backend y se usa;
-// - buscar al paciente en Intelisis, el lote FEFO de Farmacia y guardar la entrega
-//   necesitan endpoints de Farmacia que aún no existen; la pantalla lo indica.
+// Farmacia · Nueva entrega (HU28 a HU30).
+// - El paciente se busca en Intelisis en solo lectura (por expediente, nombre o CURP).
+// - Cada caja se escanea: con código GS1 se toma su lote; sin él, el backend asigna el lote
+//   que sale primero (FEFO) y bloquea uno posterior o vencido (HU30).
+// - Con ?receta=FOLIO se completa una receta parcial (HU29): se cargan sus claves pendientes.
 // La clave de cada caja la elige el despachador entre las de la receta, porque el rol
 // Farmacia no puede consultar los códigos de barras de Almacén.
 @Component({
@@ -66,6 +69,16 @@ export class NuevaEntrega {
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
+  private readonly api = inject(FarmaciaApi);
+  readonly buscandoPaciente = signal(false);
+  // Intelisis no respondió: el paciente se captura a mano con los datos de la receta.
+  readonly sinIntelisis = signal(false);
+  readonly nombreManual = signal('');
+  readonly guardando = signal(false);
+  // Receta parcial que se está completando (HU29); sus claves no se cambian.
+  readonly recetaExistente = signal<Receta | null>(null);
+  // Lote que sale primero de cada clave de la receta (HU30 CA1).
+  readonly fefo = signal<Record<string, LoteFarmacia | null>>({});
 
   // ---------- Paciente y receta ----------
   readonly modoPaciente = signal<ModoPaciente>('EXPEDIENTE');
@@ -80,7 +93,11 @@ export class NuevaEntrega {
     { valor: 'EXPEDIENTE', etiqueta: 'Expediente', placeholder: 'Escribe o escanea el número de expediente' },
     { valor: 'NOMBRE', etiqueta: 'Nombre', placeholder: 'Nombre y apellidos del paciente' },
     { valor: 'CURP', etiqueta: 'CURP', placeholder: 'CURP de 18 caracteres' },
+    { valor: 'FOLIO', etiqueta: 'Folio de receta', placeholder: 'Folio interno o folio AAMATES de la receta (6 dígitos)' },
   ];
+  // Recetas firmadas del paciente en Intelisis: al elegir una se llenan el folio y las claves.
+  readonly recetasIntelisis = signal<RecetaIntelisis[]>([]);
+  readonly cargandoRecetas = signal(false);
   readonly placeholderPaciente = computed(() => this.modosPaciente.find((modo) => modo.valor === this.modoPaciente())!.placeholder);
 
   cantidadIndicada = 0;
@@ -124,12 +141,13 @@ export class NuevaEntrega {
   // Lo que falta para poder confirmar, en el orden en que se captura.
   readonly faltantes = computed(() => {
     const faltan: string[] = [];
-    if (!this.paciente() && !this.busquedaPaciente().trim()) faltan.push('buscar al paciente por expediente, nombre o CURP');
+    if (!this.paciente()) faltan.push('buscar y elegir al paciente por expediente, nombre o CURP');
     if (!this.folioReceta().trim()) faltan.push('el folio de la receta');
     if (!this.claves().length) faltan.push('al menos una clave de la receta');
     if (this.resumen().some((item) => item.excede)) faltan.push('corregir las claves con más piezas de las indicadas');
     if (this.resumen().some((item) => item.noDispensada && !item.motivo.trim())) faltan.push('el motivo de las claves no dispensadas');
     if (this.cajas().some((caja) => !caja.clave || !(caja.piezas > 0))) faltan.push('la clave y las piezas de cada caja');
+    if (!this.cajas().length && !this.claves().some((item) => item.noDispensada)) faltan.push('escanear al menos una caja o marcar las claves no dispensadas');
     return faltan;
   });
 
@@ -142,8 +160,47 @@ export class NuevaEntrega {
 
   constructor() {
     // Desde Recetas parciales (HU29) se llega con el folio para completar esa receta.
-    this.folioReceta.set(inject(ActivatedRoute).snapshot.queryParamMap.get('receta') ?? '');
+    const folio = inject(ActivatedRoute).snapshot.queryParamMap.get('receta');
+    if (folio) this.cargarReceta(folio);
   }
+
+  private cargarReceta(folio: string): void {
+    this.api.receta(folio).subscribe({
+      next: (receta) => {
+        this.recetaExistente.set(receta);
+        this.folioReceta.set(receta.folio);
+        this.paciente.set({ nombre: receta.paciente, expediente: receta.expediente, curp: receta.curp });
+        // Solo lo pendiente de cada clave: eso es lo que falta entregar.
+        this.claves.set(
+          receta.claves
+            .filter((clave) => clave.pendiente > 0)
+            .map((clave) => ({
+              clave: clave.clave,
+              medicamento: clave.medicamento,
+              piezasPorCaja: clave.piezasPorCaja,
+              indicada: clave.pendiente,
+              noDispensada: clave.noDispensada,
+              motivo: clave.motivo ?? '',
+            })),
+        );
+        this.claves().forEach((clave) => this.cargarFefo(clave.clave));
+        this.mostrarMensaje(`Completando la receta ${receta.folio}: se muestran solo las piezas pendientes de cada clave.`, 'info');
+      },
+      error: (error) => this.mostrarMensaje(mensajeDeError(error, `No se pudo cargar la receta ${folio}.`), 'error'),
+    });
+  }
+
+  private cargarFefo(clave: string): void {
+    this.api.loteFefo(clave).subscribe({
+      next: (lote) => this.fefo.update((actual) => ({ ...actual, [clave]: lote })),
+      error: () => this.fefo.update((actual) => ({ ...actual, [clave]: null })),
+    });
+  }
+
+  // Lotes que salen primero de las claves de la receta, para la nota FEFO.
+  readonly lotesFefo = computed(() =>
+    this.claves().map((item) => ({ clave: item.clave, lote: this.fefo()[item.clave] })),
+  );
 
   cambiarModoPaciente(modo: ModoPaciente): void {
     this.modoPaciente.set(modo);
@@ -172,19 +229,118 @@ export class NuevaEntrega {
       this.avisoPaciente.set(`Escribe al menos ${MINIMO_NOMBRE} letras del nombre.`);
       return;
     }
-    // HU28 CA1: el paciente se leerá de Intelisis en solo lectura con
-    // GET /api/farmacia/pacientes?expediente= | ?nombre= | ?curp=. Por nombre puede haber varios.
-    const dato = { EXPEDIENTE: 'expediente', NOMBRE: 'nombre', CURP: 'CURP' }[modo];
-    this.avisoPaciente.set(`La búsqueda por ${dato} en Intelisis se conecta cuando exista el endpoint de pacientes de Farmacia.`);
+    if (modo === 'FOLIO') {
+      this.buscarPorFolio(texto);
+      return;
+    }
+    // HU28 CA1: el paciente se lee de Intelisis en solo lectura. Por nombre puede haber varios.
+    this.buscandoPaciente.set(true);
+    this.avisoPaciente.set('Buscando en Intelisis…');
+    this.coincidencias.set([]);
+    this.api.buscarPacientes(modo, texto).subscribe({
+      next: (lista) => {
+        this.buscandoPaciente.set(false);
+        if (lista.length === 1) {
+          this.elegirPaciente(lista[0]);
+        } else if (lista.length > 1) {
+          this.coincidencias.set(lista);
+          this.avisoPaciente.set(`${lista.length} pacientes coinciden${lista.length === 20 ? ' (se muestran los primeros 20; escribe más datos)' : ''}. Elige el de la receta.`);
+        } else {
+          this.avisoPaciente.set('No se encontró ningún paciente con ese dato en Intelisis.');
+        }
+      },
+      error: (error) => {
+        this.buscandoPaciente.set(false);
+        this.sinIntelisis.set(error instanceof HttpErrorResponse && error.status === 503);
+        this.avisoPaciente.set(mensajeDeError(error, 'No se pudo buscar al paciente en Intelisis.'));
+      },
+    });
+  }
+
+  // Sin Intelisis: se usan los datos de la receta tal como vienen.
+  usarPacienteManual(): void {
+    const nombre = this.nombreManual().trim();
+    if (!nombre) {
+      this.avisoPaciente.set('Escribe el nombre del paciente como viene en la receta.');
+      return;
+    }
+    const texto = this.busquedaPaciente().trim();
+    this.elegirPaciente({
+      nombre,
+      expediente: this.modoPaciente() === 'EXPEDIENTE' && texto ? texto : null,
+      curp: this.modoPaciente() === 'CURP' && texto ? texto : null,
+    });
+    this.sinIntelisis.set(false);
+    this.nombreManual.set('');
   }
 
   elegirPaciente(paciente: Paciente): void {
     this.paciente.set(paciente);
     this.coincidencias.set([]);
     this.avisoPaciente.set('');
+    if (paciente.expediente && !this.recetaExistente()) this.cargarRecetasIntelisis(paciente.expediente);
+  }
+
+  private cargarRecetasIntelisis(expediente: string): void {
+    this.cargandoRecetas.set(true);
+    this.recetasIntelisis.set([]);
+    this.api.recetasDelPaciente(expediente).subscribe({
+      next: (lista) => {
+        this.cargandoRecetas.set(false);
+        this.recetasIntelisis.set(lista);
+      },
+      error: () => this.cargandoRecetas.set(false),
+    });
+  }
+
+  private buscarPorFolio(folio: string): void {
+    this.buscandoPaciente.set(true);
+    this.avisoPaciente.set('Buscando la receta en Intelisis…');
+    this.api.recetaDeIntelisis(folio).subscribe({
+      next: (receta) => {
+        this.buscandoPaciente.set(false);
+        this.avisoPaciente.set('');
+        this.usarRecetaIntelisis(receta);
+      },
+      error: (error) => {
+        this.buscandoPaciente.set(false);
+        this.sinIntelisis.set(error instanceof HttpErrorResponse && error.status === 503);
+        this.avisoPaciente.set(mensajeDeError(error, 'No se pudo buscar la receta en Intelisis.'));
+      },
+    });
+  }
+
+  // Llena paciente, folio y claves con la receta de Intelisis; si ya está en HAERO, se completa.
+  usarRecetaIntelisis(receta: RecetaIntelisis): void {
+    if (!receta.folio) return this.mostrarMensaje('Esa receta no tiene folio en Intelisis; captúrala a mano.', 'error');
+    if (receta.estadoEnHaero === 'SURTIDA') return this.mostrarMensaje(`La receta ${receta.folio} ya se surtió por completo en Farmacia.`, 'warn');
+    if (receta.estadoEnHaero) {
+      this.cargarReceta(receta.folio);
+      return;
+    }
+    if (!this.paciente()) this.paciente.set(receta.paciente);
+    this.recetasIntelisis.set([]);
+    this.folioReceta.set(receta.folio);
+    // Si una clave viene en varios renglones, se suma lo indicado.
+    const porClave = new Map<string, ClaveReceta>();
+    for (const partida of receta.partidas.filter((p) => p.enCatalogo && p.clave)) {
+      const actual = porClave.get(partida.clave!);
+      if (actual) actual.indicada += partida.cantidad;
+      else porClave.set(partida.clave!, { clave: partida.clave!, medicamento: partida.medicamento, piezasPorCaja: partida.piezasPorCaja, indicada: partida.cantidad, noDispensada: false, motivo: '' });
+    }
+    this.claves.set([...porClave.values()]);
+    this.claves().forEach((clave) => this.cargarFefo(clave.clave));
+    const sinClave = receta.partidas.filter((p) => !p.enCatalogo).map((p) => p.medicamento);
+    this.mostrarMensaje(
+      `Receta ${receta.folio} cargada de Intelisis con ${porClave.size} ${porClave.size === 1 ? 'clave' : 'claves'}. Revisa las piezas indicadas.` +
+        (sinClave.length ? ` Sin clave del catálogo (agrégalas a mano si se surten): ${sinClave.join(', ')}.` : ''),
+      sinClave.length ? 'warn' : 'info',
+    );
   }
 
   cambiarPaciente(): void {
+    if (this.recetaExistente()) return;
+    this.recetasIntelisis.set([]);
     this.paciente.set(null);
     this.busquedaPaciente.set('');
   }
@@ -198,6 +354,10 @@ export class NuevaEntrega {
     const medicamento = this.elegida();
     if (!medicamento) {
       this.mostrarMensaje('Busca y elige la clave de la receta.', 'error');
+      return;
+    }
+    if (this.recetaExistente()) {
+      this.mostrarMensaje('Al completar una receta no se agregan claves nuevas.', 'error');
       return;
     }
     if (!Number.isInteger(this.cantidadIndicada) || this.cantidadIndicada <= 0) {
@@ -215,6 +375,7 @@ export class NuevaEntrega {
         motivo: '',
       },
     ]);
+    this.cargarFefo(medicamento.clave);
     this.elegida.set(null);
     this.cantidadIndicada = 0;
     this.mensaje.set('');
@@ -244,7 +405,7 @@ export class NuevaEntrega {
     }
     const gs1 = leerGs1(codigo);
     if (!gs1?.lote) {
-      this.mostrarMensaje('Este código no trae lote (no es GS1). Escribe el lote y la caducidad de la caja en el renglón.', 'warn');
+      this.mostrarMensaje('Este código no trae lote (no es GS1): al guardar se toma el lote que sale primero (FEFO). Si conoces el lote, escríbelo en el renglón.', 'warn');
     } else if (gs1.caducidad && gs1.caducidad < this.hoy()) {
       // HU30 CA4: un lote vencido no se entrega.
       this.mostrarMensaje(`El lote ${gs1.lote} venció el ${this.fecha(gs1.caducidad)}. No se puede entregar; apártalo para darlo de baja (HU35).`, 'error');
@@ -285,7 +446,50 @@ export class NuevaEntrega {
     this.cajas.update((lista) => lista.filter((caja) => caja.id !== id));
   }
 
+  // HU28: guarda la entrega. El backend asigna los lotes, descuenta el inventario y deja la
+  // receta surtida, parcial o no dispensada.
+  confirmar(): void {
+    const paciente = this.paciente();
+    if (!paciente || this.faltantes().length || this.guardando()) return;
+    this.guardando.set(true);
+    const completando = !!this.recetaExistente();
+    this.api
+      .registrarEntrega({
+        folioReceta: this.folioReceta().trim(),
+        paciente: completando ? undefined : paciente,
+        claves: this.claves()
+          .filter((item) => !completando || item.noDispensada)
+          .map((item) => ({
+            clave: item.clave,
+            piezasIndicadas: completando ? undefined : item.indicada,
+            noDispensada: item.noDispensada,
+            motivo: item.motivo.trim() || undefined,
+          })),
+        cajas: this.cajas().map((caja) => ({ clave: caja.clave, lote: caja.lote.trim() || undefined, piezas: caja.piezas })),
+      })
+      .subscribe({
+        next: (resultado) => {
+          this.guardando.set(false);
+          const lotes = resultado.partidas.map((p) => `${p.lote} (${p.entregada} pzs)`).join(', ');
+          const estado = { SURTIDA: 'surtida', PARCIAL: 'parcial', NO_DISPENSADA: 'no dispensada' }[resultado.receta.estado];
+          this.limpiarTodo();
+          this.mostrarMensaje(
+            `${resultado.folio ? 'Entrega ' + resultado.folio + ' guardada' : 'Receta guardada'}. Receta ${resultado.receta.folio}: ${estado}.` +
+              (lotes ? ` Lotes entregados: ${lotes}.` : ''),
+            'info',
+          );
+        },
+        error: (error) => {
+          this.guardando.set(false);
+          this.mostrarMensaje(mensajeDeError(error, 'No se pudo guardar la entrega.'), 'error');
+        },
+      });
+  }
+
   limpiarTodo(): void {
+    this.recetaExistente.set(null);
+    this.recetasIntelisis.set([]);
+    this.fefo.set({});
     this.busquedaPaciente.set('');
     this.paciente.set(null);
     this.coincidencias.set([]);
@@ -296,6 +500,10 @@ export class NuevaEntrega {
     this.elegida.set(null);
     this.cantidadIndicada = 0;
     this.mensaje.set('');
+  }
+
+  fechaHora(valor: string): string {
+    return new Date(valor).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
   }
 
   fecha(valor: string): string {

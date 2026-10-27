@@ -5,9 +5,10 @@ import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../../../shared/gs1';
-import { Medicamento } from '../../../almacen/almacen-api';
+import { Medicamento, mensajeDeError, ultimoDiaDelMes } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
+import { FarmaciaApi } from '../../farmacia-api';
 
 // Caja del estante lista para darse de alta (HU25).
 interface CajaAlta {
@@ -19,9 +20,8 @@ interface CajaAlta {
   piezas: number;
 }
 
-// Farmacia · Alta inicial (HU25). Maquetado solo en el frontend: se arma la lista de lo que
-// hay en los estantes escaneando cada caja; guardarla necesita el endpoint de alta inicial de
-// Farmacia. La clave se elige del catálogo porque el rol Farmacia no consulta los códigos de
+// Farmacia · Alta inicial (HU25): se arma la lista de lo que hay en los estantes escaneando
+// cada caja y se guarda de una vez en el inventario de Farmacia. La clave se elige del catálogo porque el rol Farmacia no consulta los códigos de
 // barras de Almacén; el lote y la caducidad salen del código GS1 o se escriben.
 @Component({
   selector: 'app-alta-inicial-farmacia',
@@ -33,6 +33,8 @@ export class AltaInicialFarmacia {
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
+  private readonly api = inject(FarmaciaApi);
+  readonly guardando = signal(false);
 
   codigoEscaneado = '';
   readonly camaraAbierta = signal(false);
@@ -105,6 +107,32 @@ export class AltaInicialFarmacia {
       this.mensaje.set('');
     }
     this.reiniciarCaja();
+  }
+
+  // Guarda toda la lista; cada alta queda con el usuario, la fecha y la hora.
+  darDeAlta(): void {
+    if (!this.cajas().length || this.guardando()) return;
+    this.guardando.set(true);
+    const partidas = this.cajas().map((caja) => ({
+      clave: caja.clave,
+      lote: caja.lote,
+      caducidad: ultimoDiaDelMes(caja.caducidad),
+      piezas: caja.piezas,
+    }));
+    this.api.altaInicial(partidas).subscribe({
+      next: (resultado) => {
+        this.guardando.set(false);
+        this.cajas.set([]);
+        this.mostrarMensaje(
+          `Listo: se dieron de alta ${resultado.lotes} ${resultado.lotes === 1 ? 'lote' : 'lotes'} con ${resultado.piezas.toLocaleString('es-MX')} piezas.`,
+          'info',
+        );
+      },
+      error: (error) => {
+        this.guardando.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudo dar de alta la lista.'), 'error');
+      },
+    });
   }
 
   quitar(id: number): void {

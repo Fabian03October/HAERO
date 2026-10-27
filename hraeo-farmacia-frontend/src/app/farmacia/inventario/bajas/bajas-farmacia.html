@@ -15,36 +15,44 @@
           </div>
         </header>
 
+        @if (error()) {
+          <div class="banner error">{{ error() }}</div>
+        }
+        @if (aviso()) {
+          <div class="banner info">{{ aviso() }}</div>
+        }
+
         <div class="two-columns">
           <section class="card">
             <div class="barra">
               <div class="filtros" role="tablist" aria-label="Vista">
                 <button type="button" role="tab" [class.activo]="vista() === 'SUGERIDOS'" (click)="vista.set('SUGERIDOS')">Vencidos por dar de baja <span>{{ vencidos().length }}</span></button>
+                <button type="button" role="tab" [class.activo]="vista() === 'OTROS'" (click)="vista.set('OTROS')">Otro lote (daño o extravío) <span>{{ vigentes().length }}</span></button>
                 <button type="button" role="tab" [class.activo]="vista() === 'REGISTRADAS'" (click)="vista.set('REGISTRADAS')">Bajas registradas <span>{{ registradas().length }}</span></button>
               </div>
             </div>
 
-            @if (vista() === 'SUGERIDOS') {
+            @if (vista() !== 'REGISTRADAS') {
               <div class="table-wrap">
                 <table>
                   <thead>
                     <tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th class="number">Piezas</th></tr>
                   </thead>
                   <tbody>
-                    @for (lote of vencidos(); track lote.clave + lote.lote) {
-                      <tr class="fila" [class.elegida]="seleccionado()?.lote === lote.lote && seleccionado()?.clave === lote.clave" (click)="elegir(lote)">
+                    @for (lote of listaLotes(); track lote.id) {
+                      <tr class="fila" [class.elegida]="seleccionado()?.id === lote.id" (click)="elegir(lote)">
                         <td><strong>{{ lote.clave }}</strong><small class="sub">{{ lote.medicamento }}</small></td>
                         <td>{{ lote.lote }}</td>
-                        <td>{{ fecha(lote.caducidad) }} <span class="pill danger">Vencido</span></td>
+                        <td>{{ fecha(lote.caducidad) }} @if (lote.estado === 'VENCIDO') {<span class="pill danger">Vencido</span>}</td>
                         <td class="number">{{ lote.piezas }}</td>
                       </tr>
                     } @empty {
-                      <tr><td colspan="4" class="empty">No hay lotes vencidos en Farmacia. Se sugieren aquí a partir del inventario (HU27); nunca se dan de baja solos.</td></tr>
+                      <tr><td colspan="4" class="empty">{{ vista() === 'OTROS' ? 'No hay lotes vigentes en Farmacia.' : 'No hay lotes vencidos en Farmacia. Se sugieren aquí a partir del inventario (HU27); nunca se dan de baja solos.' }}</td></tr>
                     }
                   </tbody>
                 </table>
               </div>
-              <p class="nota">Para dar de baja un lote dañado o extraviado que no ha vencido, búscalo en Existencias.</p>
+              <p class="nota">Para dar de baja un lote dañado o extraviado que no ha vencido, elígelo en "Otro lote".</p>
             } @else {
               <div class="table-wrap">
                 <table>
@@ -52,7 +60,7 @@
                     <tr><th>Fecha</th><th>Clave</th><th>Lote</th><th class="number">Piezas</th><th>Motivo</th><th>Registró</th></tr>
                   </thead>
                   <tbody>
-                    @for (baja of registradas(); track baja.clave + baja.lote + baja.fecha) {
+                    @for (baja of registradas(); track baja.id) {
                       <tr>
                         <td>{{ fecha(baja.fecha) }}</td>
                         <td><strong>{{ baja.clave }}</strong></td>
@@ -108,7 +116,7 @@
                     Lista para registrar. Queda con tu usuario, la fecha y el motivo.
                   }
                 </span>
-                <button class="btn" type="button" disabled title="Necesita el endpoint de bajas de Farmacia">Dar de baja</button>
+                <button class="btn" type="button" [disabled]="faltantes().length > 0 || guardando()" (click)="darDeBaja()">{{ guardando() ? 'Guardando…' : 'Dar de baja' }}</button>
               </div>
             } @else {
               <p class="empty-box">Elige un lote vencido de la lista. El sistema lo sugiere, pero la baja siempre la confirma una persona.</p>

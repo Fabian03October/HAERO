@@ -3,30 +3,13 @@ import { FormsModule } from '@angular/forms';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
 import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
+import { mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
+import { Baja, FarmaciaApi, LoteFarmacia, MotivoBaja } from '../../farmacia-api';
 
-type MotivoBaja = 'CADUCIDAD' | 'DANO' | 'EXTRAVIO';
-
-// Lote de Farmacia que se puede dar de baja.
-interface LoteBaja {
-  clave: string;
-  medicamento: string;
-  lote: string;
-  caducidad: string;
-  piezas: number;
-}
-
-// Baja ya registrada.
-interface BajaRegistrada extends LoteBaja {
-  motivo: MotivoBaja;
-  detalle: string;
-  fecha: string;
-  usuario: string;
-}
-
-// Farmacia · Caducados y mermas (HU35). Maquetado solo en el frontend: los lotes vencidos
-// salen del inventario de Farmacia (HU27) y la baja se guarda cuando exista su endpoint.
-// Igual que en la HU19, el sistema sugiere los vencidos pero nunca los da de baja solo.
+// Farmacia · Caducados y mermas (HU35). Los lotes vencidos salen del inventario de Farmacia
+// (HU27) como sugerencia; un lote vigente dañado o extraviado se elige en "Otro lote". Igual
+// que en la HU19, el sistema sugiere los vencidos pero nunca los da de baja solo.
 @Component({
   selector: 'app-bajas-farmacia',
   imports: [FormsModule, Topbar, Sidebar],
@@ -38,11 +21,19 @@ export class BajasFarmacia {
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
 
-  readonly vista = signal<'SUGERIDOS' | 'REGISTRADAS'>('SUGERIDOS');
-  readonly vencidos = signal<LoteBaja[]>([]);
-  readonly registradas = signal<BajaRegistrada[]>([]);
+  private readonly api = inject(FarmaciaApi);
 
-  readonly seleccionado = signal<LoteBaja | null>(null);
+  readonly vista = signal<'SUGERIDOS' | 'OTROS' | 'REGISTRADAS'>('SUGERIDOS');
+  readonly inventario = signal<LoteFarmacia[]>([]);
+  readonly registradas = signal<Baja[]>([]);
+  readonly vencidos = computed(() => this.inventario().filter((lote) => lote.estado === 'VENCIDO'));
+  readonly vigentes = computed(() => this.inventario().filter((lote) => lote.estado !== 'VENCIDO'));
+  readonly listaLotes = computed(() => (this.vista() === 'OTROS' ? this.vigentes() : this.vencidos()));
+  readonly error = signal('');
+  readonly aviso = signal('');
+  readonly guardando = signal(false);
+
+  readonly seleccionado = signal<LoteFarmacia | null>(null);
   readonly piezas = signal<number | null>(null);
   readonly motivo = signal<MotivoBaja>('CADUCIDAD');
   readonly detalle = signal('');
@@ -67,11 +58,47 @@ export class BajasFarmacia {
     return faltan;
   });
 
-  elegir(lote: LoteBaja): void {
+  constructor() {
+    this.cargar();
+  }
+
+  private cargar(): void {
+    this.api.existencias().subscribe({
+      next: (lotes) => this.inventario.set(lotes),
+      error: (error) => this.error.set(mensajeDeError(error, 'No se pudo cargar el inventario de Farmacia.')),
+    });
+    this.api.bajas().subscribe({
+      next: (bajas) => this.registradas.set(bajas),
+      error: (error) => this.error.set(mensajeDeError(error, 'No se pudieron cargar las bajas registradas.')),
+    });
+  }
+
+  elegir(lote: LoteFarmacia): void {
     this.seleccionado.set(lote);
-    this.piezas.set(lote.piezas);
-    this.motivo.set('CADUCIDAD');
+    this.piezas.set(lote.estado === 'VENCIDO' ? lote.piezas : null);
+    this.motivo.set(lote.estado === 'VENCIDO' ? 'CADUCIDAD' : 'DANO');
     this.detalle.set('');
+    this.aviso.set('');
+  }
+
+  darDeBaja(): void {
+    const lote = this.seleccionado();
+    const piezas = this.piezas();
+    if (!lote || !piezas || this.faltantes().length || this.guardando()) return;
+    this.guardando.set(true);
+    this.error.set('');
+    this.api.registrarBaja(lote.id, piezas, this.motivo(), this.detalle().trim()).subscribe({
+      next: (baja) => {
+        this.guardando.set(false);
+        this.seleccionado.set(null);
+        this.aviso.set(`Se dieron de baja ${baja.piezas} piezas del lote ${baja.lote} por ${this.motivoTexto[baja.motivo].toLowerCase()}.`);
+        this.cargar();
+      },
+      error: (error) => {
+        this.guardando.set(false);
+        this.error.set(mensajeDeError(error, 'No se pudo registrar la baja.'));
+      },
+    });
   }
 
   fecha(valor: string): string {

@@ -34,7 +34,9 @@
                 <span>Paciente</span>
                 <strong>{{ elegido.nombre }}</strong>
                 <small>Expediente {{ elegido.expediente ?? '—' }} · CURP {{ elegido.curp ?? '—' }}</small>
-                <button class="link" type="button" (click)="cambiarPaciente()">Cambiar paciente</button>
+                @if (!recetaExistente()) {
+                  <button class="link" type="button" (click)="cambiarPaciente()">Cambiar paciente</button>
+                }
               </div>
             } @else {
               <div class="field">
@@ -47,9 +49,9 @@
                 <div class="en-linea">
                   <input id="paciente" [ngModel]="busquedaPaciente()" (ngModelChange)="cambiarBusquedaPaciente($event)" (keyup.enter)="buscarPaciente()"
                     [placeholder]="placeholderPaciente()" [attr.maxlength]="modoPaciente() === 'CURP' ? 18 : null" autocomplete="off" />
-                  <button class="btn secondary" type="button" (click)="buscarPaciente()">Buscar</button>
+                  <button class="btn secondary" type="button" [disabled]="buscandoPaciente()" (click)="buscarPaciente()">{{ buscandoPaciente() ? 'Buscando…' : 'Buscar' }}</button>
                 </div>
-                <p class="hint">Usa el dato que traiga la receta: expediente, nombre o CURP. Los datos del paciente se traen de Intelisis.</p>
+                <p class="hint">Usa el dato que traiga la receta: expediente, nombre, CURP o el folio de la receta. Los datos se traen de Intelisis; al elegir al paciente aparecen sus recetas.</p>
               </div>
               @if (coincidencias().length) {
                 <ul class="coincidencias">
@@ -67,10 +69,41 @@
             @if (avisoPaciente()) {
               <p class="hint pendiente">{{ avisoPaciente() }}</p>
             }
+            @if (sinIntelisis() && !paciente()) {
+              <div class="field">
+                <label for="nombre-manual">Capturar al paciente sin Intelisis</label>
+                <div class="en-linea">
+                  <input id="nombre-manual" [ngModel]="nombreManual()" (ngModelChange)="nombreManual.set($event)" (keyup.enter)="usarPacienteManual()" placeholder="Nombre como viene en la receta" />
+                  <button class="btn secondary" type="button" (click)="usarPacienteManual()">Usar</button>
+                </div>
+                <p class="hint">Se guarda con el {{ modoPaciente() === 'CURP' ? 'CURP' : modoPaciente() === 'EXPEDIENTE' ? 'expediente' : 'nombre' }} que escribiste arriba.</p>
+              </div>
+            }
+
+            @if (cargandoRecetas()) {
+              <p class="hint">Buscando las recetas del paciente en Intelisis…</p>
+            } @else if (recetasIntelisis().length) {
+              <div class="field">
+                <label>Recetas del paciente en Intelisis (últimos 30 días)</label>
+                <ul class="coincidencias">
+                  @for (receta of recetasIntelisis(); track receta.folio) {
+                    <li>
+                      <button type="button" (click)="usarRecetaIntelisis(receta)">
+                        <strong>Folio {{ receta.folio ?? '—' }} · núm. {{ receta.idReceta }}</strong>
+                        <small>
+                          {{ receta.fecha ? fechaHora(receta.fecha) : '' }} · {{ receta.origen ?? '' }} · {{ receta.partidas.length }} {{ receta.partidas.length === 1 ? 'clave' : 'claves' }}
+                          @if (receta.estadoEnHaero) { · {{ receta.estadoEnHaero === 'SURTIDA' ? 'ya surtida' : 'pendiente en Farmacia' }} }
+                        </small>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
 
             <div class="field">
               <label for="folio">Folio de la receta</label>
-              <input id="folio" [ngModel]="folioReceta()" (ngModelChange)="folioReceta.set($event)"placeholder="Ej. R-2026-004512" autocomplete="off" />
+              <input id="folio" [ngModel]="folioReceta()" (ngModelChange)="folioReceta.set($event)" [readonly]="!!recetaExistente()" placeholder="Ej. R-2026-004512" autocomplete="off" />
             </div>
 
             <div class="field">
@@ -123,7 +156,12 @@
               <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
             }
 
-            <p class="fefo"><strong>Regla FEFO (HU30):</strong> aquí se mostrará el lote de Farmacia que debe salir primero y se bloqueará uno posterior. Necesita el inventario de Farmacia (HU27). Los lotes vencidos ya se bloquean al escanear.</p>
+            <p class="fefo"><strong>Regla FEFO (HU30):</strong> sale primero el lote de caducidad más próxima; una caja de un lote posterior o vencido se rechaza al guardar.
+              @for (item of lotesFefo(); track item.clave) {
+                <br />{{ item.clave }}:
+                @if (item.lote) { lote <strong>{{ item.lote.lote }}</strong> (caduca {{ fecha(item.lote.caducidad) }}, {{ item.lote.piezas }} piezas) } @else { sin existencia en Farmacia }
+              }
+            </p>
 
             <div class="table-wrap">
               <table>
@@ -143,16 +181,12 @@
                         @if (caja.lote) {
                           <strong>{{ caja.lote }}</strong>
                         } @else {
-                          <input class="celda" [ngModel]="caja.lote" (ngModelChange)="actualizarCaja(caja.id, { lote: $event })" placeholder="Lote" />
+                          <input class="celda" [ngModel]="caja.lote" (ngModelChange)="actualizarCaja(caja.id, { lote: $event })" placeholder="FEFO (automático)" />
                         }
                         <small class="gtin">{{ caja.gtin }}</small>
                       </td>
                       <td>
-                        @if (caja.caducidad && caja.lote) {
-                          {{ fecha(caja.caducidad) }}
-                        } @else {
-                          <input class="celda" type="date" [ngModel]="caja.caducidad" (ngModelChange)="actualizarCaja(caja.id, { caducidad: $event })" />
-                        }
+                        {{ caja.caducidad ? fecha(caja.caducidad) : 'La del lote' }}
                       </td>
                       <td>
                         <select class="celda" [ngModel]="caja.clave" (ngModelChange)="actualizarCaja(caja.id, { clave: $event })">
@@ -238,12 +272,12 @@
               @if (faltantes().length) {
                 Falta: {{ faltantes().join(', ') }}.
               } @else {
-                Lista para guardar. El registro de entregas se conecta cuando exista el endpoint de dispensaciones de Farmacia.
+                Lista para guardar. Se descuenta el inventario de Farmacia del lote de cada caja.
               }
             </span>
             <div class="acciones">
               <button class="btn secondary" type="button" (click)="limpiarTodo()">Limpiar</button>
-              <button class="btn" type="button" disabled title="Necesita el endpoint de dispensaciones de Farmacia">Confirmar entrega</button>
+              <button class="btn" type="button" [disabled]="faltantes().length > 0 || guardando()" (click)="confirmar()">{{ guardando() ? 'Guardando…' : 'Confirmar entrega' }}</button>
             </div>
           </div>
         </section>
