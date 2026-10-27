@@ -57,6 +57,9 @@ public class ServicioSincronizacionIntelisis {
     private final int diasRecepciones;
     // Movimientos de Inv que tambien son entradas al almacen principal (donaciones y traspasos).
     private final List<String> movimientosEntradaInv;
+    // "Consumo Farmacia" y "Devolucion Farmacia": la baja por volumen de Farmacia (HU32).
+    private final List<String> movimientosFarmacia;
+    private final int diasMovimientosFarmacia;
 
     private final AtomicBoolean enCurso = new AtomicBoolean(false);
     private final ExecutorService ejecutorManual = Executors.newSingleThreadExecutor(r -> {
@@ -71,7 +74,10 @@ public class ServicioSincronizacionIntelisis {
                                            @Value("${intelisis.almacenes:25301,25301-C}") String almacenes,
                                            @Value("${intelisis.recepciones.dias:400}") int diasRecepciones,
                                            @Value("${intelisis.entradas.movimientos-inv:Donacion FONSABI,Donacion Farmacia,IMSS EntradaTraspaso}")
-                                           String movimientosEntradaInv) {
+                                           String movimientosEntradaInv,
+                                           @Value("${intelisis.farmacia.movimientos-consumo:Consumo Farmacia}") String movimientosConsumoFarmacia,
+                                           @Value("${intelisis.farmacia.movimientos-devolucion:Devolucion Farmacia}") String movimientosDevolucionFarmacia,
+                                           @Value("${intelisis.farmacia.dias-verificacion:60}") int diasMovimientosFarmacia) {
         this.conexion = conexion;
         this.haero = haero;
         this.transaccion = new TransactionTemplate(transactionManager);
@@ -79,6 +85,9 @@ public class ServicioSincronizacionIntelisis {
         this.almacenPrincipal = this.almacenes.get(0);
         this.diasRecepciones = diasRecepciones;
         this.movimientosEntradaInv = Arrays.stream(movimientosEntradaInv.split(",")).map(String::trim).filter(m -> !m.isEmpty()).toList();
+        this.movimientosFarmacia = Arrays.stream((movimientosConsumoFarmacia + "," + movimientosDevolucionFarmacia).split(","))
+                .map(String::trim).filter(m -> !m.isEmpty()).toList();
+        this.diasMovimientosFarmacia = diasMovimientosFarmacia;
     }
 
     public boolean estaEnCurso() {
@@ -132,6 +141,7 @@ public class ServicioSincronizacionIntelisis {
             Collection<Object[]> partidasPedido = leerPartidasPedido(intelisis, desde);
             Collection<Object[]> entradasInv = leerEntradasInv(intelisis, desde);
             Collection<Object[]> lotesEntradaInv = leerLotesEntradasInv(intelisis, desde);
+            Collection<Object[]> movimientosFarmacia = leerMovimientosFarmacia(intelisis, LocalDate.now().minusDays(diasMovimientosFarmacia));
 
             // Candado: si Intelisis entrega mucho menos que la vez anterior (por ejemplo,
             // durante un mantenimiento), no se toca nada.
@@ -177,6 +187,10 @@ public class ServicioSincronizacionIntelisis {
                 reemplazar("intelisis_entrada_inv",
                         "INSERT INTO intelisis_entrada_inv (inv_id, mov, mov_id, fecha_emision, proveedor, referencia, concepto) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         entradasInv);
+                reemplazar("intelisis_mov_farmacia_lote",
+                        "INSERT INTO intelisis_mov_farmacia_lote (inv_id, mov, mov_id, fecha_emision, articulo, clave_base, serie_lote, cantidad) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        movimientosFarmacia);
                 actualizarCatalogoHaero();
                 actualizarPiezasPorCaja();
                 actualizarPedidosHaero();
@@ -542,6 +556,48 @@ public class ServicioSincronizacionIntelisis {
         }, parametrosEntradasInv(desde));
         // Solo lo que de verdad entro (un renglon en cero o negativo no es una entrada).
         return filas.values().stream().filter(f -> ((BigDecimal) f[4]).signum() > 0).toList();
+    }
+
+    /**
+     * Lo que Farmacia dio de baja por volumen en el almacen principal ("Consumo Farmacia" y
+     * "Devolucion Farmacia"), por lote y en piezas, para verificarlo contra HAERO (HU32).
+     * Por validar en la red del hospital: los nombres de los movimientos y el signo de
+     * SerieLoteMov.Cantidad (se guarda en positivo; el tipo lo da el movimiento).
+     */
+    private Collection<Object[]> leerMovimientosFarmacia(JdbcTemplate intelisis, LocalDate desde) {
+        if (movimientosFarmacia.isEmpty()) {
+            return List.of();
+        }
+        String sql = "SELECT i.ID, i.Mov, i.MovID, i.FechaEmision, m.Articulo, m.SerieLote, SUM(m.Cantidad) AS cantidad "
+                + "FROM SerieLoteMov m WITH (NOLOCK) "
+                + "JOIN Inv i WITH (NOLOCK) ON i.ID = m.ID "
+                + "WHERE m.Modulo = 'INV' AND i.Almacen = ? AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
+                + "AND i.Mov IN (" + marcadores(movimientosFarmacia.size()) + ") "
+                + "GROUP BY i.ID, i.Mov, i.MovID, i.FechaEmision, m.Articulo, m.SerieLote";
+        List<Object> parametros = new ArrayList<>();
+        parametros.add(almacenPrincipal);
+        parametros.add(Date.valueOf(desde));
+        parametros.addAll(movimientosFarmacia);
+        Map<String, Object[]> filas = new LinkedHashMap<>();
+        intelisis.query(sql, rs -> {
+            int id = rs.getInt(1);
+            String mov = texto(rs, 2, 30);
+            Date fecha = fecha(rs, 4);
+            String articulo = texto(rs, 5, 20);
+            String lote = texto(rs, 6, 50);
+            BigDecimal cantidad = cero(rs.getBigDecimal(7)).abs();
+            if (mov == null || fecha == null || articulo == null || lote == null) {
+                return;
+            }
+            String llave = id + "|" + articulo + "|" + lote;
+            Object[] previa = filas.get(llave);
+            if (previa != null) {
+                previa[7] = ((BigDecimal) previa[7]).add(cantidad);
+                return;
+            }
+            filas.put(llave, new Object[]{id, mov, texto(rs, 3, 20), fecha, articulo, claveBase(articulo), lote, cantidad});
+        }, parametros.toArray());
+        return filas.values().stream().filter(f -> ((BigDecimal) f[7]).signum() > 0).toList();
     }
 
     private void revisarQueNoVengaIncompleto(String que, int llegaron, String columnaBitacora) {
