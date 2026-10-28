@@ -304,7 +304,7 @@ public class ServicioEntregas {
     // ---------- HU29: consulta de recetas ----------
 
     public List<RecetaResponse> recetas(List<String> estados) {
-        return recetaRepository.findByEstadoInOrderByFechaDesc(estados).stream().map(this::aRespuesta).toList();
+        return recetaRepository.findByEstadoInAndFolioNotLikeOrderByFechaDesc(estados, ServicioCarrito.PREFIJO_FOLIO + "%").stream().map(this::aRespuesta).toList();
     }
 
     public RecetaResponse receta(String folio) {
@@ -316,7 +316,7 @@ public class ServicioEntregas {
     public List<ClavePendienteResponse> clavesPendientes() {
         Map<String, int[]> totales = new LinkedHashMap<>();
         Map<String, String> nombres = new HashMap<>();
-        for (Receta receta : recetaRepository.findByEstadoInOrderByFechaDesc(List.of(Receta.PARCIAL, Receta.NO_DISPENSADA))) {
+        for (Receta receta : recetaRepository.findByEstadoInAndFolioNotLikeOrderByFechaDesc(List.of(Receta.PARCIAL, Receta.NO_DISPENSADA), ServicioCarrito.PREFIJO_FOLIO + "%")) {
             for (ClaveReceta clave : receta.getClaves()) {
                 if (clave.pendiente() > 0) {
                     int[] total = totales.computeIfAbsent(clave.getMedicamento().getClave(), k -> new int[2]);

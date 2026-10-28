@@ -1,0 +1,90 @@
+<div class="barra-impresion no-imprimir">
+  @if (cargando()) {
+    <span>Preparando las hojas de baja…</span>
+  } @else if (error()) {
+    <span class="error">{{ error() }}</span>
+  } @else {
+    <span>{{ hojas().length }} {{ hojas().length === 1 ? 'hoja' : 'hojas' }} de baja</span>
+    <button type="button" (click)="imprimir()">🖨 Imprimir</button>
+  }
+</div>
+
+@for (h of hojas(); track h.folio) {
+  <section class="hoja">
+    <header class="encabezado baja">
+      <strong>SERVICIOS DE SALUD DEL INSTITUTO MEXICANO DEL SEGURO SOCIAL PARA EL BIENESTAR</strong>
+    </header>
+
+    <table class="cabecera-baja">
+      <tr>
+        <td class="titulo-mov">Consumo Farmacia &nbsp;<b>{{ h.folio }}</b></td>
+        <td>Concluido</td>
+        <td>{{ h.dia.slice(0, 4) }}</td>
+        <td>Pesos</td>
+        <td>{{ fechaTitulo(h.dia) }}</td>
+      </tr>
+    </table>
+
+    <div class="referencia">
+      <div><b>Referencia:</b> {{ h.paciente }}</div>
+      <div><b>Concepto:</b> Cama {{ h.cama }} · {{ h.area }} · Exp. {{ h.expediente }}</div>
+      <div><b>Observaciones:</b> {{ h.observaciones }}</div>
+    </div>
+
+    <table class="partidas">
+      <thead>
+        <tr>
+          <th>Artículo</th>
+          <th>Descripción</th>
+          <th class="num">Cantidad</th>
+          <th>Lote</th>
+          <th>Fecha Cad</th>
+          <th class="num">Precio</th>
+          <th class="num">Total</th>
+          <th>Unidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (p of h.partidas; track p.articulo + p.lote) {
+          <tr>
+            <td>{{ p.articulo }}</td>
+            <td class="descripcion">{{ p.descripcion }}</td>
+            <td class="num">{{ p.cantidad }}</td>
+            <td>{{ p.lote }}</td>
+            <td>{{ fecha(p.caducidad) }}</td>
+            <td class="num">{{ dinero(p.precio) }}</td>
+            <td class="num">{{ dinero(p.total) }}</td>
+            <td>{{ p.unidad ?? '' }}</td>
+          </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2"></td>
+          <td class="num"><b>{{ h.totalPiezas }}</b></td>
+          <td colspan="3"></td>
+          <td class="num"><b>{{ dinero(h.total) }}</b></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    @if (!h.preciosDeIntelisis) {
+      <p class="aviso no-imprimir">Sin precios: Intelisis no respondió al preparar la hoja.</p>
+    }
+
+    <div class="firma-surtio">
+      <div class="linea-firma"></div>
+      <div>{{ h.surtio }}</div>
+      <small>(NOMBRE Y FIRMA)</small>
+    </div>
+
+    <footer class="pie">
+      <span>Folio HAERO {{ h.folio }} · {{ fecha(h.dia) }}</span>
+      <span>Página 1</span>
+    </footer>
+  </section>
+} @empty {
+  @if (!cargando() && !error()) {
+    <p class="vacio no-imprimir">No hay hojas de baja: termina el carrito para generarlas.</p>
+  }
+}

@@ -99,7 +99,7 @@
               <thead><tr><th>Clave Intelisis</th><th>Lote</th><th class="number">Piezas</th><th>Motivo</th></tr></thead>
               <tbody>
                 @for (baja of bajas(); track baja.claveIntelisis + baja.lote + baja.motivo) {
-                  <tr><td><strong>{{ baja.claveIntelisis }}</strong></td><td>{{ baja.lote }}</td><td class="number">{{ baja.piezas }}</td><td>{{ motivoTexto[baja.motivo] ?? baja.motivo }}</td></tr>
+                  <tr><td><strong>{{ baja.claveIntelisis }}</strong></td><td>{{ baja.lote }}</td><td class="number">{{ baja.piezas }}</td><td>{{ motivoTexto[baja.motivo] || baja.motivo }}</td></tr>
                 } @empty {
                   <tr><td colspan="4" class="empty">Sin bajas en este día (HU35).</td></tr>
                 }

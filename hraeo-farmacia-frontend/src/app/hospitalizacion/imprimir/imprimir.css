@@ -1,0 +1,45 @@
+/* Hojas impresas del carrito: carta, letra tipo Intelisis, sin menús. Una hoja por paciente. */
+:host { display: block; background: #e9e6e1; min-height: 100dvh; padding: 16px; color: #000; font-family: Arial, Helvetica, sans-serif; }
+.barra-impresion { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 816px; margin: 0 auto 12px; padding: 10px 14px; border-radius: 10px; background: #fff; font-size: 14px; }
+.barra-impresion button { padding: 8px 14px; border: 0; border-radius: 8px; background: #9f2241; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.barra-impresion .error { color: #b3261e; }
+
+.hoja { box-sizing: border-box; width: 816px; min-height: 1056px; margin: 0 auto 16px; padding: 40px 44px; background: #fff; font-size: 11px; line-height: 1.35; }
+.encabezado .titulo { display: grid; justify-items: center; gap: 2px; position: relative; font-size: 12px; }
+.encabezado .clues { position: absolute; right: 0; top: 16px; font-size: 10px; }
+.encabezado.baja { text-align: center; font-size: 12px; margin-bottom: 8px; }
+.datos-paciente { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; margin: 14px 0 8px; }
+.seccion { margin: 10px 0 4px; padding: 2px 6px; background: #d9d9d9; font-weight: 700; }
+.generales div { text-transform: uppercase; }
+.medicamento { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; padding: 6px 0; border-bottom: 1px solid #999; }
+.med-nombre { font-weight: 700; }
+.med-folio { text-align: right; font-weight: 700; }
+.espacio-farmacia { height: 22px; }
+.dieta { display: grid; gap: 2px; }
+.firmas-medicos { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 34px; text-align: center; text-transform: uppercase; }
+.linea-firma { height: 30px; border-bottom: 1px solid #000; margin-bottom: 4px; }
+.firmas-medicos small, .firma-surtio small { text-transform: none; }
+.pie { display: flex; justify-content: space-between; margin-top: 24px; font-size: 10px; color: #333; }
+.vacio { color: #555; }
+.aviso { margin: 6px 0; padding: 6px 8px; border-radius: 6px; background: #fff4e0; color: #8a5a00; font-size: 11px; }
+
+.cabecera-baja { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+.cabecera-baja td { padding: 4px 8px; border: 1px solid #000; text-align: center; }
+.cabecera-baja .titulo-mov { text-align: left; font-style: italic; }
+.referencia { display: grid; gap: 2px; margin-bottom: 8px; }
+.partidas { width: 100%; border-collapse: collapse; }
+.partidas th { padding: 4px; border-bottom: 1px solid #000; color: #000; text-align: left; text-transform: none; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.partidas td:nth-child(1), .partidas td:nth-child(4), .partidas td:nth-child(5) { white-space: nowrap; }
+.partidas td { padding: 4px; border-bottom: 1px solid #bbb; vertical-align: top; }
+.partidas .descripcion { width: 38%; }
+.partidas .num { text-align: right; }
+.partidas tfoot td { border-bottom: 0; }
+.firma-surtio { width: 320px; margin: 60px auto 0; text-align: center; text-transform: uppercase; }
+
+@media print {
+  @page { size: letter; margin: 0; }
+  :host { padding: 0; background: #fff; }
+  .no-imprimir { display: none !important; }
+  .hoja { width: auto; min-height: auto; margin: 0; padding: 0.45in 0.5in; break-after: page; }
+  .hoja:last-of-type { break-after: auto; }
+}

@@ -59,6 +59,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/almacen/**").hasRole("ALMACEN")
                         // Almacén ve lo que Farmacia recibió de sus despachos y las diferencias (HU26 CA2).
                         .requestMatchers(HttpMethod.GET, "/api/farmacia/recepciones").hasAnyRole("FARMACIA", "SUPERVISION", "ALMACEN")
+                        // Hospitalización: datos clínicos de internados; solo la usa Farmacia.
+                        .requestMatchers("/api/hospitalizacion/**").hasRole("FARMACIA")
                         .requestMatchers(HttpMethod.GET, "/api/farmacia/**").hasAnyRole("FARMACIA", "SUPERVISION")
                         .requestMatchers("/api/farmacia/**").hasRole("FARMACIA")
                         .anyRequest().authenticated()

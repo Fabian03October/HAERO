@@ -10,6 +10,9 @@ import { AltaInicialFarmacia } from './inventario/alta-inicial/alta-inicial-farm
 import { BajasFarmacia } from './inventario/bajas/bajas-farmacia';
 import { BajaIntelisis } from './baja-intelisis/baja-intelisis';
 import { Trazabilidad } from './trazabilidad/trazabilidad';
+import { Hospitalizacion } from '../hospitalizacion/hospitalizacion';
+import { ImprimirIndicaciones } from '../hospitalizacion/imprimir/imprimir-indicaciones';
+import { ImprimirBajas } from '../hospitalizacion/imprimir/imprimir-bajas';
 import { roleGuard } from '../auth/role-guard';
 
 const SOLO_FARMACIA = { canActivate: [roleGuard], data: { roles: ['FARMACIA'] } };
@@ -27,4 +30,8 @@ export const FARMACIA_ROUTES: Routes = [
   { path: 'inventario/bajas', component: BajasFarmacia, ...SOLO_FARMACIA },
   { path: 'baja-intelisis', component: BajaIntelisis, ...SOLO_FARMACIA },
   { path: 'trazabilidad', component: Trazabilidad, ...SOLO_FARMACIA },
+  { path: 'hospitalizacion', component: Hospitalizacion, ...SOLO_FARMACIA },
+  // Hojas del carrito para imprimir (se abren en otra pestaña).
+  { path: 'hospitalizacion/imprimir/indicaciones', component: ImprimirIndicaciones, ...SOLO_FARMACIA },
+  { path: 'hospitalizacion/imprimir/bajas', component: ImprimirBajas, ...SOLO_FARMACIA },
 ];
