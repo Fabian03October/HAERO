@@ -1,0 +1,110 @@
+<div class="barra-impresion no-imprimir">
+  @if (cargando()) {
+    <span>Preparando las indicaciones…</span>
+  } @else if (error()) {
+    <span class="error">{{ error() }}</span>
+  } @else {
+    <span>{{ hojas().length }} {{ hojas().length === 1 ? 'hoja' : 'hojas' }} de indicaciones médicas</span>
+    <button type="button" (click)="imprimir()">🖨 Imprimir</button>
+  }
+</div>
+
+@for (h of hojas(); track h.idIngreso) {
+  <section class="hoja">
+    <header class="encabezado">
+      <div class="titulo">
+        <strong>HOSPITAL REGIONAL DE ALTA ESPECIALIDAD DE OAXACA</strong>
+        <span class="clues">CLUES: OCSSA007483</span>
+        <strong>INDICACIONES MÉDICAS ACTIVAS</strong>
+      </div>
+    </header>
+
+    <div class="datos-paciente">
+      <div><b>Nombre:</b> {{ h.paciente }}</div>
+      <div><b>Fecha de impresión:</b> {{ fechaLarga(h.fechaImpresion) }}</div>
+      <div><b>Sexo:</b> {{ h.sexo ?? '' }} &nbsp;&nbsp; <b>Edad:</b> {{ h.edad ?? '' }}</div>
+      <div><b>Fecha de nacimiento:</b> {{ fechaCorta(h.fechaNacimiento) }} &nbsp;&nbsp; <b>Expediente:</b> {{ h.expediente }}</div>
+      <div><b>Cama:</b> {{ h.cama }} &nbsp;&nbsp; <b>Área:</b> {{ h.area }}</div>
+    </div>
+
+    @if (!h.intelisisDisponible) {
+      <p class="aviso no-imprimir">Intelisis no respondió: la hoja sale sin indicaciones generales, dieta ni médicos.</p>
+    }
+
+    <div class="seccion">Indicaciones generales</div>
+    <div class="generales">
+      @for (g of h.indicacionesGenerales; track $index) {
+        <div>{{ g }}</div>
+      } @empty {
+        <div class="vacio">—</div>
+      }
+    </div>
+
+    <div class="seccion">Medicamentos por Horario</div>
+    @for (m of h.medicamentosPorHorario; track $index) {
+      <div class="medicamento">
+        <div class="med-texto">
+          <div class="med-nombre">{{ m.clave }} - {{ m.descripcion }}</div>
+          <div>{{ m.indicacion }}</div>
+          @if (m.nota) { <div>Nota: {{ m.nota }}</div> }
+        </div>
+        <div class="med-folio">
+          @if (m.externo) { <div>Externo</div> }
+          @if (m.folio) { <div>Folio: {{ m.folio }}</div> }
+          <div class="espacio-farmacia"></div>
+        </div>
+      </div>
+    } @empty {
+      <div class="vacio">Sin medicamentos por horario.</div>
+    }
+
+    @if (h.medicamentosPorInfusion.length) {
+      <div class="seccion">Medicamentos por Infusión Continua</div>
+      @for (m of h.medicamentosPorInfusion; track $index) {
+        <div class="medicamento">
+          <div class="med-texto">
+            <div class="med-nombre">+ {{ m.clave }} - {{ m.descripcion }}</div>
+            <div>{{ m.indicacion }}@if (m.nota) {&nbsp; Nota: {{ m.nota }}}</div>
+          </div>
+          <div class="med-folio">
+            @if (m.folio) { <div>Folio: {{ m.folio }}</div> }
+            <div class="espacio-farmacia"></div>
+          </div>
+        </div>
+      }
+    }
+
+    <div class="seccion">Dieta</div>
+    <div class="dieta">
+      <div><b>DESAYUNO</b> {{ h.desayuno ?? '' }}</div>
+      <div><b>COMIDA</b> {{ h.comida ?? '' }}</div>
+      <div><b>CENA</b> {{ h.cena ?? '' }}</div>
+    </div>
+
+    <div class="firmas-medicos">
+      <div>
+        <div class="linea-firma"></div>
+        <div>{{ h.medicoTratante?.nombre ?? '' }}</div>
+        <div>{{ h.medicoTratante?.cedula ?? '' }}</div>
+        <div>{{ h.medicoTratante?.especialidad ?? '' }}</div>
+        <small>Firma del médico tratante</small>
+      </div>
+      <div>
+        <div class="linea-firma"></div>
+        <div>{{ h.medicoAdscrito?.nombre ?? '' }}</div>
+        <div>{{ h.medicoAdscrito?.cedula ?? '' }}</div>
+        <div>{{ h.medicoAdscrito?.especialidad ?? '' }}</div>
+        <small>Firma del médico adscrito</small>
+      </div>
+    </div>
+
+    <footer class="pie">
+      <span>{{ fechaLarga(h.fechaImpresion) }}</span>
+      <span>Impreso desde HAERO</span>
+    </footer>
+  </section>
+} @empty {
+  @if (!cargando() && !error()) {
+    <p class="vacio no-imprimir">No hay pacientes con indicaciones en esta área.</p>
+  }
+}

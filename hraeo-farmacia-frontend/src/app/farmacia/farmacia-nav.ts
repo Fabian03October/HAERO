@@ -23,6 +23,7 @@ export const FARMACIA_MENU: ItemMenu[] = [
     ],
   },
   { etiqueta: 'Baja en Intelisis', routerLink: '/farmacia/baja-intelisis', etiquetaExtra: 'HU31 · HU32' },
+  { etiqueta: 'Hospitalización', routerLink: '/farmacia/hospitalizacion' },
   { etiqueta: 'Trazabilidad', routerLink: '/farmacia/trazabilidad', etiquetaExtra: 'HU33' },
   { etiqueta: 'Solicitudes a Almacén', routerLink: '/farmacia/solicitudes', etiquetaExtra: 'HU13' },
 ];

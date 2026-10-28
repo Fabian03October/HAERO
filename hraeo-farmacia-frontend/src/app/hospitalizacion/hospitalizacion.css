@@ -1,0 +1,200 @@
+/* Hospitalización: tarjetas de cama por área, con el mismo estilo que las pantallas de Farmacia.
+   Libre = verde, ocupada = guinda, novedades = punto dorado. */
+
+.hero-hosp { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.lectura { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #e4ddd3; border-radius: 12px; background: #faf8f4; font-size: 12px; }
+.lectura strong { display: block; color: #2b2b2b; font-size: 13px; }
+.lectura small { color: #6f7271; }
+.punto { width: 10px; height: 10px; border-radius: 50%; background: #c9c3b9; }
+.punto.ok { background: #1c7c3c; box-shadow: 0 0 0 3px #e8f5ea; }
+.punto.mal { background: #b3261e; box-shadow: 0 0 0 3px #fdecea; }
+
+/* Áreas */
+.areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.area {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e4ddd3;
+  border-radius: 12px;
+  background: #fff;
+  color: #2b2b2b;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.area:hover { border-color: #d6c7b8; box-shadow: 0 8px 18px rgb(60 40 20 / 6%); }
+.area.activa { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.area-nombre { padding-right: 22px; font-size: 13px; font-weight: 800; color: #611232; }
+.area-cifras { color: #6f7271; font-size: 12px; }
+.barra-ocupacion { height: 5px; overflow: hidden; border-radius: 999px; background: #e8f5ea; }
+.barra-ocupacion span { display: block; height: 100%; border-radius: 999px; background: #9f2241; }
+
+/* Aviso de novedades */
+.aviso {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #d19a3e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 0 0 3px rgb(209 154 62 / 20%);
+}
+.area .aviso { position: absolute; top: 10px; right: 10px; }
+
+/* Distribución: camas a la izquierda, detalle a la derecha */
+.hosp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 18px; align-items: start; }
+.lateral-hosp { position: sticky; top: 16px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 12px; color: #6f7271; font-size: 12px; }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.muestra { width: 14px; height: 14px; border-radius: 4px; }
+.muestra.libre { border: 2px solid #1c7c3c; background: #e8f5ea; }
+.muestra.ocupada { border: 2px solid #9f2241; background: #f6e9ed; }
+.muestra.novedad { border-radius: 50%; background: #d19a3e; }
+
+/* Tarjetas de cama */
+.camas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.cama {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-height: 132px;
+  padding: 10px 12px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.cama:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgb(60 40 20 / 8%); }
+.cama.libre { border-color: #b9dfc2; background: #f1faf3; color: #1c7c3c; }
+.cama.ocupada { border-color: #e8c9d2; background: #fbf4f6; color: #4a4a4a; }
+.cama.elegida { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.cama-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.cama-cabecera strong { overflow: hidden; color: inherit; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.cama.ocupada .cama-cabecera strong { color: #611232; }
+.cama-icono { font-size: 22px; line-height: 1.2; }
+.cama-paciente { overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.cama small { color: #6f7271; font-size: 11px; }
+.cama .mas { color: #9a651c; font-weight: 700; }
+.en-linea-aviso { box-shadow: none; }
+
+/* Detalle */
+.paciente-hosp { display: grid; gap: 2px; margin-bottom: 12px; padding: 12px; border-radius: 10px; background: #f6e9ed; }
+.paciente-hosp strong { color: #611232; font-size: 14px; }
+.paciente-hosp small { color: #6f7271; font-size: 12px; }
+.subtitulo { margin: 14px 0 8px; color: #611232; font-size: 13px; }
+.meds { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.meds li { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid #efebe4; border-radius: 8px; font-size: 12px; }
+.meds li small { color: #8c8a86; font-size: 11px; }
+.meds li.suspendido span { color: #8c8a86; text-decoration: line-through; }
+
+/* Línea de tiempo de actualizaciones */
+.linea { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.evento { display: grid; gap: 2px; padding: 8px 10px 8px 12px; border-left: 4px solid #c9c3b9; border-radius: 6px; background: #faf8f4; font-size: 12px; }
+.lateral-hosp .card-heading + .linea .evento { cursor: pointer; }
+.evento small { color: #8c8a86; font-size: 11px; }
+.evento-tipo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.evento.INGRESO { border-left-color: #9f2241; }
+.evento.EGRESO { border-left-color: #1c7c3c; }
+.evento.CAMBIO_CAMA { border-left-color: #6f7271; }
+.evento.MEDICAMENTO_NUEVO { border-left-color: #d19a3e; }
+.evento.MEDICAMENTO_SUSPENDIDO { border-left-color: #c95e55; }
+.evento.visto { opacity: 0.6; }
+
+.privacidad { text-align: center; }
+
+@media (max-width: 1100px) {
+  .hosp { grid-template-columns: minmax(0, 1fr); }
+  .lateral-hosp { position: static; max-height: none; }
+}
+
+@media (max-width: 640px) {
+  .camas { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .areas { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* Carrito del día */
+.avance { display: grid; gap: 6px; margin-bottom: 14px; color: #6f7271; font-size: 13px; }
+.avance strong { color: #611232; }
+.avance-barra { height: 8px; }
+.avance-barra span { background: #1c7c3c; }
+.confirmar { display: grid; gap: 10px; margin: 0 0 14px; padding: 14px; border: 2px solid #d19a3e; border-radius: 12px; background: #fffaf0; }
+.confirmar-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.confirmar-cabecera strong { color: #611232; font-size: 14px; }
+.candidatos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.candidato { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid #e4ddd3; border-radius: 10px; background: #fff; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.candidato strong { color: #611232; }
+.candidato small { color: #6f7271; }
+.candidato.elegido { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.confirmar-piezas { align-items: center; font-size: 13px; }
+.confirmar-piezas label { color: #6f7271; font-weight: 700; }
+.confirmar-piezas input { flex-grow: 0; width: 90px; padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 8px; font: inherit; }
+.check { display: inline-flex; align-items: center; gap: 6px; color: #4a4a4a; font-size: 13px; }
+
+.carrito { display: grid; gap: 10px; }
+.carrito-cama { border: 1px solid #efebe4; border-radius: 12px; overflow: hidden; }
+.carrito-cama-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 8px 12px; background: #f6e9ed; font-size: 13px; }
+.carrito-cama-cabecera strong { color: #611232; }
+.carrito-cama-cabecera small { color: #6f7271; }
+.carrito-cama ul { margin: 0; padding: 0; list-style: none; }
+.linea-carrito { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid #f3efe9; font-size: 12px; }
+.linea-nombre { min-width: 0; }
+.linea-cifras { color: #4a4a4a; font-weight: 800; }
+.estado-linea { justify-self: start; padding: 2px 8px; border-radius: 999px; background: #f5f2ed; color: #6f7271; font-size: 11px; font-weight: 700; }
+.linea-carrito.PENDIENTE .estado-linea { background: #fff3e2; color: #9a651c; }
+.linea-carrito.PARCIAL .estado-linea { background: #f4ebd5; color: #7a5b17; }
+.linea-carrito.SURTIDO .estado-linea { background: #e8f5ea; color: #1c7c3c; }
+.linea-carrito.SURTIDO .linea-nombre { color: #8c8a86; }
+.linea-carrito.SUSPENDIDO .linea-nombre { color: #8c8a86; text-decoration: line-through; }
+.linea-carrito.sin-clave { opacity: 0.65; }
+
+@media (max-width: 640px) {
+  .linea-carrito { grid-template-columns: minmax(0, 1fr) auto; }
+  .estado-linea { grid-column: 1 / -1; }
+}
+
+.avance-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.despues { display: grid; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid #f0d9a8; border-left: 5px solid #d19a3e; border-radius: 12px; background: #fff8ec; font-size: 12px; }
+.despues > strong { color: #8a5a00; font-size: 13px; }
+.despues-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pill-nuevo, .pill-cancelado, .pill-ayer { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.pill-nuevo { background: #f4ebd5; color: #7a5b17; }
+.pill-cancelado { background: #fdecea; color: #b3261e; }
+.pill-ayer { background: #b3261e; color: #fff; }
+.solo-impresion { display: none; }
+
+/* Impresión del carrito: solo el formato, sin menús, áreas ni botones. */
+@media print {
+  :host ::ng-deep app-topbar, :host ::ng-deep app-sidebar { display: none !important; }
+  .main { padding: 0; background: #fff; }
+  .hero, .areas, .lateral-hosp, .no-imprimir, .barra, .leyenda, .privacidad, .confirmar { display: none !important; }
+  .hosp { display: block; }
+  .card { padding: 0; border: 0; box-shadow: none; }
+  .solo-impresion { display: block; }
+  .encabezado-impresion { margin-bottom: 10px; }
+  .encabezado-impresion h2 { margin: 2px 0; font-size: 16px; }
+  .encabezado-impresion span, .encabezado-impresion strong { font-size: 11px; }
+  .carrito-cama { break-inside: avoid; border-color: #999; }
+  .carrito-cama-cabecera { background: #eee; }
+  .linea-carrito { grid-template-columns: 70px minmax(0, 1fr) 50px; font-size: 11px; }
+  .firmas { display: grid !important; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; font-size: 11px; text-align: center; }
+  .firmas span { display: block; height: 36px; border-bottom: 1px solid #000; margin-bottom: 4px; }
+}
+
+.pregunta-imprimir { display: grid; gap: 8px; margin: 0 0 14px; padding: 14px; border: 2px solid #9f2241; border-radius: 12px; background: #fbf4f6; }
+.pregunta-imprimir > strong { color: #611232; font-size: 14px; }
+.elegir-pacientes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; max-height: 220px; overflow-y: auto; }
+.despues.cancelados { border-color: #f3c2be; border-left-color: #b3261e; background: #fdecea; }
+.despues.cancelados > strong { color: #b3261e; }
+.carrito-cama-cabecera .imprimir-cama { margin-left: auto; }
+.cancelado-texto { color: #b3261e; font-weight: 700; }
+.link.danger { color: #c0392b; }
+.EVENTO_MODIFICADO, .evento.MEDICAMENTO_MODIFICADO { border-left-color: #6f5bd1; }

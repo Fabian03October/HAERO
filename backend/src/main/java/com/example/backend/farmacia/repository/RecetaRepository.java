@@ -12,4 +12,7 @@ public interface RecetaRepository extends JpaRepository<Receta, Long> {
     Optional<Receta> findByFolioIgnoreCase(String folio);
 
     List<Receta> findByEstadoInOrderByFechaDesc(Collection<String> estados);
+
+    // Las recetas del carrito de Hospitalización (folio HOSP-...) no van en "Recetas parciales".
+    List<Receta> findByEstadoInAndFolioNotLikeOrderByFechaDesc(Collection<String> estados, String folio);
 }
