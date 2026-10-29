@@ -137,6 +137,18 @@ export class Session {
     this.motivoSalida.set(motivo);
   }
 
+  /** El servidor dice que falta algo antes de usar el sistema; el guard lo manda ahí. */
+  marcarPendiente(que: 'contrasena' | 'politicas'): void {
+    const usuario = this.usuarioActual();
+    if (!usuario) return;
+    const actualizado: UsuarioSesion =
+      que === 'contrasena'
+        ? { ...usuario, debeCambiarContrasena: true }
+        : { ...usuario, versionPoliticasAceptada: null, fechaAceptacionPoliticas: null };
+    this.usuarioActual.set(actualizado);
+    this.persistirSesion(actualizado);
+  }
+
   restaurarSesion(): void {
     const usuarioGuardado = localStorage.getItem(SESSION_STORAGE_KEY);
     const tokenGuardado = localStorage.getItem(TOKEN_STORAGE_KEY);

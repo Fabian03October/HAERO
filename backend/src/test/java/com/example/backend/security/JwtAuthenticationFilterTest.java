@@ -48,7 +48,7 @@ class JwtAuthenticationFilterTest {
 
     @BeforeEach
     void configurar() {
-        filtro = new JwtAuthenticationFilter(jwtUtil, usuarioRepository);
+        filtro = new JwtAuthenticationFilter(jwtUtil, usuarioRepository, "1.0");
     }
 
     @AfterEach
@@ -64,6 +64,8 @@ class JwtAuthenticationFilterTest {
         u.setActivo(true);
         u.setRol(r);
         u.setTokenValidoDesde(LocalDateTime.now().minusDays(1));
+        u.setDebeCambiarContrasena(false);
+        u.setVersionPoliticasAceptada("1.0");
         return u;
     }
 
@@ -154,7 +156,6 @@ class JwtAuthenticationFilterTest {
         when(jwtUtil.extraerNombreUsuario("token-bueno")).thenReturn("almacen");
         when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
         when(jwtUtil.extraerFechaEmision("token-bueno")).thenReturn(LocalDateTime.now());
-        when(jwtUtil.extraerRol("token-bueno")).thenReturn("ALMACEN");
 
         filtro.doFilterInternal(request, response, filterChain);
 
@@ -174,7 +175,6 @@ class JwtAuthenticationFilterTest {
         when(jwtUtil.extraerNombreUsuario("token-bueno")).thenReturn("almacen");
         when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
         when(jwtUtil.extraerFechaEmision("token-bueno")).thenReturn(LocalDateTime.now());
-        when(jwtUtil.extraerRol("token-bueno")).thenReturn("FARMACIA");
 
         simularUltimaActividad("almacen", LocalDateTime.now().minusMinutes(10));
 
@@ -214,7 +214,6 @@ class JwtAuthenticationFilterTest {
         when(jwtUtil.extraerNombreUsuario("token-nuevo")).thenReturn("almacen");
         when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
         when(jwtUtil.extraerFechaEmision("token-nuevo")).thenReturn(LocalDateTime.now());
-        when(jwtUtil.extraerRol("token-nuevo")).thenReturn("ALMACEN");
 
         simularUltimaActividad("almacen", LocalDateTime.now().minusHours(3));
 
@@ -237,11 +236,77 @@ class JwtAuthenticationFilterTest {
         when(jwtUtil.extraerNombreUsuario("token-nuevo")).thenReturn("almacen");
         when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
         when(jwtUtil.extraerFechaEmision("token-nuevo")).thenReturn(invalidado.withNano(0));
-        when(jwtUtil.extraerRol("token-nuevo")).thenReturn("ALMACEN");
 
         filtro.doFilterInternal(request, response, filterChain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
         verify(response, org.mockito.Mockito.never()).setHeader("X-Auth-Error", "sesion-cerrada");
+    }
+
+    // ---------- Revisión Iteración 1 ----------
+
+    private void tokenBuenoDe(Usuario usuario) {
+        when(request.getHeader("Authorization")).thenReturn("Bearer token-bueno");
+        when(jwtUtil.tokenValido("token-bueno")).thenReturn(true);
+        when(jwtUtil.extraerNombreUsuario("token-bueno")).thenReturn("almacen");
+        when(usuarioRepository.findByNombreUsuario("almacen")).thenReturn(Optional.of(usuario));
+        when(jwtUtil.extraerFechaEmision("token-bueno")).thenReturn(LocalDateTime.now());
+    }
+
+    @Test
+    void elRolSaleDeLaBaseDeDatos_noDelToken() throws Exception {
+        // El token se emitió cuando era ALMACEN; el administrador lo cambió a FARMACIA (HU07 CA3).
+        tokenBuenoDe(usuarioActivo("FARMACIA"));
+
+        filtro.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting(Object::toString).containsExactly("ROLE_FARMACIA");
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void conContrasenaTemporal_rechazaCualquierRutaExceptoCambiarla() throws Exception {
+        Usuario usuario = usuarioActivo("ALMACEN");
+        usuario.setDebeCambiarContrasena(true);
+        tokenBuenoDe(usuario);
+        when(request.getRequestURI()).thenReturn("/api/almacen/existencias");
+        java.io.StringWriter cuerpo = new java.io.StringWriter();
+        when(response.getWriter()).thenReturn(new java.io.PrintWriter(cuerpo));
+
+        filtro.doFilterInternal(request, response, filterChain);
+
+        verify(response).setStatus(403);
+        verify(response).setHeader("X-Auth-Pendiente", "cambiar-contrasena");
+        verify(filterChain, org.mockito.Mockito.never()).doFilter(request, response);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(cuerpo.toString()).contains("Cambia tu contraseña temporal");
+    }
+
+    @Test
+    void conContrasenaTemporal_siPermiteCambiarla() throws Exception {
+        Usuario usuario = usuarioActivo("ALMACEN");
+        usuario.setDebeCambiarContrasena(true);
+        tokenBuenoDe(usuario);
+        when(request.getRequestURI()).thenReturn("/api/usuarios/me/contrasena");
+
+        filtro.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void sinAceptarLasPoliticasVigentes_rechazaHastaAceptarlas() throws Exception {
+        Usuario usuario = usuarioActivo("FARMACIA");
+        usuario.setVersionPoliticasAceptada(null);
+        tokenBuenoDe(usuario);
+        when(request.getRequestURI()).thenReturn("/api/farmacia/existencias");
+        when(response.getWriter()).thenReturn(new java.io.PrintWriter(new java.io.StringWriter()));
+
+        filtro.doFilterInternal(request, response, filterChain);
+
+        verify(response).setHeader("X-Auth-Pendiente", "aceptar-politicas");
+        verify(filterChain, org.mockito.Mockito.never()).doFilter(request, response);
     }
 }

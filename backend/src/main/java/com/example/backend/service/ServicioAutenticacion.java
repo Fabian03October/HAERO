@@ -5,6 +5,8 @@ import com.example.backend.dto.LoginResponse;
 import com.example.backend.entity.Usuario;
 import com.example.backend.repository.UsuarioRepository;
 import com.example.backend.security.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,9 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ServicioAutenticacion {
@@ -20,28 +25,47 @@ public class ServicioAutenticacion {
     static final int MAX_INTENTOS = 5;
     static final Duration DURACION_BLOQUEO = Duration.ofMinutes(10);
 
+    // Límite de nombres desconocidos que se recuerdan; si se llena, se vacía.
+    private static final int MAX_DESCONOCIDOS = 10_000;
+
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    // true: entrar con una cuenta cierra sus otras sesiones abiertas.
+    private final boolean sesionUnica;
+    // Intentos fallidos con nombres que no existen o están desactivados: se bloquean igual
+    // que una cuenta real, para que el mensaje de bloqueo no revele qué usuarios existen (HU01 CA2).
+    private final Map<String, Intentos> intentosDesconocidos = new ConcurrentHashMap<>();
 
+    private static final class Intentos {
+        int fallidos;
+        LocalDateTime bloqueadoHasta;
+    }
+
+    @Autowired
     public ServicioAutenticacion(UsuarioRepository usuarioRepository,
                                    PasswordEncoder passwordEncoder,
-                                   JwtUtil jwtUtil) {
+                                   JwtUtil jwtUtil,
+                                   @Value("${seguridad.sesion-unica:true}") boolean sesionUnica) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.sesionUnica = sesionUnica;
+    }
+
+    ServicioAutenticacion(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+        this(usuarioRepository, passwordEncoder, jwtUtil, true);
     }
 
     public LoginResponse login(LoginRequest request) {
-        Usuario usuario = usuarioRepository.findByNombreUsuario(request.getNombreUsuario())
-                // mismo mensaje para usuario inexistente, inactivo o contraseña incorrecta (HU01/HU02/HU05)
-                .orElseThrow(() -> new BadCredentialsException("Usuario o contraseña incorrectos"));
+        LocalDateTime ahora = LocalDateTime.now();
+        Usuario usuario = usuarioRepository.findByNombreUsuario(request.getNombreUsuario()).orElse(null);
 
-        if (!usuario.isActivo()) {
-            throw new BadCredentialsException("Usuario o contraseña incorrectos");
+        // Mismo trato para usuario inexistente o inactivo que para contraseña incorrecta (HU01/HU02/HU05).
+        if (usuario == null || !usuario.isActivo()) {
+            throw fallidoDesconocido(request.getNombreUsuario(), ahora);
         }
 
-        LocalDateTime ahora = LocalDateTime.now();
         if (usuario.getBloqueadoHasta() != null && usuario.getBloqueadoHasta().isAfter(ahora)) {
             throw new BadCredentialsException(mensajeBloqueo(usuario.getBloqueadoHasta(), ahora));
         }
@@ -68,13 +92,36 @@ public class ServicioAutenticacion {
         // porque el iat del JWT solo tiene precisión de segundos; así el token recién
         // emitido nunca nace "anterior" a esta marca por milisegundos ni por diferencias
         // de zona horaria con la base de datos (p. ej. SQL Server en UTC dentro de Docker).
-        usuario.setTokenValidoDesde(ahora.truncatedTo(ChronoUnit.SECONDS));
+        // Con sesión única, las sesiones anteriores de esta cuenta dejan de valer.
+        if (sesionUnica || usuario.getTokenValidoDesde() == null) {
+            usuario.setTokenValidoDesde(ahora.truncatedTo(ChronoUnit.SECONDS));
+        }
         usuarioRepository.save(usuario);
 
         String token = jwtUtil.generarToken(usuario.getNombreUsuario(), usuario.getRol().getNombre());
 
         return new LoginResponse(token, usuario.getRol().getNombre(), usuario.isDebeCambiarContrasena(), usuario.getNombreCompleto(),
                 usuario.getVersionPoliticasAceptada(), usuario.getFechaAceptacionPoliticas());
+    }
+
+    private BadCredentialsException fallidoDesconocido(String nombreUsuario, LocalDateTime ahora) {
+        String llave = nombreUsuario == null ? "" : nombreUsuario.trim().toLowerCase(Locale.ROOT);
+        if (intentosDesconocidos.size() > MAX_DESCONOCIDOS) {
+            intentosDesconocidos.clear();
+        }
+        Intentos intentos = intentosDesconocidos.computeIfAbsent(llave, k -> new Intentos());
+        synchronized (intentos) {
+            if (intentos.bloqueadoHasta != null && intentos.bloqueadoHasta.isAfter(ahora)) {
+                return new BadCredentialsException(mensajeBloqueo(intentos.bloqueadoHasta, ahora));
+            }
+            intentos.fallidos++;
+            if (intentos.fallidos >= MAX_INTENTOS) {
+                intentos.fallidos = 0;
+                intentos.bloqueadoHasta = ahora.plus(DURACION_BLOQUEO);
+                return new BadCredentialsException(mensajeBloqueo(intentos.bloqueadoHasta, ahora));
+            }
+        }
+        return new BadCredentialsException("Usuario o contraseña incorrectos");
     }
 
     static String mensajeBloqueo(LocalDateTime hasta, LocalDateTime ahora) {

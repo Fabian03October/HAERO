@@ -7,7 +7,8 @@ import { Rol, Session } from './session';
 // Motivos que el backend manda en el encabezado X-Auth-Error (JwtAuthenticationFilter).
 const MOTIVOS: Record<string, string> = {
   inactividad: 'Tu sesión se cerró por 15 minutos de inactividad. Vuelve a iniciar sesión.',
-  'sesion-cerrada': 'Tu sesión ya no es válida: se cerró desde otro lugar o se cambió la contraseña. Vuelve a iniciar sesión.',
+  'sesion-cerrada':
+    'Tu sesión ya no es válida: se cerró desde otro lugar, se cambió la contraseña o el administrador cambió tu rol. Vuelve a iniciar sesión.',
   'cuenta-inactiva': 'Tu cuenta fue desactivada. Consulta con el administrador.',
 };
 
@@ -27,6 +28,14 @@ export const sesionInterceptor: HttpInterceptorFn = (request, next) => {
   return next(request).pipe(
     catchError((error: unknown) => {
       const rol = session.usuarioActual()?.rol;
+      // El servidor exige primero cambiar la contraseña temporal o aceptar las políticas
+      // (HU08 CA4): la sesión sigue siendo válida, solo se manda a esa pantalla.
+      const pendiente = error instanceof HttpErrorResponse ? error.headers.get('X-Auth-Pendiente') : null;
+      if (pendiente && rol) {
+        session.marcarPendiente(pendiente === 'cambiar-contrasena' ? 'contrasena' : 'politicas');
+        router.navigateByUrl(pendiente === 'cambiar-contrasena' ? '/cambiar-contrasena' : '/politicas');
+        return throwError(() => error);
+      }
       if (error instanceof HttpErrorResponse && rol && request.headers.has('Authorization')) {
         const motivo = error.headers.get('X-Auth-Error');
         const sesionInvalida =
@@ -49,6 +58,7 @@ export function rolTieneAcceso(rol: Rol, request: HttpRequest<unknown>): boolean
   if (ruta.startsWith('/api/usuarios')) return rol === 'ADMIN';
   if (ruta.startsWith('/api/almacen/medicamentos') && consulta) return rol === 'ALMACEN' || rol === 'SUPERVISION' || rol === 'FARMACIA';
   if (ruta.startsWith('/api/almacen')) return consulta ? rol === 'ALMACEN' || rol === 'SUPERVISION' : rol === 'ALMACEN';
+  if (ruta.startsWith('/api/hospitalizacion')) return rol === 'FARMACIA';
   if (ruta.startsWith('/api/farmacia')) return consulta ? rol === 'FARMACIA' || rol === 'SUPERVISION' : rol === 'FARMACIA';
   return false;
 }

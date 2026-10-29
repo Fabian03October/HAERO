@@ -73,17 +73,21 @@ public class ServicioHospitalizacion {
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionHospitalizacion sincronizacion;
     private final String versionPoliticas;
+    // Centrales de enfermería que Farmacia no atiende: no se muestran (se siguen sincronizando).
+    private final List<String> areasOcultas;
 
     public ServicioHospitalizacion(JdbcTemplate haero,
                                    UsuarioRepository usuarioRepository,
                                    ConexionIntelisis conexion,
                                    ServicioSincronizacionHospitalizacion sincronizacion,
-                                   @Value("${hospitalizacion.version-politicas:1.0}") String versionPoliticas) {
+                                   @Value("${hospitalizacion.version-politicas:${politicas.version:1.0}}") String versionPoliticas,
+                                   @Value("${hospitalizacion.areas-ocultas:CE-HEMO,CE-HEMOD,CE-DIAL,CE-ONCO,CE-Qx,CE-RECU}") List<String> areasOcultas) {
         this.haero = haero;
         this.usuarioRepository = usuarioRepository;
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
         this.versionPoliticas = versionPoliticas;
+        this.areasOcultas = areasOcultas;
     }
 
     // ---------- Áreas ----------
@@ -223,6 +227,7 @@ public class ServicioHospitalizacion {
                     return new CamaHospitalizacion(espacio, rs.getString(2), rs.getString(3), rs.getString(4),
                             pacientes.isEmpty() ? "LIBRE" : "OCUPADA", pacientes, novedades.getOrDefault(espacio, 0));
                 }));
+        camas.removeIf(c -> areasOcultas.contains(c.getCentral()));
         camas.sort(Comparator.comparing(CamaHospitalizacion::getCentral).thenComparing(c -> c.getEspacio(), ServicioHospitalizacion::compararNatural));
         return new Foto(camas);
     }

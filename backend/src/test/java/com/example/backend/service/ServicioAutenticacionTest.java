@@ -184,4 +184,39 @@ class ServicioAutenticacionTest {
 
         assertThat(servicioAutenticacion.login(intento("clave-correcta")).getVersionPoliticasAceptada()).isEqualTo("1.0");
     }
+
+    // ---------- Revisión Iteración 1 (HU01 CA2) ----------
+
+    @Test
+    void login_conUsuarioInexistente_seBloqueaIgualQueUnoReal() {
+        // Así el mensaje de "cuenta bloqueada" no revela qué nombres de usuario existen.
+        LoginRequest request = new LoginRequest();
+        request.setNombreUsuario("noexiste");
+        request.setContrasena("Cualquiera1");
+        when(usuarioRepository.findByNombreUsuario("noexiste")).thenReturn(Optional.empty());
+
+        for (int i = 1; i < ServicioAutenticacion.MAX_INTENTOS; i++) {
+            assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessage("Usuario o contraseña incorrectos");
+        }
+        assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessageContaining("Cuenta bloqueada");
+        assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessageContaining("Cuenta bloqueada");
+    }
+
+    @Test
+    void login_sinSesionUnica_noCierraLasOtrasSesiones() {
+        ServicioAutenticacion variasSesiones = new ServicioAutenticacion(usuarioRepository, passwordEncoder, jwtUtil, false);
+        Usuario usuario = usuarioActivo;
+        java.time.LocalDateTime antes = java.time.LocalDateTime.now().minusHours(2).withNano(0);
+        usuario.setTokenValidoDesde(antes);
+        LoginRequest request = new LoginRequest();
+        request.setNombreUsuario("jperez");
+        request.setContrasena("Correcta123");
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("Correcta123", usuario.getContrasenaHash())).thenReturn(true);
+        when(jwtUtil.generarToken(any(), any())).thenReturn("token");
+
+        variasSesiones.login(request);
+
+        assertThat(usuario.getTokenValidoDesde()).isEqualTo(antes);
+    }
 }

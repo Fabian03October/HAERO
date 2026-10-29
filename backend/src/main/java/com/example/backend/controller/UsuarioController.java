@@ -2,17 +2,20 @@ package com.example.backend.controller;
 
 import com.example.backend.dto.AceptacionPoliticasResponse;
 import com.example.backend.dto.AceptarPoliticasRequest;
+import com.example.backend.dto.BitacoraUsuarioResponse;
 import com.example.backend.dto.CambiarContrasenaRequest;
 import com.example.backend.dto.CrearUsuarioRequest;
 import com.example.backend.dto.EditarUsuarioRequest;
 import com.example.backend.dto.RestablecerContrasenaRequest;
 import com.example.backend.dto.UsuarioResponse;
 import com.example.backend.service.ServicioUsuarios;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -36,8 +39,8 @@ public class UsuarioController {
     }
 
     @PostMapping
-    public ResponseEntity<UsuarioResponse> crear(@RequestBody CrearUsuarioRequest request) {
-        UsuarioResponse response = servicioUsuarios.crearUsuario(request);
+    public ResponseEntity<UsuarioResponse> crear(@RequestBody CrearUsuarioRequest request, Authentication authentication) {
+        UsuarioResponse response = servicioUsuarios.crearUsuario(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -53,14 +56,24 @@ public class UsuarioController {
     }
 
     @PatchMapping("/{id}/reactivar")
-    public ResponseEntity<UsuarioResponse> reactivar(@PathVariable Long id) {
-        return ResponseEntity.ok(servicioUsuarios.reactivarUsuario(id));
+    public ResponseEntity<UsuarioResponse> reactivar(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(servicioUsuarios.reactivarUsuario(id, authentication.getName()));
     }
 
     @PatchMapping("/{id}/restablecer-contrasena")
     public ResponseEntity<UsuarioResponse> restablecerContrasena(@PathVariable Long id,
-                                                                  @RequestBody RestablecerContrasenaRequest request) {
-        return ResponseEntity.ok(servicioUsuarios.restablecerContrasena(id, request));
+                                                                  @RequestBody RestablecerContrasenaRequest request,
+                                                                  Authentication authentication) {
+        return ResponseEntity.ok(servicioUsuarios.restablecerContrasena(id, request, authentication.getName()));
+    }
+
+    // HU41: quién hizo qué con cada cuenta. Por defecto, los últimos 30 días.
+    @GetMapping("/bitacora")
+    public ResponseEntity<List<BitacoraUsuarioResponse>> bitacora(
+            @RequestParam(required = false) Long usuarioId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        return ResponseEntity.ok(servicioUsuarios.bitacora(usuarioId, desde, hasta));
     }
 
     @PutMapping("/me/contrasena")
