@@ -1,5 +1,6 @@
 package com.example.backend.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,9 +20,15 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    // Direcciones desde las que se abre el frontend. En el servidor se ponen con la
+    // variable CORS_ORIGENES (separadas por coma); si el frontend se sirve desde el mismo
+    // servidor que reenvía /api, no hace falta agregar nada.
+    private final List<String> origenesPermitidos;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          @Value("${CORS_ORIGENES:http://localhost:4200,http://localhost:4300}") List<String> origenesPermitidos) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.origenesPermitidos = origenesPermitidos.stream().map(String::trim).filter(o -> !o.isEmpty()).toList();
     }
 
     @Bean
@@ -32,10 +39,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:4200", "http://localhost:4300"));
+        configuration.setAllowedOrigins(origenesPermitidos);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("X-Auth-Error"));
+        configuration.setExposedHeaders(List.of("X-Auth-Error", "X-Auth-Pendiente"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

@@ -63,7 +63,15 @@ export class FormularioUsuario {
 
     peticion.subscribe({
       next: () => {
-        if (this.modoEdicion) this.notificaciones.exito('Usuario actualizado', `Se guardaron los cambios de ${nombreCompleto}.`);
+        if (this.modoEdicion) {
+          const cambioRol = rol !== this.rolInicial();
+          this.notificaciones.exito(
+            'Usuario actualizado',
+            cambioRol
+              ? `Se guardaron los cambios de ${nombreCompleto}. Si tenía la sesión abierta, se le cerrará para que entre con el rol nuevo.`
+              : `Se guardaron los cambios de ${nombreCompleto}.`,
+          );
+        }
         else this.notificaciones.exito('Usuario creado', `${nombreCompleto} ya puede entrar como ${nombreUsuario}. Al entrar por primera vez cambiará su contraseña y aceptará las políticas de uso.`);
         this.router.navigateByUrl('/admin/usuarios');
       },

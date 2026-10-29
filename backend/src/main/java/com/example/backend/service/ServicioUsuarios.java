@@ -2,13 +2,16 @@ package com.example.backend.service;
 
 import com.example.backend.dto.AceptacionPoliticasResponse;
 import com.example.backend.dto.AceptarPoliticasRequest;
+import com.example.backend.dto.BitacoraUsuarioResponse;
 import com.example.backend.dto.CambiarContrasenaRequest;
 import com.example.backend.dto.CrearUsuarioRequest;
 import com.example.backend.dto.EditarUsuarioRequest;
 import com.example.backend.dto.RestablecerContrasenaRequest;
 import com.example.backend.dto.UsuarioResponse;
+import com.example.backend.entity.BitacoraUsuario;
 import com.example.backend.entity.Rol;
 import com.example.backend.entity.Usuario;
+import com.example.backend.repository.BitacoraUsuarioRepository;
 import com.example.backend.repository.RolRepository;
 import com.example.backend.repository.UsuarioRepository;
 import org.springframework.http.HttpStatus;
@@ -16,6 +19,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -30,13 +36,16 @@ public class ServicioUsuarios {
     private final UsuarioRepository usuarioRepository;
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BitacoraUsuarioRepository bitacoraRepository;
 
     public ServicioUsuarios(UsuarioRepository usuarioRepository,
                              RolRepository rolRepository,
-                             PasswordEncoder passwordEncoder) {
+                             PasswordEncoder passwordEncoder,
+                             BitacoraUsuarioRepository bitacoraRepository) {
         this.usuarioRepository = usuarioRepository;
         this.rolRepository = rolRepository;
         this.passwordEncoder = passwordEncoder;
+        this.bitacoraRepository = bitacoraRepository;
     }
 
     public List<UsuarioResponse> listarUsuarios(String nombre) {
@@ -47,7 +56,7 @@ public class ServicioUsuarios {
         return usuarios.stream().map(this::aRespuesta).toList();
     }
 
-    public UsuarioResponse crearUsuario(CrearUsuarioRequest request) {
+    public UsuarioResponse crearUsuario(CrearUsuarioRequest request, String nombreUsuarioSolicitante) {
         if (usuarioRepository.existsByNombreUsuario(request.getNombreUsuario())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El nombre de usuario ya existe");
         }
@@ -73,7 +82,9 @@ public class ServicioUsuarios {
         usuario.setActivo(true);
         usuario.setDebeCambiarContrasena(true);
 
-        return aRespuesta(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        registrar(nombreUsuarioSolicitante, guardado, "ALTA", "Rol " + rol.getNombre());
+        return aRespuesta(guardado);
     }
 
     public UsuarioResponse obtenerUsuario(Long id) {
@@ -98,11 +109,30 @@ public class ServicioUsuarios {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se puede asignar el rol Administrador; solo puede existir uno");
         }
 
+        List<String> cambios = new ArrayList<>();
+        if (!java.util.Objects.equals(usuario.getNombreCompleto(), request.getNombreCompleto())) {
+            cambios.add("Nombre: " + usuario.getNombreCompleto() + " → " + request.getNombreCompleto());
+        }
+        if (!java.util.Objects.equals(usuario.getCorreo(), request.getCorreo())) {
+            cambios.add("Correo: " + usuario.getCorreo() + " → " + request.getCorreo());
+        }
+        boolean cambiaRol = !rol.getNombre().equals(usuario.getRol().getNombre());
+        if (cambiaRol) {
+            cambios.add("Rol: " + usuario.getRol().getNombre() + " → " + rol.getNombre());
+            // HU07 CA3: con otro rol tiene que volver a entrar, para que su pantalla y su
+            // menú sean los del rol nuevo.
+            usuario.setTokenValidoDesde(LocalDateTime.now());
+        }
+
         usuario.setNombreCompleto(request.getNombreCompleto());
         usuario.setCorreo(request.getCorreo());
         usuario.setRol(rol);
 
-        return aRespuesta(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        if (!cambios.isEmpty()) {
+            registrar(nombreUsuarioSolicitante, guardado, "EDICION", String.join("; ", cambios));
+        }
+        return aRespuesta(guardado);
     }
 
     public UsuarioResponse desactivarUsuario(Long id, String nombreUsuarioSolicitante) {
@@ -113,16 +143,20 @@ public class ServicioUsuarios {
         }
 
         usuario.setActivo(false);
-        return aRespuesta(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        registrar(nombreUsuarioSolicitante, guardado, "DESACTIVACION", null);
+        return aRespuesta(guardado);
     }
 
-    public UsuarioResponse reactivarUsuario(Long id) {
+    public UsuarioResponse reactivarUsuario(Long id, String nombreUsuarioSolicitante) {
         Usuario usuario = buscarUsuario(id);
         usuario.setActivo(true);
-        return aRespuesta(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        registrar(nombreUsuarioSolicitante, guardado, "REACTIVACION", null);
+        return aRespuesta(guardado);
     }
 
-    public UsuarioResponse restablecerContrasena(Long id, RestablecerContrasenaRequest request) {
+    public UsuarioResponse restablecerContrasena(Long id, RestablecerContrasenaRequest request, String nombreUsuarioSolicitante) {
         Usuario usuario = buscarUsuario(id);
         if (esAdmin(usuario.getRol())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se puede restablecer la contraseña del administrador");
@@ -137,7 +171,32 @@ public class ServicioUsuarios {
         usuario.setIntentosFallidos(0);
         usuario.setBloqueadoHasta(null);
 
-        return aRespuesta(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        // Solo se anota que se restableció; la contraseña temporal nunca se guarda aquí.
+        registrar(nombreUsuarioSolicitante, guardado, "RESTABLECIMIENTO_CONTRASENA", null);
+        return aRespuesta(guardado);
+    }
+
+    /** Bitácora de administración (HU41), de un usuario o de todos, por fechas (incluye el día "hasta"). */
+    public List<BitacoraUsuarioResponse> bitacora(Long usuarioId, LocalDate desde, LocalDate hasta) {
+        LocalDateTime inicio = (desde == null ? LocalDate.now().minusDays(30) : desde).atStartOfDay();
+        LocalDateTime fin = (hasta == null ? LocalDate.now() : hasta).plusDays(1).atStartOfDay();
+        List<BitacoraUsuario> registros = usuarioId == null
+                ? bitacoraRepository.findByFechaBetweenOrderByFechaDesc(inicio, fin)
+                : bitacoraRepository.findByUsuarioIdAndFechaBetweenOrderByFechaDesc(usuarioId, inicio, fin);
+        return registros.stream()
+                .map(b -> new BitacoraUsuarioResponse(b.getId(), b.getFecha(), b.getRealizadoPor(), b.getUsuario().getId(),
+                        b.getUsuario().getNombreUsuario(), b.getUsuario().getNombreCompleto(), b.getAccion(), b.getDetalle()))
+                .toList();
+    }
+
+    private void registrar(String realizadoPor, Usuario usuario, String accion, String detalle) {
+        BitacoraUsuario registro = new BitacoraUsuario();
+        registro.setRealizadoPor(realizadoPor == null ? "sistema" : realizadoPor);
+        registro.setUsuario(usuario);
+        registro.setAccion(accion);
+        registro.setDetalle(detalle == null || detalle.length() <= 400 ? detalle : detalle.substring(0, 400));
+        bitacoraRepository.save(registro);
     }
 
     /**

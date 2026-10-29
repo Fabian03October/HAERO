@@ -28,6 +28,19 @@ export interface EditarUsuarioRequest {
   rol: Rol;
 }
 
+export type AccionBitacora = 'ALTA' | 'EDICION' | 'DESACTIVACION' | 'REACTIVACION' | 'RESTABLECIMIENTO_CONTRASENA';
+
+export interface RegistroBitacora {
+  id: number;
+  fecha: string;
+  realizadoPor: string;
+  usuarioId: number;
+  nombreUsuario: string;
+  nombreCompleto: string;
+  accion: AccionBitacora;
+  detalle: string | null;
+}
+
 export interface CambiarContrasenaRequest {
   contrasenaActual: string;
   contrasenaNueva: string;
@@ -75,6 +88,15 @@ export class UsuariosApi {
       { contrasenaTemporal },
       this.cabeceras(),
     );
+  }
+
+  /** HU41: quién hizo qué con cada cuenta; fechas en formato AAAA-MM-DD. */
+  bitacora(filtro: { usuarioId?: number; desde?: string; hasta?: string }): Observable<RegistroBitacora[]> {
+    const params: Record<string, string> = {};
+    if (filtro.usuarioId) params['usuarioId'] = String(filtro.usuarioId);
+    if (filtro.desde) params['desde'] = filtro.desde;
+    if (filtro.hasta) params['hasta'] = filtro.hasta;
+    return this.http.get<RegistroBitacora[]>(`${API_BASE_URL}/usuarios/bitacora`, { ...this.cabeceras(), params });
   }
 
   cambiarMiContrasena(request: CambiarContrasenaRequest): Observable<void> {

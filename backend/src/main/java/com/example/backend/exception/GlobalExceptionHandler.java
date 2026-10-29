@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 
@@ -86,6 +87,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> manejarPeticionIncompleta(Exception ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("mensaje", "Faltan datos o no tienen el formato esperado"));
+    }
+
+    // Una dirección que no existe es "no encontrado" (404), no un error del servidor.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, String>> manejarRutaInexistente(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("mensaje", "No existe esa dirección"));
     }
 
     @ExceptionHandler(Exception.class)

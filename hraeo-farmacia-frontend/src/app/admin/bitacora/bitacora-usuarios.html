@@ -1,0 +1,71 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <div class="main">
+      <div class="card">
+        <h1>Bitácora de usuarios</h1>
+        <p class="subtitle">Quién dio de alta, cambió, desactivó, reactivó o restableció la contraseña de cada cuenta. Nunca se guardan contraseñas.</p>
+
+        <form class="filtros" (ngSubmit)="consultar()">
+          <label>Usuario
+            <select id="bitacora-usuario" name="usuarioId" [(ngModel)]="usuarioId">
+              <option [ngValue]="null">Todos</option>
+              @for (u of usuarios(); track u.id) {
+                <option [ngValue]="u.id">{{ u.nombreCompleto }} ({{ u.nombreUsuario }})</option>
+              }
+            </select>
+          </label>
+          <label>Desde
+            <input id="bitacora-desde" type="date" name="desde" [(ngModel)]="desde" />
+          </label>
+          <label>Hasta
+            <input id="bitacora-hasta" type="date" name="hasta" [(ngModel)]="hasta" />
+          </label>
+          <button class="btn" type="submit">Consultar</button>
+        </form>
+
+        @if (error()) {
+          <p class="aviso-error">{{ error() }}</p>
+        }
+
+        @if (cargando()) {
+          <p class="subtitle">Cargando...</p>
+        } @else {
+          <p class="subtitle">{{ total() }} {{ total() === 1 ? 'registro' : 'registros' }}</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha y hora</th>
+                  <th>Acción</th>
+                  <th>Usuario</th>
+                  <th>Detalle</th>
+                  <th>Lo hizo</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of registros(); track r.id) {
+                  <tr>
+                    <td class="fecha">{{ r.fecha | date: 'dd/MM/yyyy HH:mm' }}</td>
+                    <td><span class="accion" [attr.data-accion]="r.accion">{{ accionEtiqueta[r.accion] }}</span></td>
+                    <td>{{ r.nombreCompleto }} <span class="subtitle-inline">({{ r.nombreUsuario }})</span></td>
+                    <td>{{ r.detalle ?? '—' }}</td>
+                    <td>{{ r.realizadoPor }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5">No hay registros en esas fechas.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
