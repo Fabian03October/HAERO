@@ -43,3 +43,12 @@ tr.mia td:first-child { box-shadow: inset 3px 0 0 #a57f2c; }
 @media (max-width: 640px) {
   .search { max-width: none; }
 }
+
+/* HU40 */
+.motivo-cierre { display: block; margin-top: 3px; color: #6f7271; font-size: 11px; }
+.link-cancelar { padding: 0; border: 0; background: none; color: #c0392b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+/* HU39 */
+.pedido { margin: 4px 0; }
+.pedido td small { display: block; color: #6f7271; font-size: 11px; }
+.link-cancelar + .link-cancelar { margin-left: 10px; }

@@ -59,6 +59,7 @@ public class ServicioSincronizacionIntelisis {
     private final List<String> movimientosEntradaInv;
     // "Consumo Farmacia" y "Devolucion Farmacia": la baja por volumen de Farmacia (HU32).
     private final List<String> movimientosFarmacia;
+    private final List<String> movimientosConsumo;
     private final int diasMovimientosFarmacia;
 
     private final AtomicBoolean enCurso = new AtomicBoolean(false);
@@ -86,6 +87,8 @@ public class ServicioSincronizacionIntelisis {
         this.diasRecepciones = diasRecepciones;
         this.movimientosEntradaInv = Arrays.stream(movimientosEntradaInv.split(",")).map(String::trim).filter(m -> !m.isEmpty()).toList();
         this.movimientosFarmacia = Arrays.stream((movimientosConsumoFarmacia + "," + movimientosDevolucionFarmacia).split(","))
+                .map(String::trim).filter(m -> !m.isEmpty()).toList();
+        this.movimientosConsumo = Arrays.stream(movimientosConsumoFarmacia.split(","))
                 .map(String::trim).filter(m -> !m.isEmpty()).toList();
         this.diasMovimientosFarmacia = diasMovimientosFarmacia;
     }
@@ -142,6 +145,7 @@ public class ServicioSincronizacionIntelisis {
             Collection<Object[]> entradasInv = leerEntradasInv(intelisis, desde);
             Collection<Object[]> lotesEntradaInv = leerLotesEntradasInv(intelisis, desde);
             Collection<Object[]> movimientosFarmacia = leerMovimientosFarmacia(intelisis, LocalDate.now().minusDays(diasMovimientosFarmacia));
+            Collection<Object[]> consumoMensual = leerConsumoMensual(intelisis);
 
             // Candado: si Intelisis entrega mucho menos que la vez anterior (por ejemplo,
             // durante un mantenimiento), no se toca nada.
@@ -191,6 +195,9 @@ public class ServicioSincronizacionIntelisis {
                         "INSERT INTO intelisis_mov_farmacia_lote (inv_id, mov, mov_id, fecha_emision, articulo, clave_base, serie_lote, cantidad) "
                                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                         movimientosFarmacia);
+                reemplazar("intelisis_consumo_mes",
+                        "INSERT INTO intelisis_consumo_mes (clave_base, mes, cajas, piezas) VALUES (?, ?, ?, ?)",
+                        consumoMensual);
                 actualizarCatalogoHaero();
                 actualizarPiezasPorCaja();
                 actualizarPedidosHaero();
@@ -564,6 +571,49 @@ public class ServicioSincronizacionIntelisis {
      * Por validar en la red del hospital: los nombres de los movimientos y el signo de
      * SerieLoteMov.Cantidad (se guarda en positivo; el tipo lo da el movimiento).
      */
+    /**
+     * HU38: consumo de Farmacia por clave y mes de los últimos 6 meses cerrados más el actual,
+     * ya sumado en Intelisis (unos miles de renglones, no cada movimiento).
+     */
+    private Collection<Object[]> leerConsumoMensual(JdbcTemplate intelisis) {
+        if (movimientosFarmacia.isEmpty()) {
+            return List.of();
+        }
+        String sql = "SELECT m.Articulo, YEAR(i.FechaEmision), MONTH(i.FechaEmision), "
+                + "SUM(CASE WHEN i.Mov IN (" + marcadores(movimientosConsumo.size()) + ") THEN ABS(m.Cantidad) ELSE -ABS(m.Cantidad) END) "
+                + "FROM SerieLoteMov m WITH (NOLOCK) "
+                + "JOIN Inv i WITH (NOLOCK) ON i.ID = m.ID "
+                + "WHERE m.Modulo = 'INV' AND i.Almacen = ? AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
+                + "AND i.Mov IN (" + marcadores(movimientosFarmacia.size()) + ") "
+                + "GROUP BY m.Articulo, YEAR(i.FechaEmision), MONTH(i.FechaEmision)";
+        List<Object> parametros = new ArrayList<>(movimientosConsumo);
+        parametros.add(almacenPrincipal);
+        parametros.add(Date.valueOf(java.time.YearMonth.now().minusMonths(6).atDay(1)));
+        parametros.addAll(movimientosFarmacia);
+        List<Object[]> renglones = new ArrayList<>();
+        intelisis.query(sql, rs -> {
+            String articulo = texto(rs, 1, 20);
+            if (articulo != null) {
+                renglones.add(new Object[]{articulo, rs.getInt(2), rs.getInt(3), cero(rs.getBigDecimal(4))});
+            }
+        }, parametros.toArray());
+        return sumarConsumoMensual(renglones);
+    }
+
+    /** Junta la clave base (cajas) y la "-1" (piezas) del mismo mes en un renglón. */
+    static Collection<Object[]> sumarConsumoMensual(List<Object[]> renglones) {
+        Map<String, Object[]> filas = new LinkedHashMap<>();
+        for (Object[] r : renglones) {
+            String articulo = (String) r[0];
+            String mes = String.format("%04d-%02d", (Integer) r[1], (Integer) r[2]);
+            Object[] fila = filas.computeIfAbsent(claveBase(articulo) + "|" + mes,
+                    k -> new Object[]{claveBase(articulo), mes, BigDecimal.ZERO, BigDecimal.ZERO});
+            int columna = articulo.matches(".*-\\d+$") ? 3 : 2;
+            fila[columna] = ((BigDecimal) fila[columna]).add((BigDecimal) r[3]);
+        }
+        return filas.values();
+    }
+
     private Collection<Object[]> leerMovimientosFarmacia(JdbcTemplate intelisis, LocalDate desde) {
         if (movimientosFarmacia.isEmpty()) {
             return List.of();

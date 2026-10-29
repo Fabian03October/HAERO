@@ -31,6 +31,8 @@ export interface PartidaAltaInicial {
   lote: string;
   caducidad: string;
   piezas: number;
+  // HU42: código de barras de la caja; si es nuevo, queda ligado a la clave.
+  codigo?: string;
 }
 
 // HU26

@@ -372,6 +372,87 @@ public class ServicioMovimientosEspeciales {
         }
     }
 
+    // ---------- HU36: ajuste por conteo físico ----------
+
+    private static final java.util.Map<String, String> MOTIVOS_AJUSTE = java.util.Map.of(
+            "ERROR_CONTEO", "Error de conteo", "DANADA", "Caja dañada", "FALTANTE", "Faltante", "SOBRANTE", "Sobrante");
+
+    @Transactional
+    public MovimientoResponse ajustar(com.example.backend.almacen.dto.AjusteRequest request, String nombreUsuario) {
+        if (request.getExistenciaId() == null || request.getCajasContadas() == null || request.getCajasContadas() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica la ubicación del lote y cuántas cajas contaste (cero o más)");
+        }
+        String motivo = request.getMotivo() == null ? null : MOTIVOS_AJUSTE.get(request.getMotivo().trim().toUpperCase());
+        if (motivo == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Elige el motivo: error de conteo, caja dañada, faltante o sobrante");
+        }
+        Existencia existencia = buscarExistencia(request.getExistenciaId());
+        int antes = existencia.getCantidadCajas();
+        int diferencia = request.getCajasContadas() - antes;
+        if (diferencia == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las cajas contadas son las mismas que tiene HAERO; no hay nada que ajustar");
+        }
+        existencia.setCantidadCajas(request.getCajasContadas());
+        existenciaRepository.save(existencia);
+
+        String detalle = request.getDetalle() == null ? "" : request.getDetalle().strip();
+        String texto = motivo + " (de " + antes + " a " + request.getCajasContadas() + " cajas)" + (detalle.isEmpty() ? "" : ": " + detalle);
+        Movimiento movimiento = registrarMovimiento(existencia, "AJUSTE", diferencia > 0 ? "ENTRADA" : "SALIDA",
+                Math.abs(diferencia), buscarUsuario(nombreUsuario), null);
+        movimiento.setMotivo(texto.length() <= 300 ? texto : texto.substring(0, 300));
+        return servicioMovimientos.aRespuesta(movimientoRepository.save(movimiento));
+    }
+
+    // ---------- HU37: reubicación ----------
+
+    @Transactional
+    public MovimientoResponse reubicar(com.example.backend.almacen.dto.ReubicacionRequest request, String nombreUsuario) {
+        String destino = request.getUbicacionDestino() == null ? "" : request.getUbicacionDestino().strip();
+        if (request.getExistenciaId() == null || request.getCajas() == null || request.getCajas() <= 0 || destino.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica la ubicación de origen, las cajas a mover y la ubicación destino");
+        }
+        if (destino.length() > 40) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La ubicación destino puede tener hasta 40 caracteres");
+        }
+        Existencia origen = buscarExistencia(request.getExistenciaId());
+        if (origen.getUbicacion().equalsIgnoreCase(destino)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La ubicación destino es la misma que la de origen");
+        }
+        if (request.getCajas() > origen.getCantidadCajas()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Solo hay " + origen.getCantidadCajas() + " cajas de este lote en " + origen.getUbicacion());
+        }
+        // El lote ya puede tener cajas en el destino: se suman ahí en lugar de repetir la ubicación.
+        Existencia llegada = existenciaRepository.findByLoteId(origen.getLote().getId()).stream()
+                .filter(e -> e.getUbicacion().equalsIgnoreCase(destino))
+                .findFirst()
+                .orElseGet(() -> {
+                    Existencia nueva = new Existencia();
+                    nueva.setLote(origen.getLote());
+                    nueva.setUbicacion(destino);
+                    nueva.setCantidadCajas(0);
+                    return nueva;
+                });
+        origen.setCantidadCajas(origen.getCantidadCajas() - request.getCajas());
+        llegada.setCantidadCajas(llegada.getCantidadCajas() + request.getCajas());
+        existenciaRepository.save(origen);
+        llegada = existenciaRepository.save(llegada);
+
+        Usuario usuario = buscarUsuario(nombreUsuario);
+        String texto = "De " + origen.getUbicacion() + " a " + llegada.getUbicacion();
+        Movimiento salida = registrarMovimiento(origen, "REUBICACION", "SALIDA", request.getCajas(), usuario, null);
+        salida.setMotivo(texto);
+        movimientoRepository.save(salida);
+        Movimiento entrada = registrarMovimiento(llegada, "REUBICACION", "ENTRADA", request.getCajas(), usuario, null);
+        entrada.setMotivo(texto);
+        return servicioMovimientos.aRespuesta(movimientoRepository.save(entrada));
+    }
+
+    private Existencia buscarExistencia(Long id) {
+        return existenciaRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No existe esa ubicación del lote"));
+    }
+
     private Movimiento registrarMovimiento(Existencia existencia, String tipo, String sentido, int cajas,
                                            Usuario usuario, String institucion) {
         Movimiento movimiento = new Movimiento();

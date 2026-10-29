@@ -33,6 +33,20 @@ public class SolicitudAlmacenController {
         return ResponseEntity.ok(servicioDespacho.sugerir(id));
     }
 
+    // HU39: despacha todas las claves abiertas del pedido con la sugerencia FEFO, en una transacción.
+    @PostMapping("/pedidos/{pedidoId}/despachar")
+    public ResponseEntity<com.example.backend.almacen.dto.DespachoPedidoResponse> despacharPedido(
+            @PathVariable Long pedidoId, @RequestParam(defaultValue = "false") boolean parcial, Authentication authentication) {
+        return ResponseEntity.ok(servicioDespacho.despacharPedido(pedidoId, parcial, authentication.getName()));
+    }
+
+    // HU40: lo que Almacén no puede surtir, con su motivo.
+    @PostMapping("/{id}/rechazar")
+    public ResponseEntity<SolicitudResponse> rechazar(@PathVariable Long id, @RequestBody(required = false) java.util.Map<String, String> cuerpo,
+                                                      Authentication authentication) {
+        return ResponseEntity.ok(servicioDespacho.rechazar(id, cuerpo == null ? null : cuerpo.get("motivo"), authentication.getName()));
+    }
+
     @PostMapping("/{id}/despachar")
     public ResponseEntity<DespacharSolicitudResponse> despachar(@PathVariable Long id,
                                                                  @RequestBody DespacharSolicitudRequest request,

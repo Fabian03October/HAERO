@@ -89,3 +89,6 @@ h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
   .form-row { grid-template-columns: minmax(0, 1fr); }
   .card-heading { flex-direction: column; }
 }
+
+/* HU40: solicitudes cerradas sin surtir. */
+.status.cancelada, .status.rechazada { background: #f1f0ee; color: #6f7271; }

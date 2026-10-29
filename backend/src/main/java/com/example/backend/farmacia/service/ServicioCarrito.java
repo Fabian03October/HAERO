@@ -2,7 +2,6 @@ package com.example.backend.farmacia.service;
 
 import com.example.backend.almacen.entity.CodigoBarras;
 import com.example.backend.almacen.entity.Medicamento;
-import com.example.backend.almacen.repository.CodigoBarrasRepository;
 import com.example.backend.almacen.repository.MedicamentoRepository;
 import com.example.backend.farmacia.dto.CajaEntregaRequest;
 import com.example.backend.farmacia.dto.CamaCarrito;
@@ -45,7 +44,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -73,7 +71,6 @@ public class ServicioCarrito {
     private final RecetaRepository recetaRepository;
     private final EntregaRepository entregaRepository;
     private final MedicamentoRepository medicamentoRepository;
-    private final CodigoBarrasRepository codigoBarrasRepository;
     private final ServicioEntregas servicioEntregas;
     private final ServicioDevoluciones servicioDevoluciones;
     private final ServicioInventarioFarmacia inventario;
@@ -84,7 +81,6 @@ public class ServicioCarrito {
                            RecetaRepository recetaRepository,
                            EntregaRepository entregaRepository,
                            MedicamentoRepository medicamentoRepository,
-                           CodigoBarrasRepository codigoBarrasRepository,
                            ServicioEntregas servicioEntregas,
                            ServicioDevoluciones servicioDevoluciones,
                            ServicioInventarioFarmacia inventario,
@@ -93,7 +89,6 @@ public class ServicioCarrito {
         this.recetaRepository = recetaRepository;
         this.entregaRepository = entregaRepository;
         this.medicamentoRepository = medicamentoRepository;
-        this.codigoBarrasRepository = codigoBarrasRepository;
         this.servicioEntregas = servicioEntregas;
         this.servicioDevoluciones = servicioDevoluciones;
         this.inventario = inventario;
@@ -259,21 +254,31 @@ public class ServicioCarrito {
         if (codigo == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escanea el código de la caja");
         }
-        Medicamento medicamento = buscarCodigo(codigo).map(CodigoBarras::getMedicamento)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "El código " + codigo + " no está registrado. Almacén lo asocia a su clave al recibir la caja."));
+        Medicamento medicamento = inventario.buscarCodigo(codigo).map(CodigoBarras::getMedicamento).orElse(null);
+        String claveElegida = ServicioInventarioFarmacia.texto(request.getClave());
+        if (medicamento == null && claveElegida == null) {
+            // 404 = código desconocido: la pantalla pide elegir de qué medicamento es (HU42).
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "El código " + codigo + " todavía no está registrado. Elige qué medicamento es y queda guardado.");
+        }
+        boolean codigoNuevo = medicamento == null;
+        if (codigoNuevo) {
+            medicamento = medicamentoRepository.findById(claveElegida)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "La clave " + claveElegida + " no está en el catálogo"));
+        }
+        final Medicamento elegido = medicamento;
         LocalDate hoy = LocalDate.now();
         List<CandidatoCarrito> candidatos = new ArrayList<>();
         List<String> cancelados = new ArrayList<>();
         for (Internado internado : internados(request.getCentral())) {
             List<LineaCarrito> lineas = lineas(internado.idIngreso, hoy);
             lineas.stream()
-                    .filter(l -> medicamento.getClave().equals(l.getClave()) && "PENDIENTE".equals(l.getEstado()))
+                    .filter(l -> elegido.getClave().equals(l.getClave()) && "PENDIENTE".equals(l.getEstado()))
                     .findFirst()
                     .ifPresent(l -> candidatos.add(new CandidatoCarrito(internado.idIngreso, internado.espacio, internado.paciente,
                             l.getDosis24h() == null ? 0 : l.getDosis24h(), l.getEntregadas())));
             if (candidatos.stream().noneMatch(c -> c.getIdIngreso() == internado.idIngreso)) {
-                Map<String, Object> cancelacion = cancelacion(internado.idIngreso, medicamento.getClave());
+                Map<String, Object> cancelacion = cancelacion(internado.idIngreso, elegido.getClave());
                 if (cancelacion.get("en") instanceof Timestamp t && !t.toLocalDateTime().isBefore(hoy.atStartOfDay())) {
                     cancelados.add("cama " + internado.espacio + " (cancelado " + t.toLocalDateTime().toLocalTime().withNano(0)
                             + (cancelacion.get("por") != null ? " por " + cancelacion.get("por") : "") + ")");
@@ -282,29 +287,18 @@ public class ServicioCarrito {
         }
         if (candidatos.isEmpty()) {
             if (!cancelados.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, medicamento.getClave() + " " + medicamento.getNombreGenerico()
+                throw new ResponseStatusException(HttpStatus.CONFLICT, elegido.getClave() + " " + elegido.getNombreGenerico()
                         + " se canceló: " + String.join("; ", cancelados) + ". No lo pongas en el carrito.");
             }
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "La caja es de " + medicamento.getClave() + " "
-                    + medicamento.getNombreGenerico() + " y ningún paciente del área la tiene pendiente");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La caja es de " + elegido.getClave() + " "
+                    + elegido.getNombreGenerico() + " y ningún paciente del área la tiene pendiente");
         }
-        return new EscaneoCarritoResponse(medicamento.getClave(), medicamento.getNombreGenerico(),
+        // Se aprende solo si la clave elegida de verdad está pendiente en el área (HU42).
+        if (codigoNuevo) {
+            inventario.aprenderCodigo(codigo, elegido);
+        }
+        return new EscaneoCarritoResponse(elegido.getClave(), elegido.getNombreGenerico(),
                 ServicioInventarioFarmacia.texto(request.getLote()), candidatos);
-    }
-
-    /** El código como lo guarda Almacén: GTIN-14 de GS1 o el EAN-13 normal (con o sin el cero inicial). */
-    private Optional<CodigoBarras> buscarCodigo(String codigo) {
-        Optional<CodigoBarras> exacto = codigoBarrasRepository.findById(codigo);
-        if (exacto.isPresent()) {
-            return exacto;
-        }
-        if (codigo.length() == 14 && codigo.startsWith("0")) {
-            return codigoBarrasRepository.findById(codigo.substring(1));
-        }
-        if (codigo.length() == 13) {
-            return codigoBarrasRepository.findById("0" + codigo);
-        }
-        return Optional.empty();
     }
 
     // ---------- Surtir y sacar del carrito ----------

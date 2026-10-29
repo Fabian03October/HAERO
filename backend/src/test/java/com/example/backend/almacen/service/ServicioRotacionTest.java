@@ -33,8 +33,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * HU16 (consumo promedio mensual, CPM, con respaldo de la hoja de carga
- * inicial) y HU17 (alertas de stock minimo y maximo).
+ * HU16 (consumo promedio mensual, CPM, con el consumo de Intelisis mientras
+ * HAERO no tenga 6 meses de salidas, HU38) y HU17 (alertas de stock minimo y maximo).
  */
 @ExtendWith(MockitoExtension.class)
 class ServicioRotacionTest {
@@ -49,6 +49,8 @@ class ServicioRotacionTest {
     private LoteRepository loteRepository;
     @Mock
     private AlertaRepository alertaRepository;
+    @Mock
+    private org.springframework.jdbc.core.JdbcTemplate haero;
 
     private ServicioRotacion servicioRotacion;
 
@@ -56,7 +58,7 @@ class ServicioRotacionTest {
 
     @BeforeEach
     void configurar() {
-        servicioRotacion = new ServicioRotacion(medicamentoRepository, existenciaRepository, movimientoRepository, loteRepository, alertaRepository);
+        servicioRotacion = new ServicioRotacion(medicamentoRepository, existenciaRepository, movimientoRepository, loteRepository, alertaRepository, haero);
 
         medicamento = new Medicamento();
         medicamento.setClave("0134");
@@ -100,7 +102,7 @@ class ServicioRotacionTest {
         lenient().when(movimientoRepository.findFirstByTipoOrderByFechaAsc("SALIDA")).thenReturn(Optional.of(primera));
     }
 
-    // ---------- HU16: historial parcial y respaldo de la hoja ----------
+    // ---------- HU16: historial parcial y consumo de Intelisis (HU38) ----------
 
     @Test
     void obtener_conSeisMesesCompletosDeHistorial_promediaEntreSeis() {
@@ -135,23 +137,74 @@ class ServicioRotacionTest {
         assertThat(respuesta.getCpm()).isEqualTo(20.0); // 40 / 2, no 40 / 6
     }
 
+    /** Simula la tabla intelisis_consumo_mes: {clave, mes AAAA-MM, cajas, piezas}. */
+    private void consumoIntelisis(Object[]... renglones) {
+        org.mockito.Mockito.doAnswer(invocacion -> {
+            org.springframework.jdbc.core.RowCallbackHandler manejador = invocacion.getArgument(1);
+            for (Object[] r : renglones) {
+                java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+                when(rs.getString(1)).thenReturn((String) r[0]);
+                when(rs.getString(2)).thenReturn((String) r[1]);
+                when(rs.getDouble(3)).thenReturn(((Number) r[2]).doubleValue());
+                when(rs.getDouble(4)).thenReturn(((Number) r[3]).doubleValue());
+                manejador.processRow(rs);
+            }
+            return null;
+        }).when(haero).query(org.mockito.ArgumentMatchers.contains("intelisis_consumo_mes"),
+                any(org.springframework.jdbc.core.RowCallbackHandler.class), any(), any());
+    }
+
+    private static String mes(int haceMeses) {
+        return java.time.YearMonth.now().minusMonths(haceMeses).toString();
+    }
+
     @Test
-    void obtener_sinSalidasPropiasPeroConConsumoDeLaHoja_usaElValorDeLaHoja() {
-        medicamento.setConsumoPromedioHoja(93.75);
+    void obtener_sinSeisMesesEnHaero_usaElConsumoDeIntelisisEnCajas() {
+        // HU38: 100 piezas de 10 por caja + 2 cajas de la clave base = 12 cajas en un mes; 48 cajas en otro.
+        medicamento.setPiezasPorCaja(10);
+        sinSalidasPrevias();
+        consumoIntelisis(new Object[]{"0134", mes(1), 2, 100}, new Object[]{"0134", mes(3), 0, 480});
+
+        when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
+        when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any())).thenReturn(List.of());
+        when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 25, LocalDate.now().plusYears(1)));
+
+        RotacionResponse respuesta = servicioRotacion.obtener("0134");
+
+        assertThat(respuesta.getOrigenCpm()).isEqualTo("INTELISIS");
+        assertThat(respuesta.getCpm()).isEqualTo(10.0); // (12 + 48) / 6 meses
+        assertThat(respuesta.getEstado()).isEqualTo("DESABASTO"); // 25 cajas <= 3 meses de CPM
+    }
+
+    @Test
+    void obtener_conSeisMesesEnHaero_yaNoUsaIntelisis() {
+        medicamento.setPiezasPorCaja(10);
         sistemaOperandoDesde(LocalDateTime.now().minusMonths(8));
+        lenient().doNothing().when(haero).query(org.mockito.ArgumentMatchers.anyString(),
+                any(org.springframework.jdbc.core.RowCallbackHandler.class), any(), any());
+
+        when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
+        when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any()))
+                .thenReturn(List.of(salida(60, "0134", LocalDateTime.now().minusMonths(2))));
+        when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 100, LocalDate.now().plusYears(1)));
+
+        assertThat(servicioRotacion.obtener("0134").getOrigenCpm()).isEqualTo("SISTEMA");
+    }
+
+    @Test
+    void obtener_conPiezasSinPiezasPorCaja_noInventaElCpm() {
+        sinSalidasPrevias();
+        consumoIntelisis(new Object[]{"0134", mes(1), 0, 100});
 
         when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));
         when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any())).thenReturn(List.of());
         when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 100, LocalDate.now().plusYears(1)));
 
-        RotacionResponse respuesta = servicioRotacion.obtener("0134");
-
-        assertThat(respuesta.getCpm()).isEqualTo(93.75);
-        assertThat(respuesta.getOrigenCpm()).isEqualTo("HOJA");
+        assertThat(servicioRotacion.obtener("0134").getEstado()).isEqualTo("SIN_CONSUMO");
     }
 
     @Test
-    void obtener_sinSalidasYSinDatoDeLaHoja_quedaSinConsumo() {
+    void obtener_sinSalidasYSinConsumoEnIntelisis_quedaSinConsumo() {
         sinSalidasPrevias();
 
         when(medicamentoRepository.findById("0134")).thenReturn(Optional.of(medicamento));

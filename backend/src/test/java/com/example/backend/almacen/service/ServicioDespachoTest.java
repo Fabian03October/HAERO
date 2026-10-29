@@ -30,6 +30,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -54,6 +55,8 @@ class ServicioDespachoTest {
     @Mock
     private UsuarioRepository usuarioRepository;
     @Mock
+    private com.example.backend.almacen.repository.SolicitudPedidoRepository solicitudPedidoRepository;
+    @Mock
     private CodigoBarrasRepository codigoBarrasRepository;
 
     private ServicioDespacho servicioDespacho;
@@ -64,7 +67,7 @@ class ServicioDespachoTest {
     @BeforeEach
     void configurar() {
         servicioDespacho = new ServicioDespacho(medicamentoRepository, loteRepository, existenciaRepository,
-                movimientoRepository, solicitudRepository, usuarioRepository, codigoBarrasRepository);
+                movimientoRepository, solicitudRepository, usuarioRepository, codigoBarrasRepository, solicitudPedidoRepository);
 
         medicamento = new Medicamento();
         medicamento.setClave("0134");
@@ -335,6 +338,8 @@ class ServicioDespachoTest {
 
         when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
         when(existenciaRepository.findById(20L)).thenReturn(Optional.of(existenciaLejana));
+        when(loteRepository.findByMedicamentoClaveAndEstatus(any(), any())).thenReturn(List.of(loteProximo, loteLejano));
+        when(existenciaRepository.findByLoteId(1L)).thenReturn(List.of(existencia(10L, loteProximo, "Sector 1", 5)));
         when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
 
         DespacharSolicitudRequest request = new DespacharSolicitudRequest();
@@ -343,12 +348,41 @@ class ServicioDespachoTest {
         partida.setCajas(20);
         request.setPartidas(List.of(partida));
         request.setConfirmarFueraDeFefo(true);
+        request.setMotivoFueraDeFefo("El lote próximo está en cuarentena");
 
         DespacharSolicitudResponse respuesta = servicioDespacho.despachar(1L, request, "despachador1");
 
         assertThat(respuesta.getEstatus()).isEqualTo("ATENDIDA");
         verify(existenciaRepository).save(existenciaLejana);
-        verify(loteRepository, never()).findByMedicamentoClaveAndEstatus(any(), any());
+        org.mockito.ArgumentCaptor<com.example.backend.almacen.entity.Movimiento> captor =
+                org.mockito.ArgumentCaptor.forClass(com.example.backend.almacen.entity.Movimiento.class);
+        verify(movimientoRepository).save(captor.capture());
+        assertThat(captor.getValue().getMotivo()).isEqualTo("Fuera de FEFO: El lote próximo está en cuarentena");
+    }
+
+    @Test
+    void despachar_fueraDeFefoSinMotivo_lanza400() {
+        // HU15 CA2: salirse del orden FEFO solo con motivo, para que quede registrado.
+        Solicitud solicitud = solicitudPendiente(20);
+        Lote loteProximo = lote(1L, "L-7940", LocalDate.of(2027, 2, 1));
+        Lote loteLejano = lote(2L, "L-8821", LocalDate.of(2028, 7, 1));
+
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(existenciaRepository.findById(20L)).thenReturn(Optional.of(existencia(20L, loteLejano, "Sector 5", 40)));
+        when(loteRepository.findByMedicamentoClaveAndEstatus(any(), any())).thenReturn(List.of(loteProximo, loteLejano));
+        when(existenciaRepository.findByLoteId(1L)).thenReturn(List.of(existencia(10L, loteProximo, "Sector 1", 5)));
+
+        DespacharSolicitudRequest request = new DespacharSolicitudRequest();
+        PartidaDespacho partida = new PartidaDespacho();
+        partida.setExistenciaId(20L);
+        partida.setCajas(20);
+        request.setPartidas(List.of(partida));
+        request.setConfirmarFueraDeFefo(true);
+
+        assertThatThrownBy(() -> servicioDespacho.despachar(1L, request, "despachador1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("por qué");
+        verify(existenciaRepository, never()).save(any());
     }
 
     @Test
@@ -374,5 +408,163 @@ class ServicioDespachoTest {
                 .hasMessageContaining("vencido");
 
         verify(existenciaRepository, never()).save(any());
+    }
+
+    // ---------- HU40: cancelar y rechazar ----------
+
+    @Test
+    void rechazar_conservaLoDespachadoYGuardaQuienYPorQue() {
+        Solicitud solicitud = solicitudPendiente(20);
+        solicitud.setCantidadAtendida(5);
+        solicitud.setEstatus("PARCIAL");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var respuesta = servicioDespacho.rechazar(1L, "Sin existencia en Almacén", "despachador1");
+
+        assertThat(respuesta.getEstatus()).isEqualTo("RECHAZADA");
+        assertThat(respuesta.getCantidadAtendida()).isEqualTo(5);
+        assertThat(respuesta.getMotivoCierre()).isEqualTo("Sin existencia en Almacén");
+        assertThat(solicitud.getCerradaPor()).isNotNull();
+        assertThat(solicitud.getFechaCierre()).isNotNull();
+    }
+
+    @Test
+    void rechazar_sinMotivo_lanza400() {
+        assertThatThrownBy(() -> servicioDespacho.rechazar(1L, "  ", "despachador1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("por qué");
+    }
+
+    @Test
+    void cancelar_unaSolicitudYaAtendida_noSePuede() {
+        Solicitud solicitud = solicitudPendiente(20);
+        solicitud.setEstatus("ATENDIDA");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+
+        assertThatThrownBy(() -> servicioDespacho.cancelar(1L, null, "despachador1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("atendida");
+    }
+
+    @Test
+    void despachar_unaSolicitudCancelada_noSePuede() {
+        Solicitud solicitud = solicitudPendiente(20);
+        solicitud.setEstatus("CANCELADA");
+        solicitud.setMotivoCierre("Farmacia ya no lo necesita");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+
+        DespacharSolicitudRequest request = new DespacharSolicitudRequest();
+        PartidaDespacho partida = new PartidaDespacho();
+        partida.setExistenciaId(10L);
+        partida.setCajas(1);
+        request.setPartidas(List.of(partida));
+
+        assertThatThrownBy(() -> servicioDespacho.despachar(1L, request, "despachador1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("cancelada");
+    }
+
+    // ---------- HU39: pedido con varias claves ----------
+
+    private com.example.backend.almacen.dto.CrearSolicitudRequest partidaPedido(String clave, Integer cantidad) {
+        com.example.backend.almacen.dto.CrearSolicitudRequest partida = new com.example.backend.almacen.dto.CrearSolicitudRequest();
+        partida.setClave(clave);
+        partida.setCantidad(cantidad);
+        return partida;
+    }
+
+    private com.example.backend.almacen.dto.CrearPedidoRequest pedido(com.example.backend.almacen.dto.CrearSolicitudRequest... partidas) {
+        com.example.backend.almacen.dto.CrearPedidoRequest request = new com.example.backend.almacen.dto.CrearPedidoRequest();
+        request.setPartidas(List.of(partidas));
+        return request;
+    }
+
+    @Test
+    void crearPedido_guardaUnaSolicitudPorClaveLigadasAlMismoPedido() {
+        Medicamento otro = new Medicamento();
+        otro.setClave("010.000.0104.00");
+        otro.setNombreGenerico("Paracetamol");
+        when(medicamentoRepository.findById(medicamento.getClave())).thenReturn(Optional.of(medicamento));
+        when(medicamentoRepository.findById("010.000.0104.00")).thenReturn(Optional.of(otro));
+        when(codigoBarrasRepository.existsByMedicamentoClave(any())).thenReturn(true);
+        when(solicitudPedidoRepository.save(any())).thenAnswer(inv -> {
+            com.example.backend.almacen.entity.SolicitudPedido p = inv.getArgument(0);
+            p.setId(12L);
+            return p;
+        });
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var creadas = servicioDespacho.crearPedido(pedido(partidaPedido(medicamento.getClave(), 4), partidaPedido("010.000.0104.00", 2)), "despachador1");
+
+        assertThat(creadas).hasSize(2);
+        assertThat(creadas).allSatisfy(s -> assertThat(s.getPedidoId()).isEqualTo(12L));
+        assertThat(creadas).extracting(com.example.backend.almacen.dto.SolicitudResponse::getEstatus).containsOnly("PENDIENTE");
+    }
+
+    @Test
+    void crearPedido_conUnaClaveMala_noGuardaNada() {
+        when(medicamentoRepository.findById(medicamento.getClave())).thenReturn(Optional.of(medicamento));
+        when(medicamentoRepository.findById("999")).thenReturn(Optional.empty());
+        when(codigoBarrasRepository.existsByMedicamentoClave(any())).thenReturn(true);
+
+        assertThatThrownBy(() -> servicioDespacho.crearPedido(pedido(partidaPedido(medicamento.getClave(), 4), partidaPedido("999", 2)), "despachador1"))
+                .hasMessageContaining("999");
+        verify(solicitudPedidoRepository, never()).save(any());
+        verify(solicitudRepository, never()).save(any());
+    }
+
+    @Test
+    void crearPedido_conLaMismaClaveDosVeces_seRechaza() {
+        assertThatThrownBy(() -> servicioDespacho.crearPedido(pedido(partidaPedido("0134", 1), partidaPedido("0134", 2)), "despachador1"))
+                .hasMessageContaining("dos veces");
+    }
+
+    @Test
+    void despacharPedido_sinExistenciaDeUnaClaveYSinParcial_noDespachaNinguna() {
+        Solicitud solicitud = solicitudPendiente(5);
+        solicitud.setId(7L);
+        when(solicitudRepository.findByPedidoIdAndEstatusInOrderByIdAsc(eq(12L), any())).thenReturn(List.of(solicitud));
+        when(solicitudRepository.findById(7L)).thenReturn(Optional.of(solicitud));
+        when(loteRepository.findByMedicamentoClaveAndEstatus(any(), any())).thenReturn(List.of());
+
+        assertThatThrownBy(() -> servicioDespacho.despacharPedido(12L, false, "despachador1"))
+                .hasMessageContaining("No hay existencia de " + medicamento.getClave());
+        verify(existenciaRepository, never()).save(any());
+    }
+
+    @Test
+    void despacharPedido_conParcial_dejaPendienteLaClaveSinExistencia() {
+        Solicitud solicitud = solicitudPendiente(5);
+        solicitud.setId(7L);
+        when(solicitudRepository.findByPedidoIdAndEstatusInOrderByIdAsc(eq(12L), any())).thenReturn(List.of(solicitud));
+        when(solicitudRepository.findById(7L)).thenReturn(Optional.of(solicitud));
+        when(loteRepository.findByMedicamentoClaveAndEstatus(any(), any())).thenReturn(List.of());
+
+        var respuesta = servicioDespacho.despacharPedido(12L, true, "despachador1");
+
+        assertThat(respuesta.despachadas()).isEmpty();
+        assertThat(respuesta.sinExistencia()).containsExactly(medicamento.getClave());
+        assertThat(solicitud.getEstatus()).isEqualTo("PENDIENTE");
+    }
+
+    @Test
+    void despacharPedido_despachaCadaClaveConSuSugerenciaFefo() {
+        Solicitud solicitud = solicitudPendiente(5);
+        solicitud.setId(7L);
+        Lote proximo = lote(1L, "L-1", LocalDate.now().plusMonths(6));
+        Existencia existencia = existencia(10L, proximo, "Sector 1", 8);
+        when(solicitudRepository.findByPedidoIdAndEstatusInOrderByIdAsc(eq(12L), any())).thenReturn(List.of(solicitud));
+        when(solicitudRepository.findById(7L)).thenReturn(Optional.of(solicitud));
+        when(loteRepository.findByMedicamentoClaveAndEstatus(any(), any())).thenReturn(List.of(proximo));
+        when(existenciaRepository.findByLoteId(1L)).thenReturn(List.of(existencia));
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(existencia));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var respuesta = servicioDespacho.despacharPedido(12L, false, "despachador1");
+
+        assertThat(respuesta.despachadas()).hasSize(1);
+        assertThat(solicitud.getEstatus()).isEqualTo("ATENDIDA");
+        assertThat(existencia.getCantidadCajas()).isEqualTo(3);
     }
 }

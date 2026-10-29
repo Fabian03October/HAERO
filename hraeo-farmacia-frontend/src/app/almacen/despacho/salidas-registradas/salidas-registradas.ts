@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { MovimientoSalida, SolicitudesAlmacen, TIPO_SALIDA_TEXTO, fechaLocal, formatoCaducidad } from '../../solicitudes-almacen';
 import { Session } from '../../../auth/session';
+import { folioPedido } from '../../almacen-api';
 import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 // Despacho · Salidas registradas (HU14 CA5). Cada despacho deja un movimiento
@@ -65,6 +66,28 @@ export class SalidasRegistradas {
 
   quitarMarcas(): void {
     this.elegidas.set(new Set());
+  }
+
+  /** HU39: si todo lo marcado es de un mismo pedido, su vale en una sola hoja. */
+  readonly pedidoElegido = computed(() => {
+    const pedidos = new Set(this.solicitudes.salidas().filter((s) => this.elegidas().has(s.id)).map((s) => s.pedidoId));
+    const [unico] = [...pedidos];
+    return pedidos.size === 1 && unico ? unico : null;
+  });
+
+  async descargarVale(): Promise<void> {
+    const pedidoId = this.pedidoElegido();
+    if (!pedidoId || this.generando()) return;
+    this.generando.set(true);
+    try {
+      const { cargarLogo, descargarValePedido } = await import('./comprobante-salidas');
+      const salidas = this.solicitudes.salidas().filter((s) => s.pedidoId === pedidoId);
+      descargarValePedido(folioPedido(pedidoId), salidas, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+    } catch {
+      this.notificaciones.error('No se pudo generar el vale. Intenta de nuevo.');
+    } finally {
+      this.generando.set(false);
+    }
   }
 
   async descargarPdf(): Promise<void> {

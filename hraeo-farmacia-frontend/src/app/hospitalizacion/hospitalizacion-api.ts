@@ -287,8 +287,9 @@ export class HospitalizacionApi {
   }
 
   /** Reconoce la caja por su código de barras y dice a qué pacientes del área les toca. */
-  escanear(central: string, codigo: string, lote?: string): Observable<EscaneoCarrito> {
-    return this.http.post<EscaneoCarrito>(`${API_BASE_URL}/farmacia/carrito/escanear`, { central, codigo, lote }, this.cabeceras());
+  /** Con `clave`, un código que HAERO no conocía queda ligado a ese medicamento (HU42). */
+  escanear(central: string, codigo: string, lote?: string, clave?: string): Observable<EscaneoCarrito> {
+    return this.http.post<EscaneoCarrito>(`${API_BASE_URL}/farmacia/carrito/escanear`, { central, codigo, lote, clave }, this.cabeceras());
   }
 
   /** Entrega al paciente: descuenta el inventario de Farmacia (lote GS1 o FEFO). */

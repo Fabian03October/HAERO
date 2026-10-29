@@ -17,3 +17,17 @@ tr.expired td { color: #a9463e; }
   cursor: pointer;
   text-decoration: underline;
 }
+
+.acciones { white-space: nowrap; }
+.acciones .link-button:first-child { margin-left: 0; }
+
+.captura { display: grid; gap: 12px; margin-bottom: 16px; padding: 16px; border: 1px solid #e8c9d2; border-radius: 10px; background: #fcf4f6; }
+.captura-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.captura-cabecera > div { display: grid; gap: 2px; }
+.captura-cabecera small { color: #6f7271; }
+.captura-campos { display: flex; flex-wrap: wrap; gap: 12px; }
+.captura-campos label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: #4a4a4a; min-width: 0; }
+.captura-campos label.ancho { flex: 1 1 240px; }
+.captura-campos input, .captura-campos select { padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; font-weight: 400; background: #fff; }
+.captura-aviso { margin: 0; color: #8a5a00; font-size: 13px; }
+.captura .primary-button { justify-self: start; }

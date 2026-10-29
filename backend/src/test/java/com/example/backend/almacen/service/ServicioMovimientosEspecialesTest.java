@@ -225,6 +225,94 @@ class ServicioMovimientosEspecialesTest {
 
     // ---------- datos de prueba ----------
 
+    // ---------- HU36: ajuste por conteo ----------
+
+    private com.example.backend.almacen.dto.AjusteRequest ajuste(Long existenciaId, Integer contadas, String motivo) {
+        com.example.backend.almacen.dto.AjusteRequest request = new com.example.backend.almacen.dto.AjusteRequest();
+        request.setExistenciaId(existenciaId);
+        request.setCajasContadas(contadas);
+        request.setMotivo(motivo);
+        request.setDetalle("conteo del lunes");
+        return request;
+    }
+
+    @Test
+    void ajuste_dejaLasCajasContadasYRegistraElMotivoYLaDiferencia() {
+        Existencia existencia = existencia(10L, lote(1L, "L-1", LocalDate.now().plusYears(1), "DISPONIBLE"), "SECTOR 4", 12);
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(existencia));
+
+        MovimientoResponse respuesta = servicio.ajustar(ajuste(10L, 9, "error_conteo"), "almacen");
+
+        assertThat(existencia.getCantidadCajas()).isEqualTo(9);
+        assertThat(respuesta.getTipo()).isEqualTo("AJUSTE");
+        assertThat(respuesta.getSentido()).isEqualTo("SALIDA");
+        assertThat(respuesta.getCajas()).isEqualTo(3);
+        assertThat(respuesta.getMotivo()).isEqualTo("Error de conteo (de 12 a 9 cajas): conteo del lunes");
+    }
+
+    @Test
+    void ajuste_sinMotivoValidoOSinDiferencia_seRechaza() {
+        Existencia existencia = existencia(10L, lote(1L, "L-1", LocalDate.now().plusYears(1), "DISPONIBLE"), "SECTOR 4", 12);
+        lenient().when(existenciaRepository.findById(10L)).thenReturn(Optional.of(existencia));
+
+        assertThatThrownBy(() -> servicio.ajustar(ajuste(10L, 9, "PORQUE_SI"), "almacen")).hasMessageContaining("motivo");
+        assertThatThrownBy(() -> servicio.ajustar(ajuste(10L, 12, "FALTANTE"), "almacen")).hasMessageContaining("nada que ajustar");
+        assertThatThrownBy(() -> servicio.ajustar(ajuste(10L, -1, "FALTANTE"), "almacen")).isInstanceOf(ResponseStatusException.class);
+        assertThat(existencia.getCantidadCajas()).isEqualTo(12);
+    }
+
+    // ---------- HU37: reubicación ----------
+
+    private com.example.backend.almacen.dto.ReubicacionRequest reubicacion(Long existenciaId, int cajas, String destino) {
+        com.example.backend.almacen.dto.ReubicacionRequest request = new com.example.backend.almacen.dto.ReubicacionRequest();
+        request.setExistenciaId(existenciaId);
+        request.setCajas(cajas);
+        request.setUbicacionDestino(destino);
+        return request;
+    }
+
+    @Test
+    void reubicacion_sumaEnLaUbicacionDestinoSiElLoteYaEstaAhi() {
+        Lote lote = lote(1L, "L-1", LocalDate.now().plusYears(1), "DISPONIBLE");
+        Existencia origen = existencia(10L, lote, "SECTOR 4", 12);
+        Existencia destino = existencia(11L, lote, "SECTOR 7", 3);
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(origen));
+        when(existenciaRepository.findByLoteId(1L)).thenReturn(List.of(origen, destino));
+
+        MovimientoResponse respuesta = servicio.reubicar(reubicacion(10L, 5, "sector 7"), "almacen");
+
+        assertThat(origen.getCantidadCajas()).isEqualTo(7);
+        assertThat(destino.getCantidadCajas()).isEqualTo(8);
+        assertThat(respuesta.getMotivo()).isEqualTo("De SECTOR 4 a SECTOR 7");
+        verify(movimientoRepository, atLeastOnce()).save(any(Movimiento.class));
+    }
+
+    @Test
+    void reubicacion_aUnaUbicacionNueva_creaLaExistenciaYNoCambiaElTotal() {
+        Lote lote = lote(1L, "L-1", LocalDate.now().plusYears(1), "DISPONIBLE");
+        Existencia origen = existencia(10L, lote, "SECTOR 4", 12);
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(origen));
+        when(existenciaRepository.findByLoteId(1L)).thenReturn(List.of(origen));
+
+        servicio.reubicar(reubicacion(10L, 12, "Pasillo B"), "almacen");
+
+        ArgumentCaptor<Existencia> guardadas = ArgumentCaptor.forClass(Existencia.class);
+        verify(existenciaRepository, atLeastOnce()).save(guardadas.capture());
+        Existencia nueva = guardadas.getAllValues().stream().filter(e -> "Pasillo B".equals(e.getUbicacion())).findFirst().orElseThrow();
+        assertThat(nueva.getCantidadCajas()).isEqualTo(12);
+        assertThat(origen.getCantidadCajas()).isZero();
+    }
+
+    @Test
+    void reubicacion_masCajasDeLasQueHayOMismaUbicacion_seRechaza() {
+        Existencia origen = existencia(10L, lote(1L, "L-1", LocalDate.now().plusYears(1), "DISPONIBLE"), "SECTOR 4", 12);
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(origen));
+
+        assertThatThrownBy(() -> servicio.reubicar(reubicacion(10L, 13, "SECTOR 7"), "almacen")).hasMessageContaining("Solo hay 12");
+        assertThatThrownBy(() -> servicio.reubicar(reubicacion(10L, 2, "sector 4"), "almacen")).hasMessageContaining("misma");
+        assertThat(origen.getCantidadCajas()).isEqualTo(12);
+    }
+
     private Lote lote(Long id, String numero, LocalDate caducidad, String estatus) {
         Lote lote = new Lote();
         lote.setId(id);

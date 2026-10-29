@@ -28,11 +28,6 @@ public class Medicamento {
     @Column(length = 200)
     private String descripcion;
 
-    // Columna "CONSUMO PROM." de la hoja de carga inicial. Respaldo del CPM
-    // (HU16) mientras la clave no tenga salidas propias registradas en el sistema.
-    @Column(name = "consumo_promedio_hoja")
-    private Double consumoPromedioHoja;
-
     // Datos que vienen de Intelisis (Art y ArtMedicamento). Las claves capturadas
     // a mano en HAERO los dejan vacíos.
     @Column(name = "forma_farmaceutica", length = 200)

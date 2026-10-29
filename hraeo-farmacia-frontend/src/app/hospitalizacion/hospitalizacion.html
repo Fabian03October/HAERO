@@ -162,6 +162,35 @@
                   }
                 }
 
+                @if (codigoDesconocido(); as desconocido) {
+                  <div class="codigo-nuevo">
+                    <div class="confirmar-cabecera">
+                      <div>
+                        <p class="eyebrow">Caja nueva · código {{ desconocido.codigo }}</p>
+                        <strong>¿Qué medicamento es?</strong>
+                        <small class="sub">Solo aparecen los que algún paciente del área tiene pendientes.</small>
+                      </div>
+                      <button class="link" type="button" (click)="codigoDesconocido.set(null)">Cancelar</button>
+                    </div>
+                    <input
+                      id="filtro-codigo-nuevo"
+                      class="filtro-codigo-nuevo"
+                      placeholder="Busca por clave o nombre"
+                      [ngModel]="filtroDesconocido()"
+                      (ngModelChange)="filtroDesconocido.set($event)"
+                    />
+                    <div class="opciones-codigo">
+                      @for (c of clavesPendientes(); track c.clave) {
+                        <button type="button" (click)="asignarCodigo(c.clave)">
+                          <strong>{{ c.medicamento }}</strong><small>{{ c.clave }}</small>
+                        </button>
+                      } @empty {
+                        <p class="sub">Ningún medicamento pendiente coincide.</p>
+                      }
+                    </div>
+                  </div>
+                }
+
                 @if (mensajeCarrito()) {
                   <div class="banner" [class.error]="tipoMensajeCarrito() === 'error'" [class.warn]="tipoMensajeCarrito() === 'warn'" [class.info]="tipoMensajeCarrito() === 'info'">{{ mensajeCarrito() }}</div>
                 }

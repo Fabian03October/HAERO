@@ -260,7 +260,16 @@ public class ServicioRegistrosIntelisis {
         if (incluidoEnAlta) {
             return "Este lote ya entró a HAERO con el alta inicial, que ya incluía esta entrada.";
         }
+        // Canjes (HU18) y entradas por préstamo (HU20) crean el lote sin registro de Intelisis;
+        // cuando Intelisis captura esa misma entrada, recibirla otra vez contaría las cajas dos veces.
+        if (yaEntroSinIntelisis(a.lote, lotes)) {
+            return "Este lote ya entró a HAERO por un canje o un préstamo; no lo recibas otra vez.";
+        }
         return null;
+    }
+
+    static boolean yaEntroSinIntelisis(String lote, List<LoteHaero> lotes) {
+        return lotes.stream().anyMatch(l -> l.origen() == null && lote.equalsIgnoreCase(l.numeroLote()));
     }
 
     private static String bloqueoAltaInicial(Acumulado a, List<LoteHaero> lotes) {
@@ -289,7 +298,7 @@ public class ServicioRegistrosIntelisis {
         return texto.isEmpty() || texto.equals("·") ? null : texto;
     }
 
-    private record LoteHaero(Long id, String numeroLote, String origen, Integer idIntelisis, String loteIntelisis, LocalDate diaAlta) {
+    record LoteHaero(Long id, String numeroLote, String origen, Integer idIntelisis, String loteIntelisis, LocalDate diaAlta) {
     }
 
     /** Un registro mientras se suman sus renglones (la clave base y la "-1" del mismo lote). */

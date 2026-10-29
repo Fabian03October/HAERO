@@ -27,7 +27,7 @@
           <li>
             <button type="button" class="request" [class.active]="item.id === seleccionada()" (click)="seleccionar(item.id)">
               <span class="request-top">
-                <strong>{{ folio(item.id) }}</strong>
+                <strong>{{ item.pedidoId ? folioPedido(item.pedidoId) + ' · ' : '' }}{{ folio(item.id) }}</strong>
                 <span [class]="'status ' + item.estatus.toLowerCase()">{{ estadoTexto[item.estatus] }}</span>
               </span>
               <span class="request-name">{{ item.nombreGenerico || 'Clave ' + item.clave }}</span>
@@ -89,6 +89,16 @@
           </label>
           @if (fueraDeFefo()) {
             <div class="message info">Confirmado: puedes elegir cualquier lote vigente, sin respetar el orden de caducidad. Los lotes ya vencidos siguen bloqueados.</div>
+            <label class="motivo-fefo">¿Por qué sale fuera del orden FEFO? (obligatorio si tomas un lote que no es el primero)
+              <input
+                id="motivo-fuera-fefo"
+                type="text"
+                maxlength="280"
+                placeholder="Por ejemplo, el lote próximo está en cuarentena"
+                [ngModel]="motivoFueraDeFefo()"
+                (ngModelChange)="motivoFueraDeFefo.set($event)"
+              />
+            </label>
           }
         }
 
@@ -167,6 +177,36 @@
           }
         </div>
       }
+
+      @if (actual.pedidoId && delPedido().length > 1) {
+        <div class="pedido-completo">
+          <div>
+            <p class="eyebrow">Pedido {{ folioPedido(actual.pedidoId) }} · HU39</p>
+            <strong>{{ delPedido().length }} claves pendientes en este pedido</strong>
+            <small>Despacha todas de una vez, cada una del lote que caduca primero.</small>
+          </div>
+          <label class="parcial-pedido">
+            <input id="pedido-parcial" type="checkbox" [ngModel]="pedidoParcial()" (ngModelChange)="pedidoParcial.set($event)" />
+            Si a una clave no le alcanza, despachar lo que haya y dejarla pendiente
+          </label>
+          <button type="button" class="primary-button" [disabled]="enviando()" (click)="despacharPedido()">Despachar pedido completo</button>
+        </div>
+      }
+
+      <div class="rechazo">
+        @if (!rechazando()) {
+          <button type="button" class="link-rechazo" (click)="rechazando.set(true)">No se puede surtir…</button>
+        } @else {
+          <label>¿Por qué no se puede surtir lo pendiente? Farmacia verá el motivo.
+            <input id="motivo-rechazo" maxlength="280" placeholder="Por ejemplo, sin existencia; llega con el pedido de la próxima semana"
+                   [ngModel]="motivoRechazo()" (ngModelChange)="motivoRechazo.set($event)" />
+          </label>
+          <div>
+            <button type="button" class="secondary-button" (click)="rechazando.set(false)">Volver</button>
+            <button type="button" class="primary-button" [disabled]="!motivoRechazo().trim() || enviando()" (click)="rechazar()">Cerrar solicitud</button>
+          </div>
+        }
+      </div>
     } @else {
       <div class="placeholder">
         <p class="eyebrow">Detalle</p>

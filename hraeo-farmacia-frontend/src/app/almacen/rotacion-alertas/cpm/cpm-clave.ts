@@ -2,14 +2,14 @@ import { Component, computed, effect, inject, signal, untracked } from '@angular
 import { FormsModule } from '@angular/forms';
 import { MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen, RotacionClave, nombreMes } from '../../rotacion-almacen';
 
-type FiltroCpm = 'TODAS' | 'SISTEMA' | 'HOJA' | 'SIN_CONSUMO' | 'ABASTO_BAJO' | 'ABASTO_ALTO' | 'SIN_SALIDAS_MES' | 'CONSUMO_ALTO';
+type FiltroCpm = 'TODAS' | 'SISTEMA' | 'INTELISIS' | 'SIN_CONSUMO' | 'ABASTO_BAJO' | 'ABASTO_ALTO' | 'SIN_SALIDAS_MES' | 'CONSUMO_ALTO';
 type OrdenCpm = 'clave' | 'cpm' | 'abasto' | 'mes';
 
 // Qué claves entran en cada filtro del listado general.
 const CUMPLE: Record<FiltroCpm, (fila: RotacionClave) => boolean> = {
   TODAS: () => true,
   SISTEMA: (fila) => fila.cpm > 0 && fila.origenCpm === 'SISTEMA',
-  HOJA: (fila) => fila.origenCpm === 'HOJA',
+  INTELISIS: (fila) => fila.origenCpm === 'INTELISIS',
   SIN_CONSUMO: (fila) => !fila.cpm,
   ABASTO_BAJO: (fila) => fila.mesesAbasto !== null && fila.mesesAbasto < MESES_STOCK_MINIMO,
   ABASTO_ALTO: (fila) => fila.mesesAbasto !== null && fila.mesesAbasto > MESES_STOCK_MAXIMO,
@@ -46,7 +46,7 @@ export class CpmClave {
     return [
       opcion('TODAS', 'Todas'),
       opcion('SISTEMA', 'CPM del sistema'),
-      opcion('HOJA', 'CPM de la hoja'),
+      opcion('INTELISIS', 'CPM de Intelisis'),
       opcion('SIN_CONSUMO', 'Sin consumo'),
       opcion('ABASTO_BAJO', `Menos de ${MESES_STOCK_MINIMO} meses de abasto`),
       opcion('ABASTO_ALTO', `Más de ${MESES_STOCK_MAXIMO} meses de abasto`),

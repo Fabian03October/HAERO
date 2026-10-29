@@ -73,6 +73,22 @@ export class Hospitalizacion {
   readonly terminando = signal(false);
   private readonly preguntado = new Set<string>();
   readonly carrito = signal<Carrito | null>(null);
+  // HU42: caja con un código que HAERO no conoce; se elige de qué medicamento pendiente es.
+  readonly codigoDesconocido = signal<{ codigo: string; lote?: string } | null>(null);
+  readonly filtroDesconocido = signal('');
+  readonly clavesPendientes = computed(() => {
+    const filtro = this.filtroDesconocido().trim().toLowerCase();
+    const unicas = new Map<string, string>();
+    for (const cama of this.carrito()?.camas ?? []) {
+      for (const linea of cama.lineas) {
+        if (linea.estado === 'PENDIENTE' && linea.clave && linea.enCatalogo) unicas.set(linea.clave, linea.medicamento ?? linea.clave);
+      }
+    }
+    return [...unicas.entries()]
+      .map(([clave, medicamento]) => ({ clave, medicamento }))
+      .filter((c) => !filtro || c.clave.toLowerCase().includes(filtro) || c.medicamento.toLowerCase().includes(filtro))
+      .sort((a, b) => a.medicamento.localeCompare(b.medicamento));
+  });
   codigoEscaneado = '';
   readonly camaraAbierta = signal(false);
   // Caja escaneada (o renglón elegido) esperando que se confirmen paciente y piezas.
@@ -275,13 +291,34 @@ export class Hospitalizacion {
     const lote = gs1?.lote;
     if (gs1?.gtin) codigo = gs1.gtin;
     this.codigoEscaneado = '';
+    this.codigoDesconocido.set(null);
     this.api.escanear(this.area(), codigo, lote).subscribe({
       next: (escaneo) => this.prepararSurtido(escaneo, escaneo.candidatos[0]),
       error: (error) => {
         this.porSurtir.set(null);
+        if (error?.status === 404) {
+          this.filtroDesconocido.set('');
+          this.codigoDesconocido.set({ codigo, lote });
+          this.avisarCarrito('Esta caja todavía no está registrada. Elige abajo qué medicamento es; la próxima vez se reconoce sola.', 'warn');
+          return;
+        }
         this.avisarCarrito(mensajeDeError(error, 'No se pudo reconocer la caja.'), 'error');
         this.campoCodigo()?.nativeElement.focus();
       },
+    });
+  }
+
+  /** HU42: liga el código nuevo al medicamento elegido y sigue como si la caja se hubiera reconocido. */
+  asignarCodigo(clave: string): void {
+    const desconocido = this.codigoDesconocido();
+    if (!desconocido) return;
+    this.api.escanear(this.area(), desconocido.codigo, desconocido.lote, clave).subscribe({
+      next: (escaneo) => {
+        this.codigoDesconocido.set(null);
+        this.avisarCarrito(`Código guardado como ${escaneo.medicamento}.`, 'info');
+        this.prepararSurtido(escaneo, escaneo.candidatos[0]);
+      },
+      error: (error) => this.avisarCarrito(mensajeDeError(error, 'No se pudo guardar el código.'), 'error'),
     });
   }
 

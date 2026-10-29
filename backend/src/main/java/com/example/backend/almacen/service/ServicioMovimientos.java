@@ -58,7 +58,9 @@ public class ServicioMovimientos {
                 solicitud != null ? solicitud.getUsuario().getNombreCompleto() : null,
                 solicitud != null ? solicitud.getFecha() : null,
                 solicitud != null ? solicitud.getCantidadSolicitada() : null,
-                esDevolucion(m)
+                esDevolucion(m),
+                m.getMotivo(),
+                solicitud != null && solicitud.getPedido() != null ? solicitud.getPedido().getId() : null
         );
     }
 
