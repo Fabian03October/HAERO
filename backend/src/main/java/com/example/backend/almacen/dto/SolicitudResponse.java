@@ -18,4 +18,10 @@ public class SolicitudResponse {
     // Quién de Farmacia la hizo: nombre para mostrar y usuario (para marcar "mías").
     private String solicitadoPor;
     private String solicitadoPorUsuario;
+    // HU40: solo si se canceló o rechazó.
+    private String motivoCierre;
+    private String cerradaPor;
+    private LocalDateTime fechaCierre;
+    // HU39: pedido al que pertenece (null en las de una sola clave anteriores).
+    private Long pedidoId;
 }

@@ -55,6 +55,9 @@
 }
 .fefo-override input { width: 15px; height: 15px; cursor: pointer; }
 
+.motivo-fefo { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: #4a4a4a; }
+.motivo-fefo input { padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; font-weight: 400; }
+
 tr.selected td { background: #fcf4f6; }
 tr.locked td { color: #a3a09a; }
 tr.locked td strong { color: #a3a09a; }
@@ -115,3 +118,17 @@ tr.locked td strong { color: #a3a09a; }
 }
 .secondary-button.small { padding: 6px 12px; font-size: 12px; }
 .secondary-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* HU40 */
+.rechazo { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e4ddd3; }
+.rechazo label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: #4a4a4a; }
+.rechazo input { padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; font-weight: 400; }
+.rechazo > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.link-rechazo { justify-self: start; padding: 0; border: 0; background: none; color: #6f7271; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+/* HU39 */
+.pedido-completo { display: grid; gap: 8px; margin-top: 14px; padding: 14px; border: 1px solid #e8c9d2; border-radius: 10px; background: #fcf4f6; }
+.pedido-completo > div { display: grid; gap: 2px; }
+.pedido-completo small { color: #6f7271; }
+.pedido-completo .primary-button { justify-self: start; }
+.parcial-pedido { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #4a4a4a; }

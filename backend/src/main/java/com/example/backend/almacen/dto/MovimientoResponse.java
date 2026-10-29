@@ -28,4 +28,8 @@ public class MovimientoResponse {
     private Integer cantidadSolicitada;
     // Préstamos: true si el movimiento es la devolución (va en sentido contrario al préstamo).
     private boolean devolucion;
+    // Por qué se hizo (por ejemplo, despacho fuera de FEFO), si la regla lo pidió.
+    private String motivo;
+    // HU39: pedido de Farmacia al que pertenece la salida (para su vale).
+    private Long pedidoId;
 }

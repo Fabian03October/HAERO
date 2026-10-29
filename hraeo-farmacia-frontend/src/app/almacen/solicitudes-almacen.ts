@@ -34,6 +34,10 @@ export interface MovimientoSalida {
   solicitadoPor?: string;
   fechaSolicitud?: string;
   cantidadSolicitada?: number;
+  // Por qué salió fuera del orden FEFO, si fue el caso (HU15 CA2).
+  motivo?: string;
+  // HU39: pedido de Farmacia al que pertenece (para su vale).
+  pedidoId?: number;
 }
 
 // Datos de Almacén compartidos por varias pantallas, todos leídos del backend:
@@ -148,5 +152,7 @@ function aSalida(movimiento: Movimiento): MovimientoSalida | null {
     solicitadoPor: movimiento.solicitadoPor ?? undefined,
     fechaSolicitud: movimiento.fechaSolicitud ?? undefined,
     cantidadSolicitada: movimiento.cantidadSolicitada ?? undefined,
+    motivo: movimiento.motivo ?? undefined,
+    pedidoId: movimiento.pedidoId ?? undefined,
   };
 }

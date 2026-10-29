@@ -50,4 +50,8 @@ public class Movimiento {
     @ManyToOne
     @JoinColumn(name = "expediente_id")
     private ExpedienteExterno expediente;
+
+    // Por qué se hizo, cuando la regla lo pide (despacho fuera de FEFO, ajuste, reubicación).
+    @Column(length = 300)
+    private String motivo;
 }

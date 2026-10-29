@@ -7,6 +7,7 @@ import {
   ESTATUS_SOLICITUD_TEXTO,
   Existencia,
   Solicitud,
+  folioPedido,
   folioSolicitud,
   mensajeDeError,
 } from '../../almacen-api';
@@ -45,6 +46,13 @@ export class BandejaDespacho {
 
   readonly seleccionada = signal<number | null>(null);
   readonly solicitud = computed(() => this.porAtender().find((item) => item.id === this.seleccionada()));
+  protected readonly folioPedido = folioPedido;
+  // HU39: las claves del mismo pedido que siguen en la bandeja.
+  readonly delPedido = computed(() => {
+    const pedidoId = this.solicitud()?.pedidoId;
+    return pedidoId ? this.porAtender().filter((item) => item.pedidoId === pedidoId) : [];
+  });
+  readonly pedidoParcial = signal(false);
   readonly porSurtir = signal(0);
 
   // Existencias de la clave seleccionada (sin vencidas ni vacías), en orden FEFO.
@@ -57,6 +65,11 @@ export class BandejaDespacho {
   // Ajuste HU15: el despachador puede elegir salirse del orden FEFO, pero
   // solo si lo confirma explícitamente. Se reinicia con cada solicitud.
   readonly fueraDeFefo = signal(false);
+  // HU15 CA2: motivo obligatorio si de verdad se toma un lote fuera del orden FEFO.
+  readonly motivoFueraDeFefo = signal('');
+  // HU40: por qué no se puede surtir lo pendiente.
+  readonly motivoRechazo = signal('');
+  readonly rechazando = signal(false);
 
   readonly renglones = computed<RenglonDespacho[]>(() => {
     const filas = this.existencias();
@@ -97,6 +110,8 @@ export class BandejaDespacho {
   readonly totalADespachar = computed(() => this.renglones().reduce((total, fila) => total + fila.aDespachar, 0));
   readonly esParcial = computed(() => this.totalADespachar() < this.porSurtir());
 
+  readonly saleFueraDeFefo = computed(() => this.fueraDeFefo() && this.renglones().some((fila) => fila.bloqueado && fila.aDespachar > 0));
+
   // Ayuda visual previa; el backend vuelve a validar todo al confirmar.
   readonly errorPartidas = computed(() => {
     const renglones = this.renglones().filter((fila) => fila.aDespachar !== 0);
@@ -110,6 +125,7 @@ export class BandejaDespacho {
       }
     }
     if (this.totalADespachar() > this.porSurtir()) return `Solo faltan ${this.porSurtir()} cajas por surtir; ajusta las cantidades.`;
+    if (this.saleFueraDeFefo() && !this.motivoFueraDeFefo().trim()) return 'Escribe por qué despachas fuera del orden FEFO.';
     return '';
   });
 
@@ -152,6 +168,9 @@ export class BandejaDespacho {
     this.existencias.set([]);
     this.asignaciones.set({});
     this.fueraDeFefo.set(false);
+    this.motivoFueraDeFefo.set('');
+    this.motivoRechazo.set('');
+    this.rechazando.set(false);
     this.cargandoDetalle.set(true);
 
     forkJoin({
@@ -207,6 +226,61 @@ export class BandejaDespacho {
     casilla.checked = confirmado;
   }
 
+  /** HU39: todas las claves del pedido con su sugerencia FEFO, en una sola operación. */
+  async despacharPedido(): Promise<void> {
+    const pedidoId = this.solicitud()?.pedidoId;
+    if (!pedidoId || this.enviando()) return;
+    const claves = this.delPedido().length;
+    const confirmado = await this.notificaciones.confirmar({
+      titulo: `¿Despachar todo el pedido ${folioPedido(pedidoId)}?`,
+      mensaje:
+        `Se despachan las ${claves} claves pendientes, cada una del lote que caduca primero. ` +
+        (this.pedidoParcial()
+          ? 'Lo que no alcance queda pendiente.'
+          : 'Si a alguna no le alcanza la existencia, no se despacha ninguna.'),
+      textoAceptar: 'Sí, despachar',
+    });
+    if (!confirmado) return;
+    this.enviando.set(true);
+    this.api.despacharPedido(pedidoId, this.pedidoParcial()).subscribe({
+      next: (respuesta) => {
+        this.enviando.set(false);
+        const sin = respuesta.sinExistencia.length ? ` Sin existencia, quedan pendientes: ${respuesta.sinExistencia.join(', ')}.` : '';
+        this.mostrarMensaje(
+          `${folioPedido(pedidoId)}: se despacharon ${respuesta.despachadas.length} claves.${sin} Descarga su vale en Salidas registradas.`,
+          'success',
+          'Pedido despachado',
+        );
+        this.historial.recargarSalidas();
+        this.rotacion.recargar();
+        this.recargarBandeja(true);
+      },
+      error: (error) => {
+        this.enviando.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudo despachar el pedido.'), 'error');
+      },
+    });
+  }
+
+  /** HU40: lo pendiente no se puede surtir; Farmacia ve el motivo. */
+  rechazar(): void {
+    const solicitud = this.solicitud();
+    const motivo = this.motivoRechazo().trim();
+    if (!solicitud || !motivo || this.enviando()) return;
+    this.enviando.set(true);
+    this.api.rechazarSolicitud(solicitud.id, motivo).subscribe({
+      next: () => {
+        this.enviando.set(false);
+        this.mostrarMensaje(`${folioSolicitud(solicitud.id)} quedó como "no se puede surtir": ${motivo}.`, 'success', 'Solicitud cerrada');
+        this.recargarBandeja(true);
+      },
+      error: (error) => {
+        this.enviando.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudo cerrar la solicitud.'), 'error');
+      },
+    });
+  }
+
   confirmar(): void {
     const solicitud = this.solicitud();
     if (!solicitud || this.errorPartidas() || this.enviando()) return;
@@ -218,7 +292,8 @@ export class BandejaDespacho {
     const nombre = solicitud.nombreGenerico || solicitud.clave;
 
     this.enviando.set(true);
-    this.api.despachar(solicitud.id, { partidas, parcial: this.esParcial(), confirmarFueraDeFefo: this.fueraDeFefo() }).subscribe({
+    this.api.despachar(solicitud.id, { partidas, parcial: this.esParcial(), confirmarFueraDeFefo: this.fueraDeFefo(),
+      motivoFueraDeFefo: this.saleFueraDeFefo() ? this.motivoFueraDeFefo().trim() : undefined }).subscribe({
       next: (respuesta) => {
         this.enviando.set(false);
         this.historial.recargarSalidas();

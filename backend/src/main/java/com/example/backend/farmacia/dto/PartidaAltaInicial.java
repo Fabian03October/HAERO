@@ -12,4 +12,6 @@ public class PartidaAltaInicial {
     private String lote;
     private LocalDate caducidad;
     private Integer piezas;
+    // HU42: código de barras escaneado de la caja; se liga a la clave si es nuevo.
+    private String codigo;
 }

@@ -40,4 +40,20 @@ public class Solicitud {
     // Bloqueo optimista: evita que dos despachadores atiendan la misma solicitud a la vez.
     @Version
     private Long version;
+
+    // HU39: pedido al que pertenece; null en las solicitudes de antes, que eran de una sola clave.
+    @ManyToOne
+    @JoinColumn(name = "pedido_id")
+    private SolicitudPedido pedido;
+
+    // HU40: al cancelarla (Farmacia) o rechazarla (Almacén), por qué, quién y cuándo.
+    @Column(name = "motivo_cierre", length = 300)
+    private String motivoCierre;
+
+    @ManyToOne
+    @JoinColumn(name = "cerrada_por")
+    private Usuario cerradaPor;
+
+    @Column(name = "fecha_cierre")
+    private LocalDateTime fechaCierre;
 }

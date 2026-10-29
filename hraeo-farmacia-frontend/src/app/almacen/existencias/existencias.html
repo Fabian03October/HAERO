@@ -29,6 +29,59 @@
     </select>
   </div>
 
+  @if (mensaje()) {
+    <div class="message" [class.error]="tipoMensaje() === 'error'" [class.success]="tipoMensaje() === 'success'">{{ mensaje() }}</div>
+  }
+
+  @if (captura(); as c) {
+    <form class="captura" (ngSubmit)="guardar()">
+      <div class="captura-cabecera">
+        <div>
+          <p class="eyebrow">{{ c.accion === 'AJUSTE' ? 'Ajuste por conteo · HU36' : 'Mover cajas · HU37' }}</p>
+          <strong>{{ c.grupo.clave }} · lote {{ c.grupo.lote }}</strong>
+          <small>{{ c.renglon.ubicacion }} · HAERO tiene {{ c.renglon.cajas }} cajas</small>
+        </div>
+        <button type="button" class="link-button" (click)="cerrar()">Cancelar</button>
+      </div>
+      <div class="captura-campos">
+        @if (c.accion === 'AJUSTE') {
+          <label>Cajas que contaste
+            <input id="ajuste-cajas" name="cajas" type="number" min="0" step="1" [ngModel]="cajas()" (ngModelChange)="cajas.set($event)" />
+          </label>
+          <label>Motivo
+            <select id="ajuste-motivo" name="motivo" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)">
+              <option value="">Elige el motivo</option>
+              @for (m of motivos; track m.valor) {
+                <option [value]="m.valor">{{ m.texto }}</option>
+              }
+            </select>
+          </label>
+          <label class="ancho">Detalle (opcional)
+            <input id="ajuste-detalle" name="detalle" maxlength="200" placeholder="Por ejemplo, caja mojada en el anaquel" [ngModel]="detalle()" (ngModelChange)="detalle.set($event)" />
+          </label>
+        } @else {
+          <label>Cajas a mover
+            <input id="mover-cajas" name="cajas" type="number" min="1" step="1" [ngModel]="cajas()" (ngModelChange)="cajas.set($event)" />
+          </label>
+          <label class="ancho">Ubicación destino
+            <input id="mover-destino" name="destino" maxlength="40" list="ubicaciones-existentes" placeholder="Sector 7" [ngModel]="destino()" (ngModelChange)="destino.set($event)" />
+            <datalist id="ubicaciones-existentes">
+              @for (u of ubicaciones(); track u) {
+                <option [value]="u"></option>
+              }
+            </datalist>
+          </label>
+        }
+      </div>
+      @if (errorCaptura()) {
+        <p class="captura-aviso">{{ errorCaptura() }}</p>
+      }
+      <button class="primary-button" type="submit" [disabled]="!!errorCaptura() || guardando()">
+        {{ guardando() ? 'Guardando…' : c.accion === 'AJUSTE' ? 'Guardar ajuste' : 'Mover cajas' }}
+      </button>
+    </form>
+  }
+
   <div class="table-wrap">
     <table>
       <thead>
@@ -40,6 +93,9 @@
           <th class="number">Cajas</th>
           <th class="number">Total lote</th>
           <th>Orden</th>
+          @if (!soloLectura) {
+            <th>Acciones</th>
+          }
         </tr>
       </thead>
       <tbody>
@@ -74,11 +130,19 @@
                   }
                 </td>
               }
+              @if (!soloLectura) {
+                <td class="acciones">
+                  <button type="button" class="link-button" (click)="abrir('AJUSTE', grupo, renglon)">Ajustar</button>
+                  @if (renglon.cajas > 0) {
+                    <button type="button" class="link-button" (click)="abrir('REUBICACION', grupo, renglon)">Mover</button>
+                  }
+                </td>
+              }
             </tr>
           }
         } @empty {
           <tr>
-            <td colspan="7" class="empty">
+            <td [attr.colspan]="soloLectura ? 7 : 8" class="empty">
               {{ inventario.cargando() ? 'Cargando…' : inventario.error() || 'No hay lotes que coincidan con la búsqueda.' }}
               @if (hayFiltros()) {
                 <button type="button" class="link-button" (click)="limpiarFiltros()">Limpiar filtros</button>
@@ -90,4 +154,47 @@
     </table>
   </div>
   <p class="card-help">Un lote puede estar repartido en varias ubicaciones. Al despachar, las cajas se descuentan de la ubicación elegida, no del total.</p>
+</section>
+
+<section class="card">
+  <div class="card-heading">
+    <div>
+      <p class="eyebrow">HU36 · HU37</p>
+      <h2>Ajustes y reubicaciones de los últimos 30 días</h2>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Movimiento</th>
+          <th>Clave</th>
+          <th>Lote</th>
+          <th>Ubicación</th>
+          <th class="number">Cajas</th>
+          <th>Motivo</th>
+          <th>Registró</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (m of recientes(); track m.id) {
+          <tr>
+            <td><strong>{{ m.fecha | date: 'dd/MM/yyyy' }}</strong><small>{{ m.fecha | date: 'HH:mm' }}</small></td>
+            <td>{{ m.tipo === 'AJUSTE' ? (m.sentido === 'ENTRADA' ? 'Ajuste (+)' : 'Ajuste (−)') : 'Reubicación' }}</td>
+            <td><strong>{{ m.clave }}</strong><small>{{ m.nombreGenerico }}</small></td>
+            <td>{{ m.numeroLote }}</td>
+            <td>{{ m.ubicacion }}</td>
+            <td class="number">{{ m.cajas }}</td>
+            <td>{{ m.motivo ?? '—' }}</td>
+            <td>{{ m.usuario }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="empty">No hay ajustes ni reubicaciones en los últimos 30 días.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
 </section>

@@ -14,6 +14,7 @@ import com.example.backend.almacen.repository.LoteRepository;
 import com.example.backend.almacen.repository.MedicamentoRepository;
 import com.example.backend.almacen.repository.MovimientoRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,10 +34,9 @@ import java.util.stream.Collectors;
  * maximo), tal como las agrupa la carta CRC de ServicioRotacion en el
  * documento de diseno. El CPM nunca se guarda: se calcula al vuelo con las
  * salidas reales (tipo SALIDA, despachos a Farmacia - HU14) de los ultimos 6
- * meses cerrados. Mientras una clave no tenga salidas propias en la ventana,
- * se usa como respaldo el consumo promedio de la hoja de carga inicial
- * (HU21), igual que ya lo resolvia la version de Angular que reemplaza este
- * servicio.
+ * meses cerrados. Mientras HAERO no tenga esos 6 meses de salidas propias,
+ * el CPM sale del consumo real de Farmacia en Intelisis por clave y mes
+ * (HU38, tabla intelisis_consumo_mes que llena la sincronizacion).
  */
 @Service
 public class ServicioRotacion {
@@ -57,12 +57,15 @@ public class ServicioRotacion {
     private final MovimientoRepository movimientoRepository;
     private final LoteRepository loteRepository;
     private final AlertaRepository alertaRepository;
+    private final JdbcTemplate haero;
 
     public ServicioRotacion(MedicamentoRepository medicamentoRepository,
                              ExistenciaRepository existenciaRepository,
                              MovimientoRepository movimientoRepository,
                              LoteRepository loteRepository,
-                             AlertaRepository alertaRepository) {
+                             AlertaRepository alertaRepository,
+                             JdbcTemplate haero) {
+        this.haero = haero;
         this.medicamentoRepository = medicamentoRepository;
         this.existenciaRepository = existenciaRepository;
         this.movimientoRepository = movimientoRepository;
@@ -94,7 +97,9 @@ public class ServicioRotacion {
     private record Contexto(List<YearMonth> ventana, int mesesHistorial,
                             Map<String, Map<YearMonth, Integer>> salidasPorClaveYMes,
                             Map<String, Integer> existenciaVigentePorClave,
-                            Map<Long, Integer> existenciaPorLote) {
+                            Map<Long, Integer> existenciaPorLote,
+                            // HU38: consumo de Intelisis por clave y mes: {cajas, piezas}.
+                            Map<String, Map<YearMonth, double[]>> consumoIntelisis) {
     }
 
     private Contexto contexto() {
@@ -117,7 +122,13 @@ public class ServicioRotacion {
                 .filter(e -> e.getLote().getId() != null)
                 .collect(Collectors.groupingBy(e -> e.getLote().getId(), Collectors.summingInt(Existencia::getCantidadCajas)));
 
-        return new Contexto(ventana, mesesHistorial(ventana), salidas, existenciaVigente, existenciaPorLote);
+        Map<String, Map<YearMonth, double[]>> consumo = new java.util.HashMap<>();
+        haero.query("SELECT clave_base, mes, cajas, piezas FROM intelisis_consumo_mes WHERE mes >= ? AND mes <= ?", rs -> {
+            consumo.computeIfAbsent(rs.getString(1), k -> new java.util.HashMap<>())
+                    .put(YearMonth.parse(rs.getString(2)), new double[]{rs.getDouble(3), rs.getDouble(4)});
+        }, ventana.get(0).format(FORMATO_MES), ventana.get(ventana.size() - 1).format(FORMATO_MES));
+
+        return new Contexto(ventana, mesesHistorial(ventana), salidas, existenciaVigente, existenciaPorLote, consumo);
     }
 
     /** Los 6 meses calendario ya cerrados (no incluye el mes en curso), del mas antiguo al mas reciente. */
@@ -158,12 +169,16 @@ public class ServicioRotacion {
 
         int totalEnVentana = meses.stream().mapToInt(ConsumoMesResponse::getCajas).sum();
 
-        boolean usarHoja = totalEnVentana == 0 && medicamento.getConsumoPromedioHoja() != null && medicamento.getConsumoPromedioHoja() > 0;
+        // HU38 / HU16 CA5: sin 6 meses de salidas propias, el consumo real de Intelisis.
+        List<ConsumoMesResponse> mesesIntelisis = mesesHistorial < MESES_VENTANA_CPM
+                ? consumoIntelisisEnCajas(medicamento, contexto) : null;
         double cpm;
         String origenCpm;
-        if (usarHoja) {
-            cpm = medicamento.getConsumoPromedioHoja();
-            origenCpm = "HOJA";
+        if (mesesIntelisis != null) {
+            int total = mesesIntelisis.stream().mapToInt(ConsumoMesResponse::getCajas).sum();
+            cpm = Math.round((total / (double) contexto.ventana().size()) * 10) / 10.0;
+            origenCpm = "INTELISIS";
+            meses = mesesIntelisis;
         } else if (mesesHistorial > 0) {
             cpm = Math.round((totalEnVentana / (double) mesesHistorial) * 10) / 10.0;
             origenCpm = "SISTEMA";
@@ -191,10 +206,38 @@ public class ServicioRotacion {
                 existenciaActual, stockMinimo, stockMaximo, estado, meses);
     }
 
+    /**
+     * Consumo de Intelisis de la clave por mes, en cajas (las piezas se pasan con las piezas por
+     * caja del catálogo); null si Intelisis no tiene consumo de ella o no se puede convertir.
+     */
+    private List<ConsumoMesResponse> consumoIntelisisEnCajas(Medicamento medicamento, Contexto contexto) {
+        Map<YearMonth, double[]> porMes = contexto.consumoIntelisis().get(medicamento.getClave());
+        if (porMes == null || porMes.isEmpty()) {
+            return null;
+        }
+        Integer piezasPorCaja = medicamento.getPiezasPorCaja();
+        boolean hayPiezas = porMes.values().stream().anyMatch(v -> v[1] != 0);
+        if (hayPiezas && (piezasPorCaja == null || piezasPorCaja <= 0)) {
+            return null;
+        }
+        List<ConsumoMesResponse> meses = contexto.ventana().stream()
+                .map(mes -> {
+                    double[] v = porMes.getOrDefault(mes, new double[]{0, 0});
+                    double cajas = v[0] + (v[1] == 0 ? 0 : v[1] / piezasPorCaja);
+                    return new ConsumoMesResponse(mes.format(FORMATO_MES), (int) Math.max(0, Math.round(cajas)));
+                })
+                .toList();
+        return meses.stream().anyMatch(m -> m.getCajas() > 0) ? meses : null;
+    }
+
     // ---------- HU17: alertas de stock minimo y maximo ----------
 
     public List<AlertaResponse> listarAlertas(boolean activas) {
-        evaluarAlertas(); // mantiene el estado al dia en cada consulta; el @Scheduled es solo el respaldo
+        // Las activas se ponen al día en cada consulta (el @Scheduled es solo el respaldo); las
+        // cerradas no cambian con una evaluación, y la pantalla pide ambas a la vez.
+        if (activas) {
+            evaluarAlertas();
+        }
 
         List<Alerta> alertas = activas
                 ? alertaRepository.findByFechaFinIsNullOrderByFechaInicioDesc()

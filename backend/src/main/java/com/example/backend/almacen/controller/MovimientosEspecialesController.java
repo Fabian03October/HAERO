@@ -52,6 +52,20 @@ public class MovimientosEspecialesController {
         return ResponseEntity.ok(servicio.moverACaducados(request.getLoteId(), authentication.getName()));
     }
 
+    // HU36: ajuste por conteo físico, con motivo.
+    @PostMapping("/ajustes")
+    public ResponseEntity<MovimientoResponse> ajustar(@RequestBody com.example.backend.almacen.dto.AjusteRequest request,
+                                                      Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(servicio.ajustar(request, authentication.getName()));
+    }
+
+    // HU37: mover cajas de un lote a otra ubicación.
+    @PostMapping("/reubicaciones")
+    public ResponseEntity<MovimientoResponse> reubicar(@RequestBody com.example.backend.almacen.dto.ReubicacionRequest request,
+                                                       Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(servicio.reubicar(request, authentication.getName()));
+    }
+
     @GetMapping("/movimientos-externos")
     public ResponseEntity<List<MovimientoResponse>> listarExternos() {
         return ResponseEntity.ok(servicio.listarExternos());

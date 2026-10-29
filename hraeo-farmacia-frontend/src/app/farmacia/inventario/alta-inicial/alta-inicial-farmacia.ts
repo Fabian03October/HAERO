@@ -18,6 +18,8 @@ interface CajaAlta {
   lote: string;
   caducidad: string;
   piezas: number;
+  // HU42: código de la caja, para que después se reconozca sola.
+  codigo?: string;
 }
 
 // Farmacia · Alta inicial (HU25): se arma la lista de lo que hay en los estantes escaneando
@@ -46,6 +48,8 @@ export class AltaInicialFarmacia {
   readonly caducidad = signal('');
   readonly piezas = signal<number | null>(null);
   readonly loteDelCodigo = signal(false);
+  // HU42: GTIN del código GS1, o el código de barras normal tal cual.
+  readonly codigo = signal('');
 
   readonly cajas = signal<CajaAlta[]>([]);
   private siguienteId = 1;
@@ -68,6 +72,7 @@ export class AltaInicialFarmacia {
       return;
     }
     const gs1 = leerGs1(codigo);
+    this.codigo.set(gs1?.gtin ?? codigo);
     if (gs1?.lote) {
       this.lote.set(gs1.lote);
       this.caducidad.set(gs1.caducidad ?? '');
@@ -102,7 +107,15 @@ export class AltaInicialFarmacia {
     } else {
       this.cajas.update((lista) => [
         ...lista,
-        { id: this.siguienteId++, clave: medicamento.clave, medicamento: medicamento.nombreGenerico, lote, caducidad: this.caducidad(), piezas },
+        {
+          id: this.siguienteId++,
+          clave: medicamento.clave,
+          medicamento: medicamento.nombreGenerico,
+          lote,
+          caducidad: this.caducidad(),
+          piezas,
+          codigo: this.codigo() || undefined,
+        },
       ]);
       this.mensaje.set('');
     }
@@ -118,6 +131,7 @@ export class AltaInicialFarmacia {
       lote: caja.lote,
       caducidad: ultimoDiaDelMes(caja.caducidad),
       piezas: caja.piezas,
+      codigo: caja.codigo,
     }));
     this.api.altaInicial(partidas).subscribe({
       next: (resultado) => {
@@ -145,6 +159,7 @@ export class AltaInicialFarmacia {
     this.caducidad.set('');
     this.piezas.set(null);
     this.loteDelCodigo.set(false);
+    this.codigo.set('');
     this.campoCodigo()?.nativeElement.focus();
   }
 

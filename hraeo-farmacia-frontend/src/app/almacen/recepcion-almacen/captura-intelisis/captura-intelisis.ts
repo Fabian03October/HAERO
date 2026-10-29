@@ -189,7 +189,7 @@ export class CapturaIntelisis {
     this.mensaje.set('');
   }
 
-  private usarClave(clave: string): void {
+  private usarClave(clave: string, despuesDeAlta = false): void {
     this.clave.set(clave);
     this.seleccionado.set(null);
     this.registros.set([]);
@@ -228,9 +228,18 @@ export class CapturaIntelisis {
           );
           return;
         }
+        if (despuesDeAlta && !disponibles.length) {
+          this.limpiar();
+          this.enfocarEscaneo();
+          this.mostrarMensaje(`Ya diste de alta todos los lotes de ${clave} que tiene Intelisis. Escanea la siguiente caja.`, 'info');
+          return;
+        }
         if (delLote.length === 1) this.elegir(delLote[0]);
         else if (disponibles.length === 1) this.elegir(disponibles[0]);
         else if (!disponibles.length) this.mostrarMensaje('Todos los registros de Intelisis de esta clave están bloqueados; revisa el motivo de cada uno.', 'error');
+        if (despuesDeAlta && disponibles.length) {
+          this.mostrarMensaje(`Quedan ${disponibles.length} ${disponibles.length === 1 ? 'lote' : 'lotes'} de ${clave} por dar de alta. Elige el siguiente o escanea otra caja.`, 'info');
+        }
       },
       error: (error) => {
         this.cargandoRegistros.set(false);
@@ -324,8 +333,19 @@ export class CapturaIntelisis {
             this.esAlta() ? 'Alta inicial registrada' : 'Entrada registrada',
           );
           this.recordarUbicacion(ubicaciones[ubicaciones.length - 1].ubicacion);
-          this.limpiar();
-          this.enfocarEscaneo();
+          if (this.esAlta()) {
+            // HU21 CA7: la misma clave suele tener varios lotes en el anaquel; se sigue con
+            // el siguiente sin volver a escanear.
+            this.codigoNuevo.set(false);
+            this.loteGs1 = '';
+            this.datosGs1.set(null);
+            this.ubicaciones = [{ ubicacion: '', cajas: 0 }];
+            this.observaciones = '';
+            this.usarClave(this.clave(), true);
+          } else {
+            this.limpiar();
+            this.enfocarEscaneo();
+          }
           this.inventario.recargar();
           this.pedidos.recargar();
           this.rotacion.recargar();

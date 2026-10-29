@@ -21,8 +21,8 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Pedir medicamento</p>
-                <h2>Nueva solicitud</h2>
+                <p class="eyebrow">Pedir medicamento · HU39</p>
+                <h2>Nuevo pedido</h2>
               </div>
             </div>
             <div class="entry-form">
@@ -50,9 +50,30 @@
                   <input value="Se registra al enviar" readonly />
                 </label>
               </div>
-              <p class="card-help">Almacén valida la clave contra el catálogo de medicamentos. La solicitud no descuenta el inventario: las cajas salen hasta que Almacén la despacha.</p>
-              <button class="primary-button" type="button" [disabled]="enviando()" (click)="enviar()">
-                {{ enviando() ? 'Enviando…' : 'Enviar solicitud' }}
+              <button class="secondary-button" type="button" (click)="agregar()">+ Agregar al pedido</button>
+
+              @if (renglones().length) {
+                <div class="table-wrap">
+                  <table class="pedido">
+                    <thead>
+                      <tr><th>Clave</th><th class="number">Cajas</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      @for (r of renglones(); track r.clave) {
+                        <tr>
+                          <td><strong>{{ r.clave }}</strong><small>{{ r.nombre }}</small></td>
+                          <td class="number">{{ r.cantidad }}</td>
+                          <td><button type="button" class="link-cancelar" (click)="quitarRenglon(r.clave)">Quitar</button></td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
+              <p class="card-help">Agrega todas las claves que necesitas y manda el pedido de una vez. Almacén valida cada clave contra el catálogo. El pedido no descuenta el inventario: las cajas salen hasta que Almacén lo despacha.</p>
+              <button class="primary-button" type="button" [disabled]="!renglones().length || enviando()" (click)="enviar()">
+                {{ enviando() ? 'Enviando…' : renglones().length ? 'Enviar pedido (' + renglones().length + (renglones().length === 1 ? ' clave, ' : ' claves, ') + totalCajasPedido() + ' cajas)' : 'Enviar pedido' }}
               </button>
             </div>
           </section>
@@ -98,12 +119,16 @@
                     <th>Solicitó</th>
                     <th class="number">Atendidas</th>
                     <th>Estatus</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (solicitud of solicitudesFiltradas(); track solicitud.id) {
                     <tr [class.mia]="esMia(solicitud)">
-                      <td><strong>{{ folio(solicitud.id) }}</strong><small>{{ solicitud.fecha | date: 'dd/MM/yyyy HH:mm' }}</small></td>
+                      <td>
+                        <strong>{{ solicitud.pedidoId ? folioPedido(solicitud.pedidoId) : folio(solicitud.id) }}</strong>
+                        <small>{{ solicitud.pedidoId ? folio(solicitud.id) + ' · ' : '' }}{{ solicitud.fecha | date: 'dd/MM/yyyy HH:mm' }}</small>
+                      </td>
                       <td><strong>{{ solicitud.clave }}</strong><small>{{ solicitud.nombreGenerico || '—' }}</small></td>
                       <td class="quien">
                         <strong>{{ solicitud.solicitadoPor || '—' }}</strong>
@@ -112,10 +137,23 @@
                         }
                       </td>
                       <td class="number">{{ solicitud.cantidadAtendida }} / {{ solicitud.cantidadSolicitada }}</td>
-                      <td><span [class]="'status ' + solicitud.estatus.toLowerCase()">{{ estadoTexto[solicitud.estatus] }}</span></td>
+                      <td>
+                        <span [class]="'status ' + solicitud.estatus.toLowerCase()">{{ estadoTexto[solicitud.estatus] }}</span>
+                        @if (solicitud.motivoCierre) {
+                          <small class="motivo-cierre">{{ solicitud.motivoCierre }} · {{ solicitud.cerradaPor }}</small>
+                        }
+                      </td>
+                      <td>
+                        @if (abierta(solicitud.estatus)) {
+                          <button type="button" class="link-cancelar" (click)="cancelar(solicitud)">Cancelar</button>
+                          @if (abiertasDelPedido(solicitud.pedidoId) > 1) {
+                            <button type="button" class="link-cancelar" (click)="cancelarPedido(solicitud.pedidoId!)">Cancelar pedido</button>
+                          }
+                        }
+                      </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : solicitudes().length ? 'Ninguna solicitud coincide con el filtro o la búsqueda.' : 'Aún no hay solicitudes.' }}</td></tr>
+                    <tr><td colspan="6" class="empty">{{ cargando() ? 'Cargando…' : solicitudes().length ? 'Ninguna solicitud coincide con el filtro o la búsqueda.' : 'Aún no hay solicitudes.' }}</td></tr>
                   }
                 </tbody>
               </table>

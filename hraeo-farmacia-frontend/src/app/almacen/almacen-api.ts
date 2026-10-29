@@ -150,7 +150,13 @@ export interface ResolverCodigoResponse {
 }
 
 
-export type EstatusSolicitud = 'PENDIENTE' | 'PARCIAL' | 'ATENDIDA';
+// CANCELADA (Farmacia ya no lo necesita) y RECHAZADA (Almacén no puede surtirlo): HU40.
+export type EstatusSolicitud = 'PENDIENTE' | 'PARCIAL' | 'ATENDIDA' | 'CANCELADA' | 'RECHAZADA';
+
+/** Una solicitud que todavía espera despacho. */
+export function solicitudAbierta(estatus: EstatusSolicitud): boolean {
+  return estatus === 'PENDIENTE' || estatus === 'PARCIAL';
+}
 
 export interface Solicitud {
   id: number;
@@ -163,6 +169,19 @@ export interface Solicitud {
   // Quién de Farmacia la hizo: nombre para mostrar y usuario (para marcar las propias).
   solicitadoPor: string | null;
   solicitadoPorUsuario: string | null;
+  // HU40: solo si se canceló o rechazó.
+  motivoCierre: string | null;
+  cerradaPor: string | null;
+  fechaCierre: string | null;
+  // HU39: pedido al que pertenece; null en las de una sola clave anteriores.
+  pedidoId: number | null;
+}
+
+export interface DespachoPedido {
+  pedidoId: number;
+  despachadas: DespacharSolicitudResponse[];
+  // Claves sin existencia que quedaron pendientes (solo en entrega parcial).
+  sinExistencia: string[];
 }
 
 export interface SugerenciaPartida {
@@ -189,6 +208,8 @@ export interface DespacharSolicitudRequest {
   // quiere tomar un lote fuera del orden FEFO. El bloqueo de lote vencido
   // nunca se salta con esto.
   confirmarFueraDeFefo?: boolean;
+  // HU15 CA2: por qué se despacha fuera de FEFO; queda en el movimiento.
+  motivoFueraDeFefo?: string;
 }
 
 export interface DespacharSolicitudResponse {
@@ -200,7 +221,11 @@ export interface DespacharSolicitudResponse {
 
 // ENTRADA (recepción), CARGA_INICIAL (HU21), SALIDA (despacho a Farmacia) y los
 // movimientos especiales: CANJE (HU18), BAJA_CADUCIDAD (HU19), PRESTAMO y TRANSFERENCIA (HU20).
-export type TipoMovimiento = 'ENTRADA' | 'CARGA_INICIAL' | 'SALIDA' | 'CANJE' | 'BAJA_CADUCIDAD' | 'PRESTAMO' | 'TRANSFERENCIA';
+export type TipoMovimiento =
+  | 'ENTRADA' | 'CARGA_INICIAL' | 'SALIDA' | 'CANJE' | 'BAJA_CADUCIDAD' | 'PRESTAMO' | 'TRANSFERENCIA' | 'AJUSTE' | 'REUBICACION';
+
+// HU36: por qué no coincide el conteo físico.
+export type MotivoAjuste = 'ERROR_CONTEO' | 'DANADA' | 'FALTANTE' | 'SOBRANTE';
 export type SentidoMovimiento = 'ENTRADA' | 'SALIDA';
 
 export interface Movimiento {
@@ -225,6 +250,10 @@ export interface Movimiento {
   cantidadSolicitada: number | null;
   // Préstamos: true si es la devolución (va en sentido contrario al préstamo).
   devolucion: boolean;
+  // Por qué se hizo, cuando la regla lo pidió (por ejemplo, despacho fuera de FEFO).
+  motivo: string | null;
+  // HU39: pedido de Farmacia de la salida.
+  pedidoId: number | null;
 }
 
 // ---------- Movimientos especiales (HU18, HU19, HU20) ----------
@@ -341,7 +370,8 @@ export interface ConsumoMes {
   cajas: number;
 }
 
-export type OrigenCpm = 'SISTEMA' | 'HOJA';
+// SISTEMA = salidas de HAERO; INTELISIS = consumo de Farmacia en Intelisis mientras HAERO no tenga 6 meses (HU38).
+export type OrigenCpm = 'SISTEMA' | 'INTELISIS';
 export type EstadoStock = 'DESABASTO' | 'SOBREABASTO' | 'NORMAL' | 'SIN_CONSUMO';
 
 export interface Rotacion {
@@ -444,7 +474,14 @@ export const ESTATUS_SOLICITUD_TEXTO: Record<EstatusSolicitud, string> = {
   PENDIENTE: 'Pendiente',
   PARCIAL: 'Parcial',
   ATENDIDA: 'Atendida',
+  CANCELADA: 'Cancelada',
+  RECHAZADA: 'No se puede surtir',
 };
+
+// Folio visible de un pedido de Farmacia (HU39).
+export function folioPedido(id: number): string {
+  return `PED-${String(id).padStart(4, '0')}`;
+}
 
 // Folio visible de una solicitud a partir de su id del backend.
 export function folioSolicitud(id: number): string {
@@ -532,6 +569,16 @@ export class AlmacenApi {
     return this.http.get<Canje[]>(`${API_BASE_URL}/almacen/canjes`, this.cabeceras());
   }
 
+  /** HU36: deja en una ubicación las cajas que se contaron, con su motivo. */
+  ajustar(request: { existenciaId: number; cajasContadas: number; motivo: MotivoAjuste; detalle?: string }): Observable<Movimiento> {
+    return this.http.post<Movimiento>(`${API_BASE_URL}/almacen/ajustes`, request, this.cabeceras());
+  }
+
+  /** HU37: mueve cajas de un lote a otra ubicación. */
+  reubicar(request: { existenciaId: number; cajas: number; ubicacionDestino: string }): Observable<Movimiento> {
+    return this.http.post<Movimiento>(`${API_BASE_URL}/almacen/reubicaciones`, request, this.cabeceras());
+  }
+
   registrarCanje(request: CanjeRequest): Observable<Canje> {
     return this.http.post<Canje>(`${API_BASE_URL}/almacen/canjes`, request, this.cabeceras());
   }
@@ -581,6 +628,16 @@ export class AlmacenApi {
   }
 
   // ---------- Solicitudes: lado de Almacén (HU14, HU15) ----------
+  /** HU40: Farmacia cancela una solicitud que ya no necesita. */
+  cancelarSolicitud(id: number, motivo?: string): Observable<Solicitud> {
+    return this.http.post<Solicitud>(`${API_BASE_URL}/farmacia/solicitudes/${id}/cancelar`, { motivo }, this.cabeceras());
+  }
+
+  /** HU40: Almacén indica que no puede surtirla y por qué. */
+  rechazarSolicitud(id: number, motivo: string): Observable<Solicitud> {
+    return this.http.post<Solicitud>(`${API_BASE_URL}/almacen/solicitudes/${id}/rechazar`, { motivo }, this.cabeceras());
+  }
+
   bandejaSolicitudes(estatus: EstatusSolicitud[] = ['PENDIENTE', 'PARCIAL']): Observable<Solicitud[]> {
     return this.http.get<Solicitud[]>(`${API_BASE_URL}/almacen/solicitudes`, {
       ...this.cabeceras(),
@@ -637,8 +694,21 @@ export class AlmacenApi {
   }
 
   // ---------- Solicitudes: lado de Farmacia (HU13) ----------
-  crearSolicitud(clave: string, cantidad: number): Observable<Solicitud> {
-    return this.http.post<Solicitud>(`${API_BASE_URL}/farmacia/solicitudes`, { clave, cantidad }, this.cabeceras());
+  /** HU39: varias claves en un solo pedido; se guardan todas o ninguna. */
+  crearPedido(partidas: { clave: string; cantidad: number }[], observaciones?: string): Observable<Solicitud[]> {
+    return this.http.post<Solicitud[]>(`${API_BASE_URL}/farmacia/solicitudes/pedidos`, { partidas, observaciones }, this.cabeceras());
+  }
+
+  cancelarPedido(pedidoId: number): Observable<Solicitud[]> {
+    return this.http.post<Solicitud[]>(`${API_BASE_URL}/farmacia/solicitudes/pedidos/${pedidoId}/cancelar`, {}, this.cabeceras());
+  }
+
+  /** HU39: todas las claves abiertas del pedido con su sugerencia FEFO, en una sola operación. */
+  despacharPedido(pedidoId: number, parcial: boolean): Observable<DespachoPedido> {
+    return this.http.post<DespachoPedido>(`${API_BASE_URL}/almacen/solicitudes/pedidos/${pedidoId}/despachar`, {}, {
+      ...this.cabeceras(),
+      params: { parcial: String(parcial) },
+    });
   }
 
   /** Solicitudes de todo el personal de Farmacia (no solo las del usuario). */

@@ -75,3 +75,6 @@ th.check,
 td.check { width: 34px; text-align: center; }
 .check input { width: 16px; height: 16px; accent-color: #9f2241; cursor: pointer; }
 tr.elegida td { background: #fbf1f4; }
+
+/* HU15 CA2: por qué esta salida no siguió el orden FEFO. */
+.motivo-salida { color: #8a5a00; font-weight: 600; }

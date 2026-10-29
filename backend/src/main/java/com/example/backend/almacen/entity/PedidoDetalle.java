@@ -38,4 +38,7 @@ public class PedidoDetalle {
 
     @Column(name = "cancelada_intelisis")
     private Integer canceladaIntelisis;
+
+    @Version
+    private Long version;
 }

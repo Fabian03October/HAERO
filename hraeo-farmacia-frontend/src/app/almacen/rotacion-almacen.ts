@@ -27,8 +27,8 @@ export interface RotacionClave {
   clave: string;
   medicamento: string;
   cpm: number;
-  // SISTEMA = salidas registradas; HOJA = columna CONSUMO PROM. del inventario cargado.
-  origenCpm: 'SISTEMA' | 'HOJA';
+  // SISTEMA = salidas registradas; INTELISIS = consumo de Farmacia en Intelisis (HU38).
+  origenCpm: 'SISTEMA' | 'INTELISIS';
   meses: ConsumoMes[];
   mesesHistorial: number;
   consumoMesActual: number;

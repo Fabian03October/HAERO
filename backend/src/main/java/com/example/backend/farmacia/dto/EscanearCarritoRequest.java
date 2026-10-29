@@ -10,4 +10,6 @@ public class EscanearCarritoRequest {
     private String central;
     private String codigo;
     private String lote;
+    // HU42: si el código es nuevo, la clave que el despachador eligió; el código se guarda.
+    private String clave;
 }

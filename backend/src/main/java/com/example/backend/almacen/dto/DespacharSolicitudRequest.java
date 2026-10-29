@@ -15,4 +15,6 @@ public class DespacharSolicitudRequest {
     // sigue bloqueando (eso nunca es opcional); esto solo salta la regla de
     // "hay otro lote que caduca antes".
     private boolean confirmarFueraDeFefo;
+    // HU15 CA2: obligatorio si de verdad se sale del orden FEFO; queda en el movimiento.
+    private String motivoFueraDeFefo;
 }

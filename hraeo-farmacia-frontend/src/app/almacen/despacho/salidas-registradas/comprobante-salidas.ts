@@ -48,6 +48,47 @@ export function descargarComprobante(elegidas: MovimientoSalida[], historial: Mo
   doc.save(nombreArchivo(grupos, generado));
 }
 
+/**
+ * HU39: vale de un pedido de Farmacia en una sola hoja: todas sus claves con los lotes y
+ * ubicaciones que se entregaron, y las firmas de quien entregó y quien recibe.
+ *
+ * @param folio folio visible del pedido (PED-0012)
+ * @param salidas todas las salidas del pedido
+ */
+export function descargarValePedido(folio: string, salidas: MovimientoSalida[], generadoPor: string, logo?: string): void {
+  if (!salidas.length) return;
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' }) as Documento;
+  const generado = new Date();
+  const ordenadas = [...salidas].sort((a, b) => a.clave.localeCompare(b.clave) || a.fecha.localeCompare(b.fecha));
+  const primera = ordenadas[0];
+  let y = encabezadoBase(doc, 'Vale de despacho de pedido', folio, 'Pedido de Farmacia', logo);
+  const claves = new Set(ordenadas.map((s) => s.clave)).size;
+  const cajas = ordenadas.reduce((total, s) => total + s.cajas, 0);
+  y = bloqueDatos(doc, 'Pedido de Farmacia', y, [
+    ['Solicitó (Farmacia)', primera.solicitadoPor ?? 'Sin dato'],
+    ['Fecha y hora del pedido', primera.fechaSolicitud ? fechaHora(primera.fechaSolicitud) : 'Sin dato'],
+    ['Claves entregadas', String(claves)],
+    ['Cajas entregadas', String(cajas)],
+  ]);
+  subtitulo(doc, 'Entregas de Almacén', y);
+  autoTable(doc, {
+    startY: y + 3,
+    margin: { left: MARGEN, right: MARGEN },
+    head: [['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Ubicación', 'Cajas', 'Despachó']],
+    body: ordenadas.map((s) => [s.clave, s.nombreGenerico, s.lote, formatoCaducidad(s.caducidad), s.ubicacion, String(s.cajas), s.usuario || 'Sin dato']),
+    foot: [['', '', '', '', 'Total', { content: String(cajas), styles: { halign: 'right' } }, '']],
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2, lineColor: [228, 221, 211], lineWidth: 0.2, textColor: [43, 43, 43] },
+    headStyles: { fillColor: GUINDA, textColor: 255, fontStyle: 'bold' },
+    footStyles: { fillColor: [246, 233, 237], textColor: GUINDA, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [250, 248, 245] },
+    columnStyles: { 1: { cellWidth: 52 }, 5: { halign: 'right' } },
+  });
+  firmas(doc, ordenadas, doc.lastAutoTable.finalY + 10, logo);
+  pies(doc, generado, generadoPor);
+  doc.save(`vale-${folio}-${generado.toLocaleDateString('en-CA')}.pdf`);
+}
+
 /** Lee el logo del hospital (public/logo-hraeo-gris.png) como data URL; undefined si no se pudo. */
 export async function cargarLogo(): Promise<string | undefined> {
   try {
@@ -70,6 +111,10 @@ const LOGO_ALTO = 15;
 const LOGO_ANCHO = (LOGO_ALTO * 256) / 111;
 
 function encabezado(doc: Documento, salida: MovimientoSalida, logo?: string): number {
+  return encabezadoBase(doc, 'Comprobante de salida de Almacén', referencia(salida), TIPO_SALIDA_TEXTO[salida.tipo], logo);
+}
+
+function encabezadoBase(doc: Documento, titulo: string, folio: string, tipo: string, logo?: string): number {
   const ancho = doc.internal.pageSize.getWidth();
   let x = MARGEN;
   if (logo) {
@@ -83,7 +128,7 @@ function encabezado(doc: Documento, salida: MovimientoSalida, logo?: string): nu
   doc.setTextColor(...GUINDA);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('Comprobante de salida de Almacén', x, 15);
+  doc.text(titulo, x, 15);
   doc.setTextColor(...GRIS);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -93,11 +138,11 @@ function encabezado(doc: Documento, salida: MovimientoSalida, logo?: string): nu
   doc.setTextColor(...GUINDA);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.text(referencia(salida), ancho - MARGEN, 15, { align: 'right' });
+  doc.text(folio, ancho - MARGEN, 15, { align: 'right' });
   doc.setTextColor(...GRIS);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text(TIPO_SALIDA_TEXTO[salida.tipo], ancho - MARGEN, 20.5, { align: 'right' });
+  doc.text(tipo, ancho - MARGEN, 20.5, { align: 'right' });
 
   doc.setFillColor(...GUINDA);
   doc.rect(MARGEN, 29, ancho - MARGEN * 2, 1.1, 'F');

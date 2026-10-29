@@ -1,5 +1,7 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.almacen.entity.CodigoBarras;
+import com.example.backend.almacen.repository.CodigoBarrasRepository;
 import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.repository.LoteRepository;
@@ -52,18 +54,66 @@ public class ServicioInventarioFarmacia {
     private final LoteRepository loteRepository;
     private final UsuarioRepository usuarioRepository;
 
+    private final CodigoBarrasRepository codigoBarrasRepository;
+
     public ServicioInventarioFarmacia(LoteFarmaciaRepository loteFarmaciaRepository,
                                       MovimientoFarmaciaRepository movimientoFarmaciaRepository,
                                       BajaFarmaciaRepository bajaRepository,
                                       MedicamentoRepository medicamentoRepository,
                                       LoteRepository loteRepository,
-                                      UsuarioRepository usuarioRepository) {
+                                      UsuarioRepository usuarioRepository,
+                                      CodigoBarrasRepository codigoBarrasRepository) {
+        this.codigoBarrasRepository = codigoBarrasRepository;
         this.loteFarmaciaRepository = loteFarmaciaRepository;
         this.movimientoFarmaciaRepository = movimientoFarmaciaRepository;
         this.bajaRepository = bajaRepository;
         this.medicamentoRepository = medicamentoRepository;
         this.loteRepository = loteRepository;
         this.usuarioRepository = usuarioRepository;
+    }
+
+    // ---------- HU42: códigos de barras desde Farmacia ----------
+
+    /** El código como lo guarda Almacén: GTIN-14 de GS1 o el EAN-13 normal (con o sin el cero inicial). */
+    public Optional<CodigoBarras> buscarCodigo(String codigo) {
+        Optional<CodigoBarras> exacto = codigoBarrasRepository.findById(codigo);
+        if (exacto.isPresent()) {
+            return exacto;
+        }
+        if (codigo.length() == 14 && codigo.startsWith("0")) {
+            return codigoBarrasRepository.findById(codigo.substring(1));
+        }
+        if (codigo.length() == 13) {
+            return codigoBarrasRepository.findById("0" + codigo);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Liga el código de la caja a su clave la primera vez que Farmacia lo ve, para que desde
+     * ahí la caja se reconozca sola. Un código que ya es de otra clave no se reasigna.
+     */
+    public void aprenderCodigo(String codigo, Medicamento medicamento) {
+        if (codigo == null) {
+            return;
+        }
+        if (codigo.length() > 60) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El código escaneado es demasiado largo; escanea el código de barras de la caja");
+        }
+        Optional<CodigoBarras> existente = buscarCodigo(codigo);
+        if (existente.isPresent()) {
+            String clave = existente.get().getMedicamento().getClave();
+            if (!clave.equals(medicamento.getClave())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El código " + codigo + " ya es de la clave " + clave
+                        + " " + existente.get().getMedicamento().getNombreGenerico() + "; revisa la caja");
+            }
+            return;
+        }
+        CodigoBarras nuevo = new CodigoBarras();
+        nuevo.setCodigo(codigo);
+        nuevo.setMedicamento(medicamento);
+        nuevo.setProveedor("Registrado por Farmacia");
+        codigoBarrasRepository.save(nuevo);
     }
 
     // ---------- HU27: existencias ----------
@@ -131,6 +181,7 @@ public class ServicioInventarioFarmacia {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las piezas contadas del lote " + numeroLote + " deben ser mayores a cero");
             }
             Medicamento medicamento = medicamento(partida.getClave());
+            aprenderCodigo(texto(partida.getCodigo()), medicamento);
             // CA3: un lote vencido sí se da de alta (queda registrado), pero no estará disponible.
             LoteFarmacia lote = loteParaEntrada(medicamento, numeroLote, partida.getCaducidad(), null);
             mover(lote, MovimientoFarmacia.ALTA_INICIAL, partida.getPiezas(), null, usuario);
