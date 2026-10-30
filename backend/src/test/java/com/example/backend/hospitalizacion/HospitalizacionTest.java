@@ -47,4 +47,26 @@ class HospitalizacionTest {
         camas.sort(ServicioHospitalizacion::compararNatural);
         assertThat(camas).containsExactly("Hclin-AIS5", "Hclin-U4", "Hclin-U32", "Hclin-U310");
     }
+
+    // ---------- Estancias que Intelisis dejó abiertas ----------
+
+    private static ServicioSincronizacionHospitalizacion.Estancia estancia(int idArea, String cama, java.time.LocalDateTime ingreso) {
+        return new ServicioSincronizacionHospitalizacion.Estancia(idArea, idArea * 10, cama, null, ingreso, null, "Paciente " + idArea, null);
+    }
+
+    @org.junit.jupiter.api.Test
+    void unaEstanciaTapadaPorOtroPacienteTerminaCuandoEntraElSiguiente() {
+        java.time.LocalDateTime ahora = java.time.LocalDateTime.of(2026, 10, 29, 12, 0);
+        java.util.Map<Integer, ServicioSincronizacionHospitalizacion.Estancia> estancias = new java.util.LinkedHashMap<>();
+        estancias.put(1, estancia(1, "205", ahora.minusDays(9)));      // Juan, desde el 20/10
+        estancias.put(2, estancia(2, "205", ahora.minusHours(2)));     // Fabián entró hoy
+        estancias.put(3, estancia(3, "310", ahora.minusDays(2000)));   // fantasma: nadie más después
+        estancias.put(4, estancia(4, "311", ahora.minusDays(3)));      // normal
+
+        var d = ServicioSincronizacionHospitalizacion.depurar(estancias, ahora, 365);
+
+        org.assertj.core.api.Assertions.assertThat(d.vigentes()).containsExactlyInAnyOrder(2, 4);
+        org.assertj.core.api.Assertions.assertThat(d.tapadas()).containsEntry(1, ahora.minusHours(2));
+        org.assertj.core.api.Assertions.assertThat(d.fantasmas()).containsExactly(3);
+    }
 }

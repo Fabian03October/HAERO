@@ -71,10 +71,15 @@ public class ServicioHojasCarrito {
 
     // ---------- Indicaciones médicas activas ----------
 
-    /** Una hoja por paciente del área; con "ingresos" solo los elegidos. */
+    /**
+     * Una hoja por paciente del área; con "ingresos" solo los elegidos. Nunca sale un paciente
+     * sin indicaciones de medicamento del día (lo que entra al carrito de hoy).
+     */
     public List<HojaIndicacionesResponse> indicaciones(String central, Collection<Integer> ingresos) {
+        LocalDate hoy = LocalDate.now();
         List<ServicioCarrito.Internado> internados = carrito.internados(central).stream()
                 .filter(i -> ingresos == null || ingresos.isEmpty() || ingresos.contains(i.idIngreso()))
+                .filter(i -> carrito.lineas(i.idIngreso(), hoy).stream().anyMatch(l -> !"SUSPENDIDO".equals(l.getEstado())))
                 .toList();
         if (internados.isEmpty()) {
             return List.of();
@@ -88,7 +93,7 @@ public class ServicioHojasCarrito {
             haero.query("""
                     SELECT clave, medicamento, dosis, unidad, via, cada, cada_unidad, dosis_24h, unidosis, inicia, indicado_en, nota,
                            externo, folio, infusion, numero_horas
-                    FROM hosp_medicamento WHERE id_ingreso = ? AND activo = 1 ORDER BY COALESCE(inicia, indicado_en), id
+                    FROM hosp_medicamento WHERE id_ingreso = ? AND activo = 1 ORDER BY indicado_en DESC, id DESC
                     """, rs -> {
                 boolean infusion = rs.getBoolean(15);
                 Timestamp inicia = rs.getTimestamp(10) != null ? rs.getTimestamp(10) : rs.getTimestamp(11);
@@ -234,16 +239,19 @@ public class ServicioHojasCarrito {
     // ---------- Terminar carrito y hoja de baja ----------
 
     /**
-     * Termina el carrito del área: si algo que se metió se canceló después, pide confirmación
-     * (o que se saque); asigna el folio de HAERO a la hoja de baja de cada paciente con algo
-     * surtido hoy y regresa las hojas para imprimir.
+     * Termina el carrito del área (el del día o uno de urgencia): si algo que se metió se canceló
+     * después o el paciente egresó, pide que se decida; asigna la hoja de cada paciente con algo
+     * surtido hoy (detalle en HAERO) y suma lo surtido desde el último carrito a la baja por volumen
+     * del área y día (la que se captura en Intelisis). Regresa esa baja (vacío si no hubo surtidos nuevos).
      */
     @Transactional
     public List<HojaBajaResponse> terminar(String central, boolean confirmarCancelados, String nombreUsuario) {
         CarritoResponse actual = carrito.carrito(central);
         List<String> cancelados = actual.getCamas().stream()
-                .flatMap(c -> c.getLineas().stream().filter(l -> "SUSPENDIDO".equals(l.getEstado()))
-                        .map(l -> "cama " + c.getEspacio() + ": " + l.getMedicamento()))
+                .flatMap(c -> c.getLineas().stream()
+                        // Si el paciente ya egresó (alta, defunción...), todo lo surtido hoy se revisa igual que un cancelado.
+                        .filter(l -> "SUSPENDIDO".equals(l.getEstado()) || (c.isEgresado() && l.getEntregadas() > 0))
+                        .map(l -> "cama " + c.getEspacio() + ": " + l.getMedicamento() + (c.isEgresado() ? " (el paciente ya egresó)" : "")))
                 .toList();
         if (!cancelados.isEmpty() && !confirmarCancelados) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Se cancelaron medicamentos que ya están en el carrito ("
@@ -265,7 +273,64 @@ public class ServicioHojasCarrito {
             }
         }
         carrito.registrarCierre(central, usuario);
-        return hojasBaja(central, hoy, null);
+
+        String sinBaja = "FROM farmacia_entrega e JOIN farmacia_hoja_baja h ON h.receta_id = e.receta_id "
+                + "WHERE h.dia = ? AND h.central = ? AND e.baja_volumen_folio IS NULL";
+        if (haero.queryForObject("SELECT COUNT(*) " + sinBaja, Integer.class, java.sql.Date.valueOf(hoy), central) == 0) {
+            return List.of();
+        }
+        // Una baja por área y día: lo de urgencia se suma a la del día (mismo folio).
+        Integer existente = haero.queryForList("SELECT TOP 1 folio FROM farmacia_baja_volumen WHERE dia = ? AND central = ? ORDER BY folio",
+                Integer.class, java.sql.Date.valueOf(hoy), central).stream().findFirst().orElse(null);
+        int folio;
+        if (existente != null) {
+            folio = existente;
+            haero.update("UPDATE farmacia_baja_volumen SET fecha = ?, usuario_id = ? WHERE folio = ?", ahora, usuario, folio);
+        } else {
+            folio = haero.queryForObject("INSERT INTO farmacia_baja_volumen (dia, central, fecha, usuario_id) OUTPUT INSERTED.folio VALUES (?, ?, ?, ?)",
+                    Integer.class, java.sql.Date.valueOf(hoy), central, ahora, usuario);
+        }
+        haero.update("UPDATE e SET baja_volumen_folio = ? " + sinBaja, folio, java.sql.Date.valueOf(hoy), central);
+        return bajasVolumen(central, hoy, folio);
+    }
+
+    /**
+     * Baja por volumen del área en el día (o la de un folio): por clave y lote, lo que salió en los
+     * carritos terminados (el del día y los de urgencia). Se captura en Intelisis con su folio en "Observaciones".
+     * shortcut: lo devuelto después de capturar la baja también se resta aquí; si llega a pasar, conciliar a mano.
+     */
+    public List<HojaBajaResponse> bajasVolumen(String central, LocalDate dia, Integer folio) {
+        List<Object> parametros = new ArrayList<>(List.of(java.sql.Date.valueOf(dia), central));
+        String filtro = "";
+        if (folio != null) {
+            filtro = " AND b.folio = ?";
+            parametros.add(folio);
+        }
+        List<Map<String, Object>> bajas = haero.queryForList("""
+                SELECT b.folio, b.dia, b.fecha, b.central, u.nombre_completo
+                FROM farmacia_baja_volumen b JOIN usuario u ON u.id = b.usuario_id
+                WHERE b.dia = ? AND b.central = ?""" + filtro + " ORDER BY b.folio", parametros.toArray());
+        if (bajas.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<Object[]>> partidas = new HashMap<>();
+        List<Object> folios = bajas.stream().map(b -> b.get("folio")).toList();
+        haero.query("""
+                SELECT e.baja_volumen_folio, rc.medicamento_clave, fl.numero_lote, fl.caducidad, SUM(p.piezas - p.piezas_devueltas)
+                FROM farmacia_entrega_partida p
+                JOIN farmacia_entrega e ON e.id = p.entrega_id
+                JOIN farmacia_receta_clave rc ON rc.id = p.receta_clave_id
+                JOIN farmacia_lote fl ON fl.id = p.farmacia_lote_id
+                WHERE e.baja_volumen_folio IN (""" + marcadores(folios.size()) + """
+                ) GROUP BY e.baja_volumen_folio, rc.medicamento_clave, fl.numero_lote, fl.caducidad
+                HAVING SUM(p.piezas - p.piezas_devueltas) > 0
+                ORDER BY rc.medicamento_clave
+                """, rs -> {
+            partidas.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>())
+                    .add(new Object[]{rs.getString(2), rs.getString(3), rs.getDate(4).toLocalDate(), rs.getInt(5)});
+        }, folios.toArray());
+        // Sin paciente ni cama: es el total del área. "V" para no confundirlo con el folio de una hoja por paciente.
+        return armar(bajas, "folio", partidas, "V");
     }
 
     /** Las hojas de baja del área en el día (o la de un paciente), con lo que realmente salió. */
@@ -277,7 +342,8 @@ public class ServicioHojasCarrito {
             parametros.add(ServicioCarrito.folio(dia, idIngreso));
         }
         List<Map<String, Object>> hojas = haero.queryForList("""
-                SELECT h.folio, h.dia, h.fecha, h.espacio, h.central, r.id AS receta, r.paciente_nombre, r.paciente_expediente, u.nombre_completo
+                SELECT h.folio, h.dia, h.fecha, h.espacio, h.central, r.id AS receta, r.folio AS receta_folio, r.paciente_nombre,
+                       r.paciente_expediente, u.nombre_completo
                 FROM farmacia_hoja_baja h JOIN farmacia_receta r ON r.id = h.receta_id JOIN usuario u ON u.id = h.usuario_id
                 WHERE h.dia = ? AND h.central = ?""" + filtro + " ORDER BY h.folio", parametros.toArray());
         if (hojas.isEmpty()) {
@@ -301,7 +367,41 @@ public class ServicioHojasCarrito {
             partidasPorReceta.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>())
                     .add(new Object[]{rs.getString(2), rs.getString(3), rs.getDate(4).toLocalDate(), rs.getInt(5)});
         }, recetas.toArray());
+        marcarRevisar(hojas, partidasPorReceta);
+        return armar(hojas, "receta", partidasPorReceta, "");
+    }
 
+    /**
+     * Piezas surtidas distintas a la dosis del día indicada (dosis_24h): la partida se marca para
+     * revisarla después, igual que en el carrito. Agrega a cada partida un quinto dato (revisar).
+     */
+    private void marcarRevisar(List<Map<String, Object>> hojas, Map<Long, List<Object[]>> partidasPorReceta) {
+        Map<Integer, Long> recetaDelIngreso = new HashMap<>();
+        for (Map<String, Object> h : hojas) {
+            String folio = (String) h.get("receta_folio");
+            recetaDelIngreso.put(Integer.valueOf(folio.substring(folio.lastIndexOf('-') + 1)), ((Number) h.get("receta")).longValue());
+        }
+        Map<Long, Map<String, Integer>> dosis = new HashMap<>();
+        // La indicación más reciente de cada clave manda (mismo criterio que el carrito).
+        haero.query("SELECT id_ingreso, clave, dosis_24h FROM hosp_medicamento WHERE dosis_24h IS NOT NULL AND clave IS NOT NULL AND id_ingreso IN ("
+                + marcadores(recetaDelIngreso.size()) + ") ORDER BY indicado_en", rs -> {
+            dosis.computeIfAbsent(recetaDelIngreso.get(rs.getInt(1)), k -> new HashMap<>()).put(rs.getString(2), rs.getInt(3));
+        }, recetaDelIngreso.keySet().toArray());
+        partidasPorReceta.forEach((receta, partidas) -> {
+            Map<String, Integer> porClave = new HashMap<>();
+            partidas.forEach(p -> porClave.merge((String) p[0], (Integer) p[3], Integer::sum));
+            Map<String, Integer> delDia = dosis.getOrDefault(receta, Map.of());
+            partidas.replaceAll(p -> new Object[]{p[0], p[1], p[2], p[3],
+                    delDia.get(p[0]) != null && !delDia.get(p[0]).equals(porClave.get(p[0]))});
+        });
+    }
+
+    /**
+     * Arma las hojas con descripción, unidad y precio de Intelisis. {@code llave} es la columna de
+     * {@code hojas} con que se buscan sus partidas: {clave, lote, caducidad, piezas}.
+     */
+    private List<HojaBajaResponse> armar(List<Map<String, Object>> hojas, String llave, Map<Long, List<Object[]>> partidasPorReceta,
+                                         String prefijoFolio) {
         // Descripción y unidad como en Intelisis (clave "-1"), del espejo; precio leído en vivo.
         List<String> articulos = partidasPorReceta.values().stream().flatMap(List::stream)
                 .map(p -> p[0] + ServicioCortes.SUFIJO_FARMACIA).distinct().toList();
@@ -319,14 +419,14 @@ public class ServicioHojasCarrito {
             List<PartidaBajaResponse> partidas = new ArrayList<>();
             BigDecimal total = BigDecimal.ZERO;
             int piezas = 0;
-            for (Object[] p : partidasPorReceta.getOrDefault(((Number) h.get("receta")).longValue(), List.of())) {
+            for (Object[] p : partidasPorReceta.getOrDefault(((Number) h.get(llave)).longValue(), List.of())) {
                 String articulo = p[0] + ServicioCortes.SUFIJO_FARMACIA;
                 int cantidad = (int) p[3];
                 BigDecimal precio = precios.get(articulo);
                 BigDecimal importe = precio == null ? null : precio.multiply(BigDecimal.valueOf(cantidad)).setScale(2, RoundingMode.HALF_UP);
                 String[] d = descripcion.getOrDefault(articulo, new String[]{null, null});
                 partidas.add(new PartidaBajaResponse(articulo, d[0] != null ? d[0] : (String) p[0], cantidad, (String) p[1], (LocalDate) p[2],
-                        precio, importe, d[1]));
+                        precio, importe, d[1], p.length > 4 && (boolean) p[4]));
                 piezas += cantidad;
                 if (importe != null) total = total.add(importe);
             }
@@ -334,8 +434,10 @@ public class ServicioHojasCarrito {
             int folio = ((Number) h.get("folio")).intValue();
             respuesta.add(new HojaBajaResponse(folio, diaHoja, ((Timestamp) h.get("fecha")).toLocalDateTime(), (String) h.get("paciente_nombre"),
                     (String) h.get("paciente_expediente"), (String) h.get("espacio"), (String) h.get("central"),
-                    String.format("%06d", folio) + " " + diaHoja.format(OBSERVACIONES), partidas, piezas,
-                    precios.isEmpty() ? null : total, (String) h.get("nombre_completo"), !precios.isEmpty()));
+                    prefijoFolio + String.format("%06d", folio) + " " + diaHoja.format(OBSERVACIONES), partidas, piezas,
+                    precios.isEmpty() ? null : total, (String) h.get("nombre_completo"), !precios.isEmpty(),
+                    // La receta del carrito es "HOSP-AAAAMMDD-ingreso".
+                    h.get("receta_folio") instanceof String f ? Integer.valueOf(f.substring(f.lastIndexOf('-') + 1)) : null));
         }
         return respuesta;
     }

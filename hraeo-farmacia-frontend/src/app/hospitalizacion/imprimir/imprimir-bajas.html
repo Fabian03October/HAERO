@@ -26,8 +26,13 @@
     </table>
 
     <div class="referencia">
-      <div><b>Referencia:</b> {{ h.paciente }}</div>
-      <div><b>Concepto:</b> Cama {{ h.cama }} · {{ h.area }} · Exp. {{ h.expediente }}</div>
+      @if (h.paciente) {
+        <div><b>Referencia:</b> {{ h.paciente }}</div>
+        <div><b>Concepto:</b> Cama {{ h.cama }} · {{ h.area }} · Exp. {{ h.expediente }}</div>
+      } @else {
+        <div><b>Referencia:</b> Hospitalización {{ h.area }}</div>
+        <div><b>Concepto:</b> Baja por volumen · el detalle por paciente está en HAERO</div>
+      }
       <div><b>Observaciones:</b> {{ h.observaciones }}</div>
     </div>
 
@@ -79,7 +84,7 @@
     </div>
 
     <footer class="pie">
-      <span>Folio HAERO {{ h.folio }} · {{ fecha(h.dia) }}</span>
+      <span>Folio HAERO {{ h.observaciones }}</span>
       <span>Página 1</span>
     </footer>
   </section>
