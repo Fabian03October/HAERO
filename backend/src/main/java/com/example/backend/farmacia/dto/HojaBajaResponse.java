@@ -30,4 +30,6 @@ public class HojaBajaResponse {
     private BigDecimal total;
     private String surtio;
     private boolean preciosDeIntelisis;
+    // Para reimprimir la de un paciente; null en la baja por volumen (no es de un paciente).
+    private Integer idIngreso;
 }

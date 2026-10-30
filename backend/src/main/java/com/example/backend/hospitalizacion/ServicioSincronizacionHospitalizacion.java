@@ -64,12 +64,17 @@ public class ServicioSincronizacionHospitalizacion {
     private final JdbcTemplate haero;
     private final TransactionTemplate transaccion;
     private final int diasRetencion;
+    // Una estancia más vieja que esto, sin nadie más en la cama después, es un egreso que
+    // Intelisis nunca registró ("paciente fantasma").
+    private final int diasFantasma;
     private final AtomicBoolean enCurso = new AtomicBoolean(false);
 
     public ServicioSincronizacionHospitalizacion(ConexionIntelisis conexion,
                                                  JdbcTemplate haero,
                                                  PlatformTransactionManager transactionManager,
-                                                 @Value("${hospitalizacion.dias-retencion:30}") int diasRetencion) {
+                                                 @Value("${hospitalizacion.dias-retencion:30}") int diasRetencion,
+                                                 @Value("${hospitalizacion.dias-fantasma:365}") int diasFantasma) {
+        this.diasFantasma = diasFantasma;
         this.conexion = conexion;
         this.haero = haero;
         this.transaccion = new TransactionTemplate(transactionManager);
@@ -106,12 +111,16 @@ public class ServicioSincronizacionHospitalizacion {
                     WHERE ce.Activo = 1 AND (e.Estatus IS NULL OR e.Estatus = 'ALTA')
                     """, (rs, n) -> new Object[]{texto(rs, 1), texto(rs, 2), texto(rs, 3), texto(rs, 4)});
             Map<Integer, Estancia> estancias = new LinkedHashMap<>();
-            intelisis.query("SELECT a.ID_IngArea, a.ID_IngHosp, a.Espacio, a.Servicio, a.FechaIngreso, i.ExpKey, c.Nombre "
+            intelisis.query("SELECT a.ID_IngArea, a.ID_IngHosp, a.Espacio, a.Servicio, a.FechaIngreso, i.ExpKey, c.Nombre, a.Usuario "
                     + INTERNADOS.replace("WHERE", "LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = i.ExpKey WHERE"), rs -> {
                 Timestamp fecha = rs.getTimestamp(5);
                 estancias.put(rs.getInt(1), new Estancia(rs.getInt(1), rs.getInt(2), texto(rs, 3), texto(rs, 4),
-                        fecha == null ? null : fecha.toLocalDateTime(), texto(rs, 6), texto(rs, 7)));
+                        fecha == null ? null : fecha.toLocalDateTime(), texto(rs, 6), texto(rs, 7), texto(rs, 8)));
             });
+            // Intelisis deja abiertas estancias que ya terminaron: se cierran con lo que sí se sabe.
+            Depuracion depuracion = depurar(estancias, LocalDateTime.now(), diasFantasma);
+            estancias.keySet().retainAll(depuracion.vigentes());
+            Map<Integer, Object[]> egresos = leerEgresos(intelisis, depuracion.tapadas().keySet());
             Map<Integer, Medicamento> medicamentos = new LinkedHashMap<>();
             intelisis.query("""
                     SELECT d.ID_IndMedicaMedicamento, d.ID_IndMedica, m.ID_IngHosp, d.Articulo, d.Medicamento, d.Via, d.Dosis,
@@ -150,6 +159,13 @@ public class ServicioSincronizacionHospitalizacion {
 
             // Médicos que indicaron o suspendieron (nombre, cédula y especialidad para la hoja y los avisos).
             Set<String> usuarios = new HashSet<>();
+            // También quien registró ingresos, cambios y egresos, para poner su nombre en el aviso.
+            estancias.values().forEach(e -> {
+                if (e.usuario() != null) usuarios.add(e.usuario());
+            });
+            egresos.values().forEach(v -> {
+                if (v[2] != null) usuarios.add((String) v[2]);
+            });
             medicamentos.values().forEach(m -> {
                 if (m.detalle().indico() != null) usuarios.add(m.detalle().indico());
                 if (m.detalle().suspendio() != null) usuarios.add(m.detalle().suspendio());
@@ -167,7 +183,7 @@ public class ServicioSincronizacionHospitalizacion {
                 // los de un recién ingresado van dentro del aviso de ingreso.
                 Set<Integer> internadosAntes = new HashSet<>(haero.queryForList(
                         "SELECT DISTINCT id_ingreso FROM hosp_estancia WHERE activa = 1", Integer.class));
-                eventos[0] += guardarEstancias(estancias, centralDeCama, ahora, primeraVez);
+                eventos[0] += guardarEstancias(estancias, centralDeCama, ahora, primeraVez, depuracion, egresos);
                 eventos[0] += guardarMedicamentos(medicamentos, estancias, centralDeCama, ahora, primeraVez, internadosAntes);
                 borrarVencidos(ahora);
             });
@@ -187,6 +203,61 @@ public class ServicioSincronizacionHospitalizacion {
         }
     }
 
+    /**
+     * Estancias que siguen abiertas en Intelisis pero ya terminaron:
+     *  - tapadas: después entró otro paciente a la misma cama; se cierran en la fecha en que entró
+     *    el siguiente (el motivo no se sabe);
+     *  - fantasma: el último paciente de la cama lleva más de {@code diasFantasma} días; la cama
+     *    se muestra libre, sin nota (darlo de egreso en Intelisis no es trabajo de Farmacia).
+     */
+    static Depuracion depurar(Map<Integer, Estancia> estancias, LocalDateTime ahora, int diasFantasma) {
+        Set<Integer> vigentes = new HashSet<>(estancias.keySet());
+        Map<Integer, LocalDateTime> tapadas = new HashMap<>();
+        Set<Integer> fantasmas = new HashSet<>();
+        Map<String, List<Estancia>> porCama = new HashMap<>();
+        estancias.values().stream().filter(e -> e.espacio() != null && e.fechaIngreso() != null)
+                .forEach(e -> porCama.computeIfAbsent(e.espacio(), k -> new ArrayList<>()).add(e));
+        for (List<Estancia> cama : porCama.values()) {
+            cama.sort(java.util.Comparator.comparing(Estancia::fechaIngreso).reversed());
+            for (int i = 1; i < cama.size(); i++) {
+                tapadas.put(cama.get(i).idArea(), cama.get(i - 1).fechaIngreso());
+                vigentes.remove(cama.get(i).idArea());
+            }
+            Estancia ultima = cama.get(0);
+            if (ultima.fechaIngreso().isBefore(ahora.minusDays(diasFantasma))) {
+                vigentes.remove(ultima.idArea());
+                fantasmas.add(ultima.idArea());
+            }
+        }
+        return new Depuracion(vigentes, tapadas, fantasmas);
+    }
+
+    record Depuracion(Set<Integer> vigentes, Map<Integer, LocalDateTime> tapadas, Set<Integer> fantasmas) {
+    }
+
+    /**
+     * Fecha, motivo y quién registró el egreso de las estancias que dejaron de estar activas,
+     * tal como lo tiene Intelisis: {fecha, motivo, usuario}. Las tapadas no se buscan.
+     */
+    private Map<Integer, Object[]> leerEgresos(JdbcTemplate intelisis, Set<Integer> tapadas) {
+        List<Integer> salen = new ArrayList<>(haero.queryForList("SELECT id_ing_area FROM hosp_estancia WHERE activa = 1", Integer.class));
+        salen.removeAll(tapadas);
+        Map<Integer, Object[]> egresos = new HashMap<>();
+        for (int i = 0; i < salen.size(); i += 500) {
+            List<Integer> parte = salen.subList(i, Math.min(salen.size(), i + 500));
+            String marcadores = String.join(", ", java.util.Collections.nCopies(parte.size(), "?"));
+            intelisis.query("SELECT a.ID_IngArea, COALESCE(i.EgresoFecha, a.FechaEgreso), "
+                    + "COALESCE(NULLIF(LTRIM(RTRIM(i.EgresoTipo)), ''), NULLIF(LTRIM(RTRIM(a.TipoEgreso)), ''), "
+                    + "CASE WHEN i.FechaCancelado IS NOT NULL THEN 'ingreso cancelado' END), COALESCE(i.EgresoUsuario, i.UsuarioCancelo) "
+                    + "FROM vsa_IngArea a WITH (NOLOCK) JOIN vsa_Ingreso i WITH (NOLOCK) ON i.ID = a.ID_IngHosp "
+                    + "WHERE a.ID_IngArea IN (" + marcadores + ")", rs -> {
+                Timestamp fecha = rs.getTimestamp(2);
+                egresos.put(rs.getInt(1), new Object[]{fecha == null ? null : fecha.toLocalDateTime(), texto(rs, 3), texto(rs, 4)});
+            }, parte.toArray());
+        }
+        return egresos;
+    }
+
     private Map<String, String> guardarCamas(List<Object[]> camas, LocalDateTime ahora) {
         haero.update("DELETE FROM hosp_cama");
         Map<String, String> central = new HashMap<>();
@@ -202,11 +273,13 @@ public class ServicioSincronizacionHospitalizacion {
     }
 
     /** Altas, bajas y cambios de cama comparando con las estancias activas anteriores. */
-    private int guardarEstancias(Map<Integer, Estancia> nuevas, Map<String, String> central, LocalDateTime ahora, boolean primeraVez) {
+    private int guardarEstancias(Map<Integer, Estancia> nuevas, Map<String, String> central, LocalDateTime ahora, boolean primeraVez,
+                                 Depuracion depuracion, Map<Integer, Object[]> egresos) {
+        Map<Integer, LocalDateTime> tapadas = depuracion.tapadas();
         Map<Integer, String[]> anteriores = new HashMap<>();
-        haero.query("SELECT id_ing_area, id_ingreso, espacio FROM hosp_estancia WHERE activa = 1",
+        haero.query("SELECT id_ing_area, id_ingreso, espacio, paciente FROM hosp_estancia WHERE activa = 1",
                 rs -> {
-                    anteriores.put(rs.getInt(1), new String[]{String.valueOf(rs.getInt(2)), rs.getString(3)});
+                    anteriores.put(rs.getInt(1), new String[]{String.valueOf(rs.getInt(2)), rs.getString(3), rs.getString(4)});
                 });
         Map<Integer, String> camaAnteriorDelIngreso = new HashMap<>();
         anteriores.forEach((idArea, a) -> {
@@ -234,14 +307,16 @@ public class ServicioSincronizacionHospitalizacion {
             }
             if (!primeraVez && !anteriores.containsKey(e.idArea)) {
                 String camaAnterior = camaAnteriorDelIngreso.get(e.idIngreso);
+                String quien = nombreOPaciente(e.paciente);
                 if (camaAnterior != null && !Objects.equals(camaAnterior, e.espacio)) {
                     ingresosQueCambiaron.add(e.idIngreso);
                     eventos += evento(ahora, CAMBIO_CAMA, e.idIngreso, e.espacio, central,
-                            "Llegó de la cama " + camaAnterior + (e.servicio != null ? " · " + e.servicio : ""));
-                    eventos += evento(ahora, CAMBIO_CAMA, e.idIngreso, camaAnterior, central, "Se cambió a la cama " + e.espacio);
+                            quien + " llegó de la cama " + camaAnterior + (e.servicio != null ? " · " + e.servicio : ""), e.usuario, null);
+                    eventos += evento(ahora, CAMBIO_CAMA, e.idIngreso, camaAnterior, central,
+                            quien + " se cambió a la cama " + e.espacio, e.usuario, null);
                 } else {
                     eventos += evento(ahora, INGRESO, e.idIngreso, e.espacio, central,
-                            "Ingresó a la cama" + (e.servicio != null ? " · " + e.servicio : ""));
+                            quien + " ingresó a la cama " + e.espacio + (e.servicio != null ? " · " + e.servicio : ""), e.usuario, null);
                 }
             }
         }
@@ -250,10 +325,27 @@ public class ServicioSincronizacionHospitalizacion {
                 continue;
             }
             int idIngreso = Integer.parseInt(a.getValue()[0]);
+            String quien = nombreOPaciente(a.getValue()[2]);
+            LocalDateTime siguiente = tapadas.get(a.getKey());
+            Object[] egreso = egresos.get(a.getKey());
+            LocalDateTime fechaEgreso = siguiente != null ? siguiente
+                    : egreso != null && egreso[0] != null ? (LocalDateTime) egreso[0] : ahora;
             haero.update("UPDATE hosp_estancia SET activa = 0, egreso_detectado = ?, actualizado_en = ? WHERE id_ing_area = ?",
-                    Timestamp.valueOf(ahora), Timestamp.valueOf(ahora), a.getKey());
+                    Timestamp.valueOf(fechaEgreso), Timestamp.valueOf(ahora), a.getKey());
             if (!primeraVez && !ingresosQueCambiaron.contains(idIngreso)) {
-                eventos += evento(ahora, EGRESO, idIngreso, a.getValue()[1], central, "Egresó; la cama quedó libre");
+                if (depuracion.fantasmas().contains(a.getKey())) {
+                    eventos += evento(ahora, EGRESO, idIngreso, a.getValue()[1], central, quien
+                            + " ya no se muestra en la cama: lleva más de " + diasFantasma + " días sin egreso en Intelisis");
+                } else if (siguiente != null) {
+                    eventos += evento(fechaEgreso, EGRESO, idIngreso, a.getValue()[1], central, quien + " dejó la cama el "
+                            + siguiente.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                            + ", cuando entró otro paciente · Intelisis no registró el motivo");
+                } else {
+                    String motivo = egreso != null && egreso[1] != null ? ((String) egreso[1]).toLowerCase() : null;
+                    eventos += evento(fechaEgreso, EGRESO, idIngreso, a.getValue()[1], central,
+                            quien + (motivo != null ? " egresó: " + motivo : " egresó") + " · la cama quedó libre",
+                            egreso != null ? (String) egreso[2] : null, null);
+                }
             }
         }
         return eventos;
@@ -305,6 +397,10 @@ public class ServicioSincronizacionHospitalizacion {
             }
             Boolean antes = anteriores.get(m.id);
             String cama = camaDelIngreso.get(m.idIngreso);
+            // Paciente que ya no ocupa cama (egreso no registrado en Intelisis): sin avisos.
+            if (cama == null) {
+                continue;
+            }
             if (antes == null && m.activo) {
                 eventos += evento(ahora, MEDICAMENTO_NUEVO, m.idIngreso, cama, central, "Se indicó " + m.descripcion(), x.indico(), m.articulo);
             } else if (Boolean.TRUE.equals(antes) && !m.activo) {
@@ -332,6 +428,10 @@ public class ServicioSincronizacionHospitalizacion {
                 """, limite);
         haero.update("DELETE FROM hosp_estancia WHERE activa = 0 AND egreso_detectado < ?", limite);
         haero.update("DELETE FROM hosp_evento WHERE fecha < ?", limite);
+    }
+
+    private static String nombreOPaciente(String paciente) {
+        return paciente == null || paciente.isBlank() ? "El paciente" : paciente.strip();
     }
 
     private int evento(LocalDateTime fecha, String tipo, int idIngreso, String espacio, Map<String, String> central, String detalle) {
@@ -435,8 +535,8 @@ public class ServicioSincronizacionHospitalizacion {
         return valor.length() > maximo ? valor.substring(0, maximo) : valor;
     }
 
-    private record Estancia(int idArea, int idIngreso, String espacio, String servicio, LocalDateTime fechaIngreso,
-                            String expediente, String paciente) {
+    record Estancia(int idArea, int idIngreso, String espacio, String servicio, LocalDateTime fechaIngreso,
+                    String expediente, String paciente, String usuario) {
     }
 
     /** Lo que la hoja "Indicaciones médicas activas" muestra de cada medicamento. */

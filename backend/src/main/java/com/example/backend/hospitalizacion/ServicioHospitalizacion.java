@@ -140,12 +140,23 @@ public class ServicioHospitalizacion {
         }
 
         List<Integer> ingresos = cama.getPacientes().stream().map(PacienteInternado::getIdIngreso).toList();
-        // Del paciente actual, más los movimientos de la cama (ingresos, egresos, cambios); no lo de registros viejos.
-        String porIngreso = ingresos.isEmpty() ? "" : " OR e.id_ingreso IN (" + ingresos.stream().map(i -> "?").collect(Collectors.joining(", ")) + ")";
-        List<Object> parametros = new ArrayList<>(List.of(usuario.getId(), Timestamp.valueOf(LocalDateTime.now().minus(ACTUALIZACIONES_EN_DETALLE)), espacio));
-        parametros.addAll(ingresos);
-        List<EventoHospitalizacion> actualizaciones = eventos(
-                "WHERE e.fecha >= ? AND ((e.espacio = ? AND e.tipo IN ('INGRESO', 'EGRESO', 'CAMBIO_CAMA'))" + porIngreso + ")", parametros, 100);
+        List<Object> parametros = new ArrayList<>(List.of(usuario.getId(), Timestamp.valueOf(LocalDateTime.now().minus(ACTUALIZACIONES_EN_DETALLE))));
+        String where;
+        if (ingresos.isEmpty()) {
+            // Cama libre: sus movimientos recientes (quién salió y cuándo).
+            where = "WHERE e.fecha >= ? AND e.espacio = ? AND e.tipo IN ('INGRESO', 'EGRESO', 'CAMBIO_CAMA')";
+            parametros.add(espacio);
+        } else {
+            // Solo lo del paciente actual, más la última salida de otro paciente de esta cama,
+            // para que no parezca que lo de un paciente anterior es del que está hoy.
+            String marcas = ingresos.stream().map(i -> "?").collect(Collectors.joining(", "));
+            where = "WHERE e.fecha >= ? AND (e.id_ingreso IN (" + marcas + ") OR e.id = (SELECT TOP 1 x.id FROM hosp_evento x "
+                    + "WHERE x.espacio = ? AND x.tipo IN ('EGRESO', 'CAMBIO_CAMA') AND x.id_ingreso NOT IN (" + marcas + ") ORDER BY x.fecha DESC, x.id DESC))";
+            parametros.addAll(ingresos);
+            parametros.add(espacio);
+            parametros.addAll(ingresos);
+        }
+        List<EventoHospitalizacion> actualizaciones = eventos(where, parametros, 100);
         return new DetalleCama(cama, pacientes, actualizaciones, ultimaLectura());
     }
 

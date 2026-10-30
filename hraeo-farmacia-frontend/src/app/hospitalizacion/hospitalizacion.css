@@ -165,10 +165,17 @@
 .despues { display: grid; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid #f0d9a8; border-left: 5px solid #d19a3e; border-radius: 12px; background: #fff8ec; font-size: 12px; }
 .despues > strong { color: #8a5a00; font-size: 13px; }
 .despues-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.pill-nuevo, .pill-cancelado, .pill-ayer { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.pill-nuevo, .pill-cancelado, .pill-ayer, .pill-revisar { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .pill-nuevo { background: #f4ebd5; color: #7a5b17; }
 .pill-cancelado { background: #fdecea; color: #b3261e; }
 .pill-ayer { background: #b3261e; color: #fff; }
+.pill-revisar { background: #fff4e0; color: #8a5a00; }
+
+/* Despachar carrito: pasos 1 indicaciones, 2 surtir, 3 finalizar. */
+.pasos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.pasos button { padding: 8px 14px; border: 1px solid #d8d2c8; border-radius: 999px; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.pasos button.activo { border-color: #9f2241; background: #9f2241; color: #fff; }
+.acciones-paso { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .solo-impresion { display: none; }
 
 /* Impresión del carrito: solo el formato, sin menús, áreas ni botones. */
@@ -189,9 +196,6 @@
   .firmas span { display: block; height: 36px; border-bottom: 1px solid #000; margin-bottom: 4px; }
 }
 
-.pregunta-imprimir { display: grid; gap: 8px; margin: 0 0 14px; padding: 14px; border: 2px solid #9f2241; border-radius: 12px; background: #fbf4f6; }
-.pregunta-imprimir > strong { color: #611232; font-size: 14px; }
-.elegir-pacientes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; max-height: 220px; overflow-y: auto; }
 .despues.cancelados { border-color: #f3c2be; border-left-color: #b3261e; background: #fdecea; }
 .despues.cancelados > strong { color: #b3261e; }
 .carrito-cama-cabecera .imprimir-cama { margin-left: auto; }

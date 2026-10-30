@@ -3,9 +3,11 @@ import { ActivatedRoute } from '@angular/router';
 import { mensajeDeError } from '../../almacen/almacen-api';
 import { HojaBaja, HospitalizacionApi } from '../hospitalizacion-api';
 
-// Hoja de baja propia de HAERO con el acomodo del "Consumo Farmacia" de Intelisis: una por paciente,
-// con folio de HAERO. Se abre en otra pestaña y manda a imprimir sola.
-// ?central=CE-HCLIN&dia=2026-07-29&ingreso=123 (ingreso y día son opcionales).
+// Hoja de baja propia de HAERO con el acomodo del "Consumo Farmacia" de Intelisis. Se abre en otra
+// pestaña y manda a imprimir sola.
+// ?central=CE-HCLIN&dia=2026-07-29&ingreso=123: hojas por paciente (detalle en HAERO).
+// ?central=CE-HCLIN&volumen=1&folio=4: baja por volumen del área, la que se captura en Intelisis.
+// Día, ingreso y folio son opcionales.
 @Component({
   selector: 'app-imprimir-bajas',
   templateUrl: './imprimir-bajas.html',
@@ -19,8 +21,14 @@ export class ImprimirBajas {
 
   constructor() {
     const parametros = inject(ActivatedRoute).snapshot.queryParamMap;
+    const central = parametros.get('central') ?? '';
+    const dia = parametros.get('dia') ?? undefined;
     const ingreso = parametros.get('ingreso');
-    this.api.hojasBaja(parametros.get('central') ?? '', parametros.get('dia') ?? undefined, ingreso ? Number(ingreso) : undefined).subscribe({
+    const folio = parametros.get('folio');
+    const hojas = parametros.get('volumen')
+      ? this.api.bajasVolumen(central, dia, folio ? Number(folio) : undefined)
+      : this.api.hojasBaja(central, dia, ingreso ? Number(ingreso) : undefined);
+    hojas.subscribe({
       next: (hojas) => {
         this.hojas.set(hojas);
         this.cargando.set(false);

@@ -19,6 +19,7 @@ import {
   EscaneoCarrito,
   EstadoLinea,
   EventoHospitalizacion,
+  HojaBaja,
   HospitalizacionApi,
   LineaCarrito,
   TipoEvento,
@@ -27,7 +28,9 @@ import {
 // Cada cuánto se vuelve a pedir la foto al backend (el backend lee Intelisis cada 5 minutos).
 const RECARGA_MS = 60_000;
 
-type Vista = 'CAMAS' | 'LISTA' | 'CARRITO';
+type Vista = 'CAMAS' | 'LISTA' | 'CARRITO' | 'SURTIDOS';
+// Despachar carrito: 1 imprimir indicaciones, 2 surtir, 3 finalizar.
+type Paso = 1 | 2 | 3;
 type FiltroCamas = '' | 'OCUPADA' | 'LIBRE' | 'NOVEDADES';
 
 // Hospitalización: camas por área con quién está, sus medicamentos y las novedades que HAERO
@@ -66,12 +69,11 @@ export class Hospitalizacion {
 
   // ---------- Carrito del día ----------
   readonly puedeSurtir = this.session.usuarioActual()?.rol === 'FARMACIA';
-  // Antes de armar el carrito se pregunta si se imprimen las indicaciones médicas.
-  readonly preguntaImprimir = signal(false);
-  readonly eligiendoPacientes = signal(false);
+  readonly paso = signal<Paso>(1);
+  // Paso 1: buscar paciente (cama, expediente o nombre) y elegir a quién imprimir.
+  readonly busquedaCarrito = signal('');
   readonly elegidosImprimir = signal<Set<number>>(new Set());
   readonly terminando = signal(false);
-  private readonly preguntado = new Set<string>();
   readonly carrito = signal<Carrito | null>(null);
   // HU42: caja con un código que HAERO no conoce; se elige de qué medicamento pendiente es.
   readonly codigoDesconocido = signal<{ codigo: string; lote?: string } | null>(null);
@@ -104,8 +106,10 @@ export class Hospitalizacion {
   readonly camasCarrito = computed(() => {
     const carrito = this.carrito();
     if (!carrito) return [];
-    if (!this.soloPendientes()) return carrito.camas;
-    return carrito.camas
+    // Los que ya egresaron van en su propio aviso; a ellos ya no se les surte.
+    const enCama = carrito.camas.filter((cama) => !cama.egresado);
+    if (!this.soloPendientes()) return enCama;
+    return enCama
       .map((cama) => ({ ...cama, lineas: cama.lineas.filter((l) => l.estado === 'PENDIENTE' || l.estado === 'SUSPENDIDO') }))
       .filter((cama) => cama.lineas.length);
   });
@@ -113,16 +117,56 @@ export class Hospitalizacion {
   // Lo que llegó después de la hora de corte (surtir si urge) y lo cancelado que ya está en el carrito.
   readonly despuesDelCarrito = computed(() => {
     const carrito = this.carrito();
-    if (!carrito) return { nuevos: [], suspendidos: [] };
+    if (!carrito) return { nuevos: [], suspendidos: [], egresados: [] };
     const nuevos: { cama: CamaCarrito; linea: LineaCarrito }[] = [];
     const suspendidos: { cama: CamaCarrito; linea: LineaCarrito }[] = [];
+    const egresados: { cama: CamaCarrito; linea: LineaCarrito }[] = [];
     for (const cama of carrito.camas) {
       for (const linea of cama.lineas) {
+        if (cama.egresado) {
+          if (linea.entregadas > 0) egresados.push({ cama, linea });
+          continue;
+        }
         if (linea.despuesDelCierre) nuevos.push({ cama, linea });
         if (linea.estado === 'SUSPENDIDO') suspendidos.push({ cama, linea });
       }
     }
-    return { nuevos, suspendidos };
+    return { nuevos, suspendidos, egresados };
+  });
+
+  // Paso 1: solo pacientes en cama con indicaciones de medicamento del día (nunca uno sin ellas).
+  readonly pacientesDelDia = computed(() => {
+    const texto = this.busquedaCarrito().trim().toLowerCase();
+    return (this.carrito()?.camas ?? [])
+      .filter((cama) => !cama.egresado && cama.lineas.some((l) => l.estado !== 'SUSPENDIDO'))
+      .filter((cama) => !texto || `${cama.espacio} ${cama.paciente ?? ''} ${cama.expediente ?? ''}`.toLowerCase().includes(texto));
+  });
+
+  // Paso 3: lo que hay que decidir antes de finalizar y el total por medicamento.
+  readonly porDecidir = computed(() => this.despuesDelCarrito().suspendidos.length + this.despuesDelCarrito().egresados.length);
+  readonly totalCarrito = computed(() => {
+    const totales = new Map<string, { medicamento: string; piezas: number; pacientes: number }>();
+    for (const cama of this.carrito()?.camas ?? []) {
+      for (const l of cama.lineas) {
+        if (!l.entregadas || l.estado === 'SUSPENDIDO' || cama.egresado) continue;
+        const llave = l.clave ?? l.medicamento ?? '';
+        const t = totales.get(llave) ?? { medicamento: l.medicamento ?? llave, piezas: 0, pacientes: 0 };
+        t.piezas += l.entregadas;
+        t.pacientes += 1;
+        totales.set(llave, t);
+      }
+    }
+    return [...totales.entries()].map(([clave, t]) => ({ clave, ...t })).sort((a, b) => a.medicamento.localeCompare(b.medicamento));
+  });
+
+  // Surtidos del día: hojas por paciente (detalle en HAERO) y bajas por volumen (las de Intelisis).
+  readonly diaSurtidos = signal(new Date().toLocaleDateString('en-CA'));
+  readonly filtroSurtidos = signal('');
+  readonly hojasDia = signal<HojaBaja[]>([]);
+  readonly bajasDia = signal<HojaBaja[]>([]);
+  readonly hojasFiltradas = computed(() => {
+    const texto = this.filtroSurtidos().trim().toLowerCase();
+    return this.hojasDia().filter((h) => !texto || `${h.cama ?? ''} ${h.paciente ?? ''} ${h.expediente ?? ''}`.toLowerCase().includes(texto));
   });
 
   readonly pendientesDeAyer = computed(() =>
@@ -210,27 +254,29 @@ export class Hospitalizacion {
     this.vista.set(vista);
     if (vista === 'CARRITO') {
       this.cargarCarrito();
-      this.preguntarImpresion();
-      setTimeout(() => this.campoCodigo()?.nativeElement.focus());
+      this.irAPaso(1);
     }
+    if (vista === 'SURTIDOS') this.cargarSurtidos();
   }
 
-  // Una vez por área y día: "¿Deseas imprimir las indicaciones médicas?".
-  private preguntarImpresion(): void {
-    const llave = `${this.area()}|${new Date().toDateString()}`;
-    if (!this.puedeSurtir || this.preguntado.has(llave)) return;
-    this.preguntado.add(llave);
-    this.eligiendoPacientes.set(false);
-    this.elegidosImprimir.set(new Set());
-    this.preguntaImprimir.set(true);
+  irAPaso(paso: Paso): void {
+    this.paso.set(paso);
+    if (paso === 2) setTimeout(() => this.campoCodigo()?.nativeElement.focus());
   }
 
-  cerrarPregunta(): void {
-    this.preguntaImprimir.set(false);
+  cargarSurtidos(): void {
+    if (!this.area()) return;
+    const dia = this.diaSurtidos();
+    this.api.hojasBaja(this.area(), dia).subscribe({
+      next: (hojas) => this.hojasDia.set(hojas),
+      error: (error) => this.error.set(mensajeDeError(error, 'No se pudieron cargar los surtidos del día.')),
+    });
+    this.api.bajasVolumen(this.area(), dia).subscribe({ next: (bajas) => this.bajasDia.set(bajas) });
   }
 
-  elegirPacientesImprimir(): void {
-    this.eligiendoPacientes.set(true);
+  // Piezas distintas a la dosis del día: se marca para revisarlo después (no bloquea).
+  revisar(l: LineaCarrito): boolean {
+    return l.entregadas > 0 && !!l.dosis24h && l.entregadas !== l.dosis24h;
   }
 
   alternarElegido(idIngreso: number): void {
@@ -248,7 +294,11 @@ export class Hospitalizacion {
       queryParams: { central: this.area(), ingresos: ingresos.length ? ingresos.join(',') : null },
     }));
     window.open(url, '_blank');
-    this.preguntaImprimir.set(false);
+  }
+
+  // "Todas" = las que se ven (con la búsqueda aplicada); el backend igual descarta a quien no tiene indicaciones del día.
+  imprimirTodas(): void {
+    this.imprimirIndicaciones(this.busquedaCarrito().trim() ? this.pacientesDelDia().map((c) => c.idIngreso) : []);
   }
 
   imprimirElegidos(): void {
@@ -257,22 +307,18 @@ export class Hospitalizacion {
     this.imprimirIndicaciones(elegidos);
   }
 
-  // Pacientes ocupando camas del área, para elegir a quién imprimir.
-  readonly pacientesArea = computed(() =>
-    this.camas()
-      .filter((c) => c.pacientes.length)
-      .map((c) => ({ idIngreso: c.pacientes[0].idIngreso, cama: c.espacio, nombre: c.pacientes[0].nombre })),
-  );
-
-  private abrirHojasBaja(ingreso?: number): void {
+  // Hojas por paciente (ingreso opcional) o bajas por volumen (volumen = true, folio opcional), del día elegido.
+  abrirBajas(opciones: { ingreso?: number | null; volumen?: boolean; folio?: number; dia?: string }): void {
     const url = this.router.serializeUrl(this.router.createUrlTree(['/farmacia/hospitalizacion/imprimir/bajas'], {
-      queryParams: { central: this.area(), ingreso: ingreso ?? null },
+      queryParams: {
+        central: this.area(),
+        dia: opciones.dia ?? null,
+        ingreso: opciones.ingreso ?? null,
+        volumen: opciones.volumen ? 1 : null,
+        folio: opciones.folio ?? null,
+      },
     }));
     window.open(url, '_blank');
-  }
-
-  reimprimirBajas(): void {
-    this.abrirHojasBaja();
   }
 
   private cargarCarrito(): void {
@@ -320,6 +366,11 @@ export class Hospitalizacion {
       },
       error: (error) => this.avisarCarrito(mensajeDeError(error, 'No se pudo guardar el código.'), 'error'),
     });
+  }
+
+  /** Ingreso, egreso o cambio de cama: quien aparece es quien lo registró, no un médico. */
+  esMovimientoCama(tipo: string): boolean {
+    return tipo === 'INGRESO' || tipo === 'EGRESO' || tipo === 'CAMBIO_CAMA';
   }
 
   codigoDesdeCamara(codigo: string): void {
@@ -395,25 +446,33 @@ export class Hospitalizacion {
     });
   }
 
-  // Termina el carrito: si algo se canceló ya metido, pregunta; luego imprime la hoja de baja de cada paciente.
+  // Finaliza el despacho (del día o de urgencia): si quedó algo cancelado o de un egresado, pregunta
+  // si ya se aplicó; luego imprime la baja por volumen que se captura en Intelisis.
   terminarCarrito(confirmarCancelados = false): void {
     if (this.terminando()) return;
     this.terminando.set(true);
+    // Si el carrito del día ya se había terminado, esto es una urgencia: se suma a la misma baja.
+    const urgencia = !!this.carrito()?.cerradoEn;
     this.api.terminar(this.area(), confirmarCancelados).subscribe({
-      next: (hojas) => {
+      next: (bajas) => {
         this.terminando.set(false);
         this.cargarCarrito();
-        if (!hojas.length) {
-          this.avisarCarrito('Carrito terminado. No se surtió nada, así que no hay hojas de baja.', 'warn');
+        this.irAPaso(1);
+        if (!bajas.length) {
+          this.avisarCarrito('Carrito terminado. No hubo surtidos nuevos, así que no hay nada que sumar a la baja.', 'warn');
           return;
         }
-        this.avisarCarrito(`Carrito terminado: ${hojas.length} ${hojas.length === 1 ? 'hoja' : 'hojas'} de baja (folios ${hojas[0].folio}–${hojas[hojas.length - 1].folio}).`, 'info');
-        this.abrirHojasBaja();
+        const baja = bajas[0];
+        this.avisarCarrito(urgencia
+          ? `Urgencia sumada a la baja del día ${baja.observaciones}: ahora ${baja.totalPiezas} pzs. Si ya la capturaste en Intelisis, agrega solo lo surtido de urgencia.`
+          : `Carrito terminado: baja por volumen ${baja.observaciones} (${baja.totalPiezas} pzs). Captúrala en Intelisis con ese folio en Observaciones.`, 'info');
+        this.abrirBajas({ volumen: true, folio: bajas[0].folio });
       },
       error: (error) => {
         this.terminando.set(false);
         if (error?.status === 409 && !confirmarCancelados) {
-          if (confirm(mensajeDeError(error, 'Hay medicamentos cancelados en el carrito.') + '\n\n¿Terminar así de todos modos?')) {
+          if (confirm(mensajeDeError(error, 'Hay medicamentos por decidir en el carrito.') +
+            '\n\nLo que no saques del carrito cuenta como YA APLICADO y se queda en la baja. ¿Finalizar así?')) {
             this.terminarCarrito(true);
           }
           return;
@@ -441,11 +500,15 @@ export class Hospitalizacion {
     this.carrito.set(null);
     this.porSurtir.set(null);
     this.mensajeCarrito.set('');
+    this.busquedaCarrito.set('');
+    this.elegidosImprimir.set(new Set());
+    this.paso.set(1);
     this.cargarArea(central);
   }
 
   private cargarArea(central: string): void {
     if (this.vista() === 'CARRITO') this.cargarCarrito();
+    if (this.vista() === 'SURTIDOS') this.cargarSurtidos();
     this.api.camas(central).subscribe({
       next: (camas) => this.camas.set(camas),
       error: (error) => this.error.set(mensajeDeError(error, 'No se pudieron cargar las camas del área.')),

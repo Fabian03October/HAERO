@@ -121,6 +121,9 @@ export interface CamaCarrito {
   paciente: string | null;
   expediente: string | null;
   lineas: LineaCarrito[];
+  // Ya no está en cama (alta, defunción, ingreso cancelado) pero hoy se le surtió algo.
+  egresado: boolean;
+  motivoEgreso: string | null;
 }
 
 export interface Carrito {
@@ -205,6 +208,8 @@ export interface PartidaBaja {
   precio: number | null;
   total: number | null;
   unidad: string | null;
+  // Piezas distintas a la dosis del día: revisar después (solo en la hoja por paciente).
+  revisar: boolean;
 }
 
 export interface HojaBaja {
@@ -221,6 +226,8 @@ export interface HojaBaja {
   total: number | null;
   surtio: string;
   preciosDeIntelisis: boolean;
+  // null en la baja por volumen (total del área, la que se captura en Intelisis).
+  idIngreso: number | null;
 }
 
 // Llamadas a /api/hospitalizacion (Farmacia y Supervisión, con las políticas aceptadas).
@@ -265,7 +272,7 @@ export class HospitalizacionApi {
     return this.http.post<Carrito>(`${API_BASE_URL}/farmacia/carrito/quitar`, { idIngreso, clave, motivo }, this.cabeceras());
   }
 
-  /** Termina el carrito: asigna el folio de HAERO a la hoja de baja de cada paciente. */
+  /** Termina el carrito (del día o de urgencia): regresa la baja por volumen para capturar en Intelisis. */
   terminar(central: string, confirmarCancelados = false): Observable<HojaBaja[]> {
     return this.http.post<HojaBaja[]>(`${API_BASE_URL}/farmacia/carrito/terminar`, {}, {
       ...this.cabeceras(),
@@ -278,6 +285,14 @@ export class HospitalizacionApi {
     if (dia) params['dia'] = dia;
     if (ingreso) params['ingreso'] = String(ingreso);
     return this.http.get<HojaBaja[]>(`${API_BASE_URL}/farmacia/carrito/hojas-baja`, { ...this.cabeceras(), params });
+  }
+
+  /** Bajas por volumen del área en el día (una por carrito terminado), o la de un folio. */
+  bajasVolumen(central: string, dia?: string, folio?: number): Observable<HojaBaja[]> {
+    const params: Record<string, string> = { central };
+    if (dia) params['dia'] = dia;
+    if (folio) params['folio'] = String(folio);
+    return this.http.get<HojaBaja[]>(`${API_BASE_URL}/farmacia/carrito/bajas-volumen`, { ...this.cabeceras(), params });
   }
 
   indicaciones(central: string, ingresos?: number[]): Observable<HojaIndicaciones[]> {

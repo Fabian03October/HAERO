@@ -62,12 +62,19 @@ public class CarritoController {
         return ResponseEntity.ok(hojas.indicaciones(central, ingresos));
     }
 
-    // Termina el carrito y asigna el folio de HAERO a la hoja de baja de cada paciente.
+    // Termina el carrito (del día o de urgencia): regresa la baja por volumen para capturar en Intelisis.
     @PostMapping("/terminar")
     public ResponseEntity<List<HojaBajaResponse>> terminar(@RequestParam String central,
                                                            @RequestParam(defaultValue = "false") boolean confirmarCancelados,
                                                            Authentication authentication) {
         return ResponseEntity.ok(hojas.terminar(central, confirmarCancelados, authentication.getName()));
+    }
+
+    @GetMapping("/bajas-volumen")
+    public ResponseEntity<List<HojaBajaResponse>> bajasVolumen(@RequestParam String central,
+                                                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
+                                                               @RequestParam(required = false) Integer folio) {
+        return ResponseEntity.ok(hojas.bajasVolumen(central, dia == null ? LocalDate.now() : dia, folio));
     }
 
     @GetMapping("/hojas-baja")

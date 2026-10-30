@@ -20,4 +20,6 @@ public class PartidaBajaResponse {
     private BigDecimal precio;
     private BigDecimal total;
     private String unidad;
+    // Piezas de la clave distintas a la dosis del día: revisar después (solo en la hoja por paciente).
+    private boolean revisar;
 }

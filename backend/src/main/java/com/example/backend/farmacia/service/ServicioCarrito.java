@@ -104,8 +104,13 @@ public class ServicioCarrito {
         for (Internado internado : internados(central)) {
             List<LineaCarrito> lineas = lineas(internado.idIngreso, hoy);
             if (!lineas.isEmpty()) {
-                camas.add(new CamaCarrito(internado.espacio, internado.idIngreso, internado.paciente, internado.expediente, lineas));
+                camas.add(new CamaCarrito(internado.espacio, internado.idIngreso, internado.paciente, internado.expediente, lineas, false, null));
             }
+        }
+        for (Map<String, Object> egresado : egresadosConSurtido(central, hoy)) {
+            int idIngreso = ((Number) egresado.get("id_ingreso")).intValue();
+            camas.add(new CamaCarrito((String) egresado.get("espacio"), idIngreso, (String) egresado.get("paciente"),
+                    (String) egresado.get("expediente"), lineas(idIngreso, hoy), true, (String) egresado.get("motivo")));
         }
         int lineas = camas.stream().mapToInt(c -> (int) c.getLineas().stream().filter(l -> !"SUSPENDIDO".equals(l.getEstado())).count()).sum();
         int surtidas = camas.stream().mapToInt(c -> (int) c.getLineas().stream().filter(l -> "SURTIDO".equals(l.getEstado())).count()).sum();
@@ -404,8 +409,9 @@ public class ServicioCarrito {
             c.setPiezasIndicadas(Math.max(1, c.getPiezasIndicadas()));
         });
         recetaRepository.save(receta);
-        String central = haero.queryForObject("SELECT TOP 1 c.central FROM " + ServicioHospitalizacion.OCUPANTES
-                + " o JOIN hosp_cama c ON c.espacio = o.espacio WHERE o.id_ingreso = ?", String.class, request.getIdIngreso());
+        // Su última cama, aunque ya haya egresado (lo surtido a un egresado también se saca).
+        String central = haero.queryForObject("SELECT TOP 1 c.central FROM hosp_estancia e JOIN hosp_cama c ON c.espacio = e.espacio "
+                + "WHERE e.id_ingreso = ? ORDER BY e.activa DESC, e.fecha_ingreso DESC", String.class, request.getIdIngreso());
         return carrito(central);
     }
 
@@ -433,6 +439,24 @@ public class ServicioCarrito {
     }
 
     // ---------- comunes ----------
+
+    /**
+     * Pacientes del área que ya no están en ninguna cama pero a los que hoy se les surtió algo
+     * (su receta del día existe): su última cama, nombre y el aviso de egreso.
+     */
+    private List<Map<String, Object>> egresadosConSurtido(String central, LocalDate hoy) {
+        String prefijo = PREFIJO_FOLIO + hoy.format(DIA) + "-";
+        return haero.queryForList("SELECT h.id_ingreso, h.espacio, h.paciente, h.expediente, "
+                + "(SELECT TOP 1 ev.detalle FROM hosp_evento ev WHERE ev.id_ingreso = h.id_ingreso AND ev.tipo = 'EGRESO' "
+                + " ORDER BY ev.fecha DESC, ev.id DESC) AS motivo "
+                + "FROM farmacia_receta r "
+                + "CROSS APPLY (SELECT TOP 1 e.id_ingreso, e.espacio, e.paciente, e.expediente FROM hosp_estancia e "
+                + " WHERE r.folio = ? + CAST(e.id_ingreso AS VARCHAR(12)) ORDER BY e.fecha_ingreso DESC) h "
+                + "JOIN hosp_cama c ON c.espacio = h.espacio "
+                + "WHERE r.folio LIKE ? AND c.central = ? "
+                + "AND NOT EXISTS (SELECT 1 FROM " + ServicioHospitalizacion.OCUPANTES + " o WHERE o.id_ingreso = h.id_ingreso)",
+                prefijo, prefijo + "%", central);
+    }
 
     record Internado(int idIngreso, String espacio, String paciente, String expediente) {
     }

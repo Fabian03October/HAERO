@@ -55,11 +55,12 @@
                 <div class="filtros" role="tablist" aria-label="Vista">
                   <button type="button" role="tab" [class.activo]="vista() === 'CAMAS'" (click)="cambiarVista('CAMAS')">▦ Camas</button>
                   <button type="button" role="tab" [class.activo]="vista() === 'LISTA'" (click)="cambiarVista('LISTA')">☰ Lista</button>
-                  <button type="button" role="tab" [class.activo]="vista() === 'CARRITO'" (click)="cambiarVista('CARRITO')">🛒 Carrito del día</button>
+                  <button type="button" role="tab" [class.activo]="vista() === 'CARRITO'" (click)="cambiarVista('CARRITO')">🛒 Despachar carrito</button>
+                  <button type="button" role="tab" [class.activo]="vista() === 'SURTIDOS'" (click)="cambiarVista('SURTIDOS')">🧾 Surtidos del día</button>
                 </div>
               </div>
 
-              @if (vista() !== 'CARRITO') {
+              @if (vista() === 'CAMAS' || vista() === 'LISTA') {
               <div class="barra">
                 <div class="filtros" role="tablist" aria-label="Filtrar camas">
                   @for (f of filtros(); track f.valor) {
@@ -77,49 +78,67 @@
               }
 
               @if (vista() === 'CARRITO') {
-                <!-- Carrito del día: solo lo nuevo desde las 12 de la noche y lo pendiente de ayer -->
-                @if (preguntaImprimir()) {
-                  <div class="pregunta-imprimir">
-                    <strong>¿Deseas imprimir las indicaciones médicas?</strong>
-                    <small class="sub">{{ pacientesArea().length }} pacientes en {{ nombreArea() }} · una hoja por paciente, igual a la de Intelisis.</small>
-                    @if (eligiendoPacientes()) {
-                      <div class="elegir-pacientes">
-                        @for (p of pacientesArea(); track p.idIngreso) {
-                          <label class="check"><input type="checkbox" [checked]="elegidosImprimir().has(p.idIngreso)" (change)="alternarElegido(p.idIngreso)" /> {{ p.cama }} · {{ p.nombre ?? 'Paciente' }}</label>
-                        }
-                      </div>
-                      <div class="acciones">
-                        <button class="btn" type="button" [disabled]="!elegidosImprimir().size" (click)="imprimirElegidos()">🖨 Imprimir {{ elegidosImprimir().size }}</button>
-                        <button class="btn secondary" type="button" (click)="cerrarPregunta()">No imprimir</button>
-                      </div>
-                    } @else {
-                      <div class="acciones">
-                        <button class="btn" type="button" (click)="imprimirIndicaciones()">🖨 Imprimir todas</button>
-                        <button class="btn secondary" type="button" (click)="elegirPacientesImprimir()">Elegir pacientes</button>
-                        <button class="btn secondary" type="button" (click)="cerrarPregunta()">No</button>
-                      </div>
-                    }
-                  </div>
-                }
+                <!-- Despachar carrito: 1 imprimir indicaciones, 2 surtir, 3 finalizar (baja por volumen) -->
+                <ol class="pasos" aria-label="Pasos del despacho">
+                  <li><button type="button" [class.activo]="paso() === 1" (click)="irAPaso(1)">1 · Indicaciones</button></li>
+                  <li><button type="button" [class.activo]="paso() === 2" (click)="irAPaso(2)">2 · Surtir</button></li>
+                  <li>
+                    <button type="button" [class.activo]="paso() === 3" (click)="irAPaso(3)">3 · Finalizar
+                      @if (porDecidir()) { <span class="aviso en-linea-aviso">{{ porDecidir() }}</span> }
+                    </button>
+                  </li>
+                </ol>
 
                 @if (carrito(); as c) {
                   <div class="avance">
                     <div class="avance-fila">
-                      <span><strong>{{ c.surtidas }} de {{ c.lineas }}</strong> medicamentos en el carrito · {{ c.camas.length }} pacientes</span>
-                      <span class="acciones">
-                        <button class="btn secondary" type="button" (click)="imprimirIndicaciones()">🖨 Indicaciones</button>
-                        @if (c.cerradoEn) {
-                          <button class="btn secondary" type="button" (click)="reimprimirBajas()">🖨 Hojas de baja</button>
-                        }
-                        @if (puedeSurtir) {
-                          <button class="btn" type="button" [disabled]="terminando()" (click)="terminarCarrito()">{{ terminando() ? 'Terminando…' : c.cerradoEn ? 'Terminar otra vez' : 'Terminar carrito' }}</button>
-                        }
-                      </span>
+                      <span><strong>{{ c.surtidas }} de {{ c.lineas }}</strong> medicamentos en el carrito · {{ pacientesDelDia().length }} pacientes con indicaciones hoy</span>
                     </div>
                     <span class="barra-ocupacion avance-barra"><span [style.width.%]="avanceCarrito()"></span></span>
-                    <small class="sub">Lo indicado desde las 12 de la noche y lo pendiente de ayer. Lo de después de la {{ c.horaCorte }} sale aparte.@if (c.cerradoEn) { Terminado a las {{ hora(c.cerradoEn) }} por {{ c.cerradoPor }}.}</small>
+                    <small class="sub">Lo indicado desde las 12 de la noche y lo pendiente de ayer. Lo que no se entregue o llegue después de la {{ c.horaCorte }} sale mañana como pendiente.</small>
                   </div>
+                }
 
+                @if (mensajeCarrito()) {
+                  <div class="banner" [class.error]="tipoMensajeCarrito() === 'error'" [class.warn]="tipoMensajeCarrito() === 'warn'" [class.info]="tipoMensajeCarrito() === 'info'">{{ mensajeCarrito() }}</div>
+                }
+
+                @if (paso() === 1) {
+                  @if (carrito()?.cerradoEn) {
+                    <div class="despues">
+                      <strong>🚨 Carrito de urgencia</strong>
+                      <small class="sub">El carrito del día se terminó a las {{ hora(carrito()!.cerradoEn) }} ({{ carrito()!.cerradoPor }}). Si llegó algo urgente: busca al paciente, imprime su hoja y surte. Al finalizar se suma a la baja por volumen del día (mismo folio).</small>
+                    </div>
+                  }
+                  <div class="barra">
+                    <input class="buscar" [ngModel]="busquedaCarrito()" (ngModelChange)="busquedaCarrito.set($event)" placeholder="Buscar por cama, expediente o paciente" />
+                    <span class="acciones">
+                      <button class="btn" type="button" [disabled]="!pacientesDelDia().length" (click)="imprimirTodas()">🖨 Imprimir {{ busquedaCarrito().trim() ? pacientesDelDia().length : 'todas' }}</button>
+                      <button class="btn secondary" type="button" [disabled]="!elegidosImprimir().size" (click)="imprimirElegidos()">🖨 Imprimir elegidos ({{ elegidosImprimir().size }})</button>
+                    </span>
+                  </div>
+                  <div class="carrito">
+                    @for (cama of pacientesDelDia(); track cama.idIngreso) {
+                      <div class="carrito-cama">
+                        <div class="carrito-cama-cabecera">
+                          <input type="checkbox" [attr.aria-label]="'Elegir cama ' + cama.espacio" [checked]="elegidosImprimir().has(cama.idIngreso)" (change)="alternarElegido(cama.idIngreso)" />
+                          <strong>{{ cama.espacio }}</strong>
+                          <span>{{ cama.paciente ?? 'Paciente' }}</span>
+                          <small>Exp. {{ cama.expediente ?? '—' }} · {{ cama.lineas.length }} {{ cama.lineas.length === 1 ? 'medicamento' : 'medicamentos' }}</small>
+                          <button class="link imprimir-cama" type="button" (click)="imprimirIndicaciones([cama.idIngreso])">🖨 Su hoja</button>
+                        </div>
+                      </div>
+                    } @empty {
+                      <p class="empty-box">{{ !carrito() ? 'Cargando…' : busquedaCarrito().trim() ? 'Ningún paciente con indicaciones hoy coincide.' : 'Ningún paciente del área tiene indicaciones de medicamento hoy.' }}</p>
+                    }
+                  </div>
+                  <p class="nota">Solo salen los pacientes con indicaciones de medicamento del día (incluye lo pendiente de ayer). Con las hojas impresas se toma el medicamento.</p>
+                  <div class="acciones-paso">
+                    <button class="btn" type="button" (click)="irAPaso(2)">Siguiente: surtir →</button>
+                  </div>
+                }
+
+                @if (paso() !== 1 && carrito(); as c) {
                   @if (despuesDelCarrito().suspendidos.length) {
                     <div class="despues cancelados">
                       <strong>⚠ Se cancelaron después de meterlos al carrito</strong>
@@ -128,148 +147,244 @@
                           <span class="pill-cancelado">Cancelado {{ d.linea.canceladoEn ? hora(d.linea.canceladoEn) : '' }}</span>
                           <span>Cama {{ d.cama.espacio }} · {{ d.linea.medicamento }} ({{ d.linea.entregadas }} pzs){{ d.linea.canceladoPor ? ' · ' + d.linea.canceladoPor : '' }}</span>
                           @if (puedeSurtir) {
-                            <button class="link danger" type="button" (click)="sacarDelCarrito(d.cama, d.linea)">Sacar del carrito</button>
+                            <button class="link danger" type="button" (click)="sacarDelCarrito(d.cama, d.linea)">Devolver a Farmacia</button>
                           }
                         </div>
                       }
                     </div>
                   }
 
-                  @if (despuesDelCarrito().nuevos.length) {
+                  @if (despuesDelCarrito().egresados.length) {
+                    <div class="despues cancelados">
+                      <strong>⚠ Egresaron después de surtirles (alta, defunción, ingreso cancelado)</strong>
+                      @for (d of despuesDelCarrito().egresados; track d.cama.idIngreso + (d.linea.clave ?? '')) {
+                        <div class="despues-fila">
+                          <span class="pill-cancelado">Egresó</span>
+                          <span>Cama {{ d.cama.espacio }} · {{ d.cama.motivoEgreso ?? (d.cama.paciente + ' ya no está en cama') }} · {{ d.linea.medicamento }} ({{ d.linea.entregadas }} pzs)</span>
+                          @if (puedeSurtir) {
+                            <button class="link danger" type="button" (click)="sacarDelCarrito(d.cama, d.linea)">Devolver a Farmacia</button>
+                          }
+                        </div>
+                      }
+                      <small class="sub">Si ya se le aplicó, déjalo: al finalizar cuenta como aplicado y se queda en la baja.</small>
+                    </div>
+                  }
+
+                  @if (paso() === 2 && despuesDelCarrito().nuevos.length) {
                     <div class="despues">
                       <strong>Llegó después de la {{ c.horaCorte }} (surtir si urge; si no, mañana sale como pendiente)</strong>
                       @for (d of despuesDelCarrito().nuevos; track d.cama.idIngreso + (d.linea.clave ?? '')) {
                         <div class="despues-fila">
                           <span class="pill-nuevo">{{ hora(d.linea.indicadoEn) }}</span>
                           <span>Cama {{ d.cama.espacio }} · {{ d.linea.medicamento }}</span>
-                          @if (puedeSurtir && d.linea.enCatalogo) {
-                            <button class="link" type="button" (click)="surtirRenglon(d.cama, d.linea)">Surtir ahora</button>
-                          }
                         </div>
                       }
                     </div>
                   }
                 }
 
-                @if (puedeSurtir) {
-                  <div class="scanner">
-                    <input #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanear()" placeholder="Escanea la caja del medicamento y presiona Enter" autocomplete="off" />
-                    <button type="button" title="Leer código" (click)="escanear()">▣</button>
-                    <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
-                  </div>
-                  @if (camaraAbierta()) {
-                    <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
-                  }
-                }
-
-                @if (codigoDesconocido(); as desconocido) {
-                  <div class="codigo-nuevo">
-                    <div class="confirmar-cabecera">
-                      <div>
-                        <p class="eyebrow">Caja nueva · código {{ desconocido.codigo }}</p>
-                        <strong>¿Qué medicamento es?</strong>
-                        <small class="sub">Solo aparecen los que algún paciente del área tiene pendientes.</small>
-                      </div>
-                      <button class="link" type="button" (click)="codigoDesconocido.set(null)">Cancelar</button>
+                @if (paso() === 2) {
+                  @if (puedeSurtir) {
+                    <div class="scanner">
+                      <input #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanear()" placeholder="Escanea la caja del medicamento y presiona Enter" autocomplete="off" />
+                      <button type="button" title="Leer código" (click)="escanear()">▣</button>
+                      <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
                     </div>
-                    <input
-                      id="filtro-codigo-nuevo"
-                      class="filtro-codigo-nuevo"
-                      placeholder="Busca por clave o nombre"
-                      [ngModel]="filtroDesconocido()"
-                      (ngModelChange)="filtroDesconocido.set($event)"
-                    />
-                    <div class="opciones-codigo">
-                      @for (c of clavesPendientes(); track c.clave) {
-                        <button type="button" (click)="asignarCodigo(c.clave)">
-                          <strong>{{ c.medicamento }}</strong><small>{{ c.clave }}</small>
-                        </button>
-                      } @empty {
-                        <p class="sub">Ningún medicamento pendiente coincide.</p>
-                      }
-                    </div>
-                  </div>
-                }
-
-                @if (mensajeCarrito()) {
-                  <div class="banner" [class.error]="tipoMensajeCarrito() === 'error'" [class.warn]="tipoMensajeCarrito() === 'warn'" [class.info]="tipoMensajeCarrito() === 'info'">{{ mensajeCarrito() }}</div>
-                }
-
-                @if (porSurtir(); as e) {
-                  <div class="confirmar">
-                    <div class="confirmar-cabecera">
-                      <div>
-                        <p class="eyebrow">Meter al carrito</p>
-                        <strong>{{ e.medicamento }}</strong>
-                        <small class="sub">{{ e.clave }} · {{ e.lote ? 'lote ' + e.lote + ' (del código)' : 'lote por FEFO' }}</small>
-                      </div>
-                      <button class="link" type="button" (click)="cancelarSurtido()">Cancelar</button>
-                    </div>
-                    @if (e.candidatos.length > 1) {
-                      <p class="sub">{{ e.candidatos.length }} pacientes lo tienen pendiente; elige a quién va:</p>
+                    @if (camaraAbierta()) {
+                      <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
                     }
-                    <div class="candidatos">
-                      @for (cand of e.candidatos; track cand.idIngreso) {
-                        <button type="button" class="candidato" [class.elegido]="candidato()?.idIngreso === cand.idIngreso" (click)="elegirCandidato(cand)">
-                          <strong>{{ cand.espacio }}</strong>
-                          <span>{{ cand.paciente ?? 'Paciente' }}</span>
-                          @if (cand.sugeridas) { <small>Referencia: {{ cand.sugeridas }} dosis en 24 h</small> }
-                        </button>
+                  }
+
+                  @if (codigoDesconocido(); as desconocido) {
+                    <div class="codigo-nuevo">
+                      <div class="confirmar-cabecera">
+                        <div>
+                          <p class="eyebrow">Caja nueva · código {{ desconocido.codigo }}</p>
+                          <strong>¿Qué medicamento es?</strong>
+                          <small class="sub">Solo aparecen los que algún paciente del área tiene pendientes.</small>
+                        </div>
+                        <button class="link" type="button" (click)="codigoDesconocido.set(null)">Cancelar</button>
+                      </div>
+                      <input
+                        id="filtro-codigo-nuevo"
+                        class="filtro-codigo-nuevo"
+                        placeholder="Busca por clave o nombre"
+                        [ngModel]="filtroDesconocido()"
+                        (ngModelChange)="filtroDesconocido.set($event)"
+                      />
+                      <div class="opciones-codigo">
+                        @for (c of clavesPendientes(); track c.clave) {
+                          <button type="button" (click)="asignarCodigo(c.clave)">
+                            <strong>{{ c.medicamento }}</strong><small>{{ c.clave }}</small>
+                          </button>
+                        } @empty {
+                          <p class="sub">Ningún medicamento pendiente coincide.</p>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (porSurtir(); as e) {
+                    <div class="confirmar">
+                      <div class="confirmar-cabecera">
+                        <div>
+                          <p class="eyebrow">Meter al carrito</p>
+                          <strong>{{ e.medicamento }}</strong>
+                          <small class="sub">{{ e.clave }} · {{ e.lote ? 'lote ' + e.lote + ' (del código)' : 'lote que caduca primero' }}</small>
+                        </div>
+                        <button class="link" type="button" (click)="cancelarSurtido()">Cancelar</button>
+                      </div>
+                      @if (e.candidatos.length > 1) {
+                        <p class="sub">{{ e.candidatos.length }} pacientes lo tienen pendiente; elige a quién va:</p>
                       }
+                      <div class="candidatos">
+                        @for (cand of e.candidatos; track cand.idIngreso) {
+                          <button type="button" class="candidato" [class.elegido]="candidato()?.idIngreso === cand.idIngreso" (click)="elegirCandidato(cand)">
+                            <strong>{{ cand.espacio }}</strong>
+                            <span>{{ cand.paciente ?? 'Paciente' }}</span>
+                            @if (cand.sugeridas) { <small>Referencia: {{ cand.sugeridas }} dosis en 24 h</small> }
+                          </button>
+                        }
+                      </div>
+                      <div class="en-linea confirmar-piezas">
+                        <label for="piezas-carrito">¿Cuántas piezas?</label>
+                        <input id="piezas-carrito" type="number" min="1" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="confirmarSurtido()" />
+                        <button class="btn" type="button" [disabled]="!candidato() || !piezas() || surtiendo()" (click)="confirmarSurtido()">{{ surtiendo() ? 'Guardando…' : 'Meter al carrito · cama ' + (candidato()?.espacio ?? '') }}</button>
+                      </div>
                     </div>
-                    <div class="en-linea confirmar-piezas">
-                      <label for="piezas-carrito">¿Cuántas piezas?</label>
-                      <input id="piezas-carrito" type="number" min="1" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="confirmarSurtido()" />
-                      <button class="btn" type="button" [disabled]="!candidato() || !piezas() || surtiendo()" (click)="confirmarSurtido()">{{ surtiendo() ? 'Guardando…' : 'Meter al carrito · cama ' + (candidato()?.espacio ?? '') }}</button>
-                    </div>
+                  }
+
+                  <div class="barra">
+                    <label class="check"><input type="checkbox" [checked]="soloPendientes()" (change)="soloPendientes.set($any($event.target).checked)" /> Solo pendientes</label>
+                  </div>
+
+                  <div class="carrito">
+                    @for (cama of camasCarrito(); track cama.idIngreso) {
+                      <div class="carrito-cama">
+                        <div class="carrito-cama-cabecera">
+                          <strong>{{ cama.espacio }}</strong>
+                          <span>{{ cama.paciente ?? 'Paciente' }}</span>
+                          <small>Exp. {{ cama.expediente ?? '—' }}</small>
+                        </div>
+                        <ul>
+                          @for (l of cama.lineas; track (l.clave ?? '') + l.medicamento) {
+                            <li [class]="'linea-carrito ' + l.estado" [class.sin-clave]="!l.enCatalogo">
+                              <span class="estado-linea">{{ estadoLineaTexto[l.estado] }}</span>
+                              <span class="linea-nombre">
+                                {{ l.medicamento }}
+                                @if (l.pendienteDeAyer) { <span class="pill-ayer">Pendiente de ayer</span> }
+                                @if (l.despuesDelCierre) { <span class="pill-nuevo">Después de la {{ carrito()?.horaCorte }}</span> }
+                                @if (l.modificado) { <span class="pill-nuevo">Cambió la dosis</span> }
+                                @if (revisar(l)) { <span class="pill-revisar" title="Las piezas no coinciden con la dosis del día">⚠ Revisar piezas</span> }
+                                <small class="sub">
+                                  {{ l.clave ?? 'Sin clave del catálogo' }}{{ l.posologia ? ' · ' + l.posologia : '' }}{{ l.dosis24h ? ' · ' + l.dosis24h + ' dosis en 24 h' : '' }}{{ l.indicadoEn ? ' · indicado ' + hora(l.indicadoEn) : '' }}
+                                </small>
+                                @if (l.lotes) { <small class="sub">En carrito: {{ l.entregadas }} pzs · lote {{ l.lotes }}</small> }
+                                @if (l.estado === 'SUSPENDIDO') { <small class="sub cancelado-texto">Cancelado {{ l.canceladoEn ? hora(l.canceladoEn) : '' }}{{ l.canceladoPor ? ' por ' + l.canceladoPor : '' }}</small> }
+                              </span>
+                              <span class="linea-cifras">{{ l.entregadas ? l.entregadas + ' pzs' : '' }}</span>
+                              @if (puedeSurtir && l.enCatalogo) {
+                                @if (l.estado === 'PENDIENTE') {
+                                  <button class="link" type="button" title="Solo para cajas que no traen código de barras" (click)="surtirRenglon(cama, l)">Caja sin código</button>
+                                } @else {
+                                  <button class="link danger" type="button" (click)="sacarDelCarrito(cama, l)">Sacar</button>
+                                }
+                              }
+                            </li>
+                          }
+                        </ul>
+                      </div>
+                    } @empty {
+                      <p class="empty-box">{{ carrito() ? 'No hay indicaciones nuevas ni pendientes por surtir en esta área.' : 'Cargando el carrito…' }}</p>
+                    }
+                  </div>
+                  <p class="nota">Escanea cada caja; "Caja sin código" es solo para cajas que no traen código de barras. La cantidad la captura quien surte (la dosis es referencia; si no coincide se marca para revisar). Al meter algo al carrito se descuenta del inventario de Farmacia.</p>
+                  <div class="acciones-paso">
+                    <button class="btn secondary" type="button" (click)="irAPaso(1)">← Indicaciones</button>
+                    <button class="btn" type="button" (click)="irAPaso(3)">Siguiente: finalizar →</button>
                   </div>
                 }
 
+                @if (paso() === 3) {
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr><th>Medicamento</th><th>Clave</th><th class="number">Pacientes</th><th class="number">Piezas</th></tr>
+                      </thead>
+                      <tbody>
+                        @for (t of totalCarrito(); track t.clave) {
+                          <tr><td>{{ t.medicamento }}</td><td>{{ t.clave }}</td><td class="number">{{ t.pacientes }}</td><td class="number"><strong>{{ t.piezas }}</strong></td></tr>
+                        } @empty {
+                          <tr><td colspan="4" class="empty">Todavía no se ha surtido nada hoy.</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="nota">Al finalizar se imprime la baja por volumen (totales por clave y lote) para capturarla en Intelisis con su folio en Observaciones. El detalle por paciente queda en "Surtidos del día". Si ya finalizaste hoy, lo nuevo se suma a la misma baja del día.</p>
+                  <div class="acciones-paso">
+                    <button class="btn secondary" type="button" (click)="irAPaso(2)">← Surtir</button>
+                    @if (puedeSurtir) {
+                      <button class="btn" type="button" [disabled]="terminando()" (click)="terminarCarrito()">{{ terminando() ? 'Finalizando…' : 'Finalizar despacho' }}</button>
+                    }
+                  </div>
+                }
+              } @else if (vista() === 'SURTIDOS') {
+                <!-- Surtidos del día: detalle por paciente (HAERO) y bajas por volumen (Intelisis) -->
                 <div class="barra">
-                  <label class="check"><input type="checkbox" [checked]="soloPendientes()" (change)="soloPendientes.set($any($event.target).checked)" /> Solo pendientes</label>
+                  <input type="date" [ngModel]="diaSurtidos()" (ngModelChange)="diaSurtidos.set($event); cargarSurtidos()" aria-label="Día" />
+                  <input class="buscar" [ngModel]="filtroSurtidos()" (ngModelChange)="filtroSurtidos.set($event)" placeholder="Buscar por cama, expediente o paciente" />
                 </div>
 
-                <div class="carrito">
-                  @for (cama of camasCarrito(); track cama.idIngreso) {
-                    <div class="carrito-cama">
-                      <div class="carrito-cama-cabecera">
-                        <strong>{{ cama.espacio }}</strong>
-                        <span>{{ cama.paciente ?? 'Paciente' }}</span>
-                        <small>Exp. {{ cama.expediente ?? '—' }}</small>
-                        <button class="link imprimir-cama" type="button" (click)="imprimirIndicaciones([cama.idIngreso])">🖨 Indicaciones</button>
-                      </div>
-                      <ul>
-                        @for (l of cama.lineas; track (l.clave ?? '') + l.medicamento) {
-                          <li [class]="'linea-carrito ' + l.estado" [class.sin-clave]="!l.enCatalogo">
-                            <span class="estado-linea">{{ estadoLineaTexto[l.estado] }}</span>
-                            <span class="linea-nombre">
-                              {{ l.medicamento }}
-                              @if (l.pendienteDeAyer) { <span class="pill-ayer">Pendiente de ayer</span> }
-                              @if (l.despuesDelCierre) { <span class="pill-nuevo">Después de la {{ carrito()?.horaCorte }}</span> }
-                              @if (l.modificado) { <span class="pill-nuevo">Cambió la dosis</span> }
-                              <small class="sub">
-                                {{ l.clave ?? 'Sin clave del catálogo' }}{{ l.posologia ? ' · ' + l.posologia : '' }}{{ l.dosis24h ? ' · ' + l.dosis24h + ' dosis en 24 h' : '' }}{{ l.indicadoEn ? ' · indicado ' + hora(l.indicadoEn) : '' }}
-                              </small>
-                              @if (l.lotes) { <small class="sub">En carrito: {{ l.entregadas }} pzs · lote {{ l.lotes }}</small> }
-                              @if (l.estado === 'SUSPENDIDO') { <small class="sub cancelado-texto">Cancelado {{ l.canceladoEn ? hora(l.canceladoEn) : '' }}{{ l.canceladoPor ? ' por ' + l.canceladoPor : '' }}</small> }
-                            </span>
-                            <span class="linea-cifras">{{ l.entregadas ? l.entregadas + ' pzs' : '' }}</span>
-                            @if (puedeSurtir && l.enCatalogo) {
-                              @if (l.estado === 'PENDIENTE') {
-                                <button class="link" type="button" (click)="surtirRenglon(cama, l)">Surtir</button>
-                              } @else {
-                                <button class="link danger" type="button" (click)="sacarDelCarrito(cama, l)">Sacar</button>
-                              }
-                            }
-                          </li>
-                        }
-                      </ul>
-                    </div>
-                  } @empty {
-                    <p class="empty-box">{{ carrito() ? 'No hay indicaciones nuevas ni pendientes por surtir en esta área.' : 'Cargando el carrito…' }}</p>
-                  }
+                <h3 class="subtitulo">Baja por volumen del día (la que se captura en Intelisis)</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Folio</th><th>Hora</th><th>Surtió</th><th class="number">Piezas</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      @for (b of bajasDia(); track b.folio) {
+                        <tr>
+                          <td><strong>{{ b.observaciones }}</strong></td>
+                          <td>{{ hora(b.fecha) }}</td>
+                          <td>{{ b.surtio }}</td>
+                          <td class="number">{{ b.totalPiezas }}</td>
+                          <td><button class="link" type="button" (click)="abrirBajas({ volumen: true, folio: b.folio, dia: diaSurtidos() })">🖨 Reimprimir</button></td>
+                        </tr>
+                      } @empty {
+                        <tr><td colspan="5" class="empty">No se terminó ningún carrito ese día.</td></tr>
+                      }
+                    </tbody>
+                  </table>
                 </div>
-                <p class="nota">La cantidad la captura quien surte; la dosis y la frecuencia son solo referencia. Al meter algo al carrito se descuenta del inventario de Farmacia; al terminar se imprime la hoja de baja de cada paciente.</p>
+
+                <h3 class="subtitulo">Por paciente</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>Cama</th><th>Paciente</th><th>Expediente</th><th>Medicamentos</th><th class="number">Piezas</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      @for (h of hojasFiltradas(); track h.folio) {
+                        <tr>
+                          <td><strong>{{ h.cama }}</strong></td>
+                          <td>{{ h.paciente }}</td>
+                          <td>{{ h.expediente ?? '—' }}</td>
+                          <td>
+                            @for (p of h.partidas; track p.articulo + p.lote) {
+                              <small class="sub">{{ p.descripcion }} · {{ p.cantidad }} pzs · lote {{ p.lote }}
+                                @if (p.revisar) { <span class="pill-revisar" title="Las piezas no coinciden con la dosis del día">⚠ Revisar</span> }
+                              </small>
+                            }
+                          </td>
+                          <td class="number">{{ h.totalPiezas }}</td>
+                          <td><button class="link" type="button" (click)="abrirBajas({ ingreso: h.idIngreso, dia: diaSurtidos() })">🖨 Reimprimir</button></td>
+                        </tr>
+                      } @empty {
+                        <tr><td colspan="6" class="empty">{{ filtroSurtidos().trim() ? 'Ningún paciente coincide.' : 'No hay surtidos terminados ese día.' }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
               } @else if (vista() === 'CAMAS') {
                 <div class="camas">
                   @for (cama of camasFiltradas(); track cama.espacio) {
@@ -374,7 +489,7 @@
                       <li [class]="'evento ' + e.tipo">
                         <span class="evento-tipo">{{ tipoTexto[e.tipo] }}</span>
                         <span>{{ e.detalle }}</span>
-                        <small>{{ hora(e.fecha) }}{{ e.medico ? ' · ' + e.medico : '' }}</small>
+                        <small>{{ hora(e.fecha) }}{{ e.medico ? (esMovimientoCama(e.tipo) ? ' · registró ' : ' · ') + e.medico : '' }}</small>
                       </li>
                     } @empty {
                       <li class="sub">Sin cambios en los últimos 7 días.</li>
