@@ -29,9 +29,51 @@ export class CpmClave {
   protected readonly rotacion = inject(RotacionAlmacen);
   protected readonly nombreMes = nombreMes;
 
+  // El Lic. Irving pidió ver el CPM por clave y también en general.
+  readonly vista = signal<'CLAVE' | 'GENERAL'>('CLAVE');
   readonly claveSeleccionada = signal('');
   readonly detalle = computed(() => this.rotacion.buscar(this.claveSeleccionada()));
   readonly mesMayor = computed(() => Math.max(1, ...(this.detalle()?.meses.map((mes) => mes.cajas) ?? [])));
+
+  // ---------- Vista general ----------
+  // Cajas de todas las claves por mes (cada clave con su origen de CPM: HAERO o Intelisis).
+  readonly mesesGenerales = computed(() =>
+    this.rotacion.ventana().map((mes) => ({
+      mes,
+      cajas: this.rotacion.rotacion().reduce((total, fila) => total + (fila.meses.find((m) => m.mes === mes)?.cajas ?? 0), 0),
+    })),
+  );
+  readonly mesMayorGeneral = computed(() => Math.max(1, ...this.mesesGenerales().map((mes) => mes.cajas)));
+  readonly cpmGeneral = computed(() => Math.round(this.rotacion.rotacion().reduce((total, fila) => total + fila.cpm, 0) * 10) / 10);
+  readonly clavesConConsumo = computed(() => this.rotacion.rotacion().filter((fila) => fila.cpm > 0).length);
+  readonly topCpm = computed(() => [...this.rotacion.rotacion()].filter((fila) => fila.cpm > 0).sort((a, b) => b.cpm - a.cpm).slice(0, 10));
+  readonly cpmMayor = computed(() => Math.max(1, ...this.topCpm().map((fila) => fila.cpm)));
+  readonly porEstado = computed(() => {
+    const filas = this.rotacion.rotacion();
+    const total = Math.max(1, filas.length);
+    const contar = (estado: RotacionClave['estado']) => filas.filter((fila) => fila.estado === estado).length;
+    return [
+      { estado: 'desabasto', etiqueta: 'Desabasto', total: contar('DESABASTO') },
+      { estado: 'normal', etiqueta: 'En rango', total: contar('NORMAL') },
+      { estado: 'sobreabasto', etiqueta: 'Sobreabasto', total: contar('SOBREABASTO') },
+      { estado: 'sin_consumo', etiqueta: 'Sin consumo', total: contar('SIN_CONSUMO') },
+    ].map((item) => ({ ...item, porcentaje: Math.round((item.total / total) * 100) }));
+  });
+
+  /** Solo el nombre del medicamento (sin la descripción completa) para el selector. */
+  corto(nombre: string | null | undefined): string {
+    const texto = (nombre || 'Sin nombre').split('.')[0].trim();
+    return texto.length > 60 ? texto.slice(0, 57) + '…' : texto;
+  }
+
+  alturaGeneral(cajas: number): number {
+    return Math.round((cajas / this.mesMayorGeneral()) * 100);
+  }
+
+  verClave(clave: string): void {
+    this.claveSeleccionada.set(clave);
+    this.vista.set('CLAVE');
+  }
 
   protected readonly mesesMinimo = MESES_STOCK_MINIMO;
   protected readonly mesesMaximo = MESES_STOCK_MAXIMO;

@@ -7,19 +7,75 @@
 <section class="card">
   <div class="card-heading">
     <div>
-      <p class="eyebrow">Consulta individual</p>
-      <h2>CPM de una clave</h2>
+      <p class="eyebrow">{{ vista() === 'CLAVE' ? 'Consulta individual' : 'Todas las claves' }}</p>
+      <h2>{{ vista() === 'CLAVE' ? 'CPM de una clave' : 'CPM general' }}</h2>
     </div>
-    <label class="clave-select">
-      <select [ngModel]="claveSeleccionada()" (ngModelChange)="claveSeleccionada.set($event)" aria-label="Clave a consultar">
-        @for (item of rotacion.rotacion(); track item.clave) {
-          <option [value]="item.clave">{{ item.clave }} · {{ item.medicamento || 'Sin nombre' }}</option>
-        }
-      </select>
-    </label>
+    <div class="vista-tools">
+      <div class="filter-tabs" role="group" aria-label="Tipo de gráfica">
+        <button type="button" [class.active]="vista() === 'CLAVE'" [attr.aria-pressed]="vista() === 'CLAVE'" (click)="vista.set('CLAVE')">Por clave</button>
+        <button type="button" [class.active]="vista() === 'GENERAL'" [attr.aria-pressed]="vista() === 'GENERAL'" (click)="vista.set('GENERAL')">General</button>
+      </div>
+      @if (vista() === 'CLAVE') {
+        <label class="clave-select">
+          <select [ngModel]="claveSeleccionada()" (ngModelChange)="claveSeleccionada.set($event)" aria-label="Clave a consultar">
+            @for (item of rotacion.rotacion(); track item.clave) {
+              <option [value]="item.clave" [title]="item.medicamento">{{ item.clave }} · {{ corto(item.medicamento) }}</option>
+            }
+          </select>
+        </label>
+      }
+    </div>
   </div>
 
-  @if (detalle(); as item) {
+  @if (vista() === 'GENERAL') {
+    <div class="cpm-detail">
+      <div class="cpm-figure">
+        <span>CPM total</span>
+        <strong>{{ cpmGeneral() }}</strong>
+        <small>cajas por mes · {{ clavesConConsumo() }} claves con consumo</small>
+      </div>
+      <div class="months" role="img" aria-label="Cajas despachadas por mes de todas las claves">
+        @for (mes of mesesGenerales(); track mes.mes) {
+          <div class="month">
+            <span class="month-value">{{ mes.cajas }}</span>
+            <div class="bar-track"><div class="bar" [style.height.%]="alturaGeneral(mes.cajas)"></div></div>
+            <span class="month-label">{{ nombreMes(mes.mes) }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="general-grid">
+      <div>
+        <p class="eyebrow">Claves por estado</p>
+        <div class="estados" role="img" aria-label="Claves por estado de stock">
+          @for (e of porEstado(); track e.estado) {
+            <div class="estado-fila">
+              <span class="estado-nombre">{{ e.etiqueta }}</span>
+              <div class="estado-track"><div [class]="'estado-barra ' + e.estado" [style.width.%]="e.porcentaje"></div></div>
+              <span class="estado-total">{{ e.total }}</span>
+            </div>
+          }
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow">Las 10 claves con mayor CPM</p>
+        <div class="estados">
+          @for (fila of topCpm(); track fila.clave) {
+            <button type="button" class="estado-fila top" (click)="verClave(fila.clave)" [title]="'Ver la gráfica de ' + fila.clave">
+              <span class="estado-nombre"><strong>{{ fila.clave }}</strong> {{ fila.medicamento }}</span>
+              <div class="estado-track"><div class="estado-barra normal" [style.width.%]="(fila.cpm / cpmMayor()) * 100"></div></div>
+              <span class="estado-total">{{ fila.cpm }}</span>
+            </button>
+          } @empty {
+            <p class="card-help">Todavía no hay claves con consumo.</p>
+          }
+        </div>
+      </div>
+    </div>
+    <p class="card-help">La gráfica suma las cajas de todas las claves en cada mes. Es una vista de tendencia: claves distintas tienen presentaciones distintas.</p>
+  } @else if (detalle(); as item) {
+    <p class="nombre-completo"><strong>{{ item.clave }}</strong> · {{ item.medicamento || 'Sin nombre en catálogo' }}</p>
     <div class="cpm-detail">
       <div class="cpm-figure">
         <span>CPM</span>
@@ -141,5 +197,5 @@
       </tbody>
     </table>
   </div>
-  <p class="card-help">CPM = cajas despachadas a Farmacia en los últimos 6 meses cerrados ÷ 6. Se recalcula solo con cada salida registrada. Meses de abasto = existencia ÷ CPM: en rojo si es menos de {{ mesesMinimo }}, en ámbar si pasa de {{ mesesMaximo }}.</p>
+  <p class="card-help">CPM = cajas despachadas a Farmacia en los últimos 6 meses cerrados ÷ 6. Se recalcula solo con cada salida registrada. Meses de abasto = existencia que se alcanza a usar antes de caducar ÷ CPM: en rojo si es menos de {{ mesesMinimo }}, en ámbar si pasa de {{ mesesMaximo }}.</p>
 </section>

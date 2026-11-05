@@ -4,7 +4,7 @@
 } @else if (resultados().length) {
   <ul class="resultados">
     @for (medicamento of resultados(); track medicamento.clave) {
-      <li><button type="button" (click)="elegir(medicamento)"><strong>{{ medicamento.clave }}</strong> {{ medicamento.nombreGenerico }}</button></li>
+      <li><button type="button" (click)="elegir(medicamento)"><strong>{{ medicamento.clave }}</strong> {{ medicamento.nombreGenerico }} <app-marca-seguridad [clave]="medicamento.clave" /></button></li>
     }
   </ul>
 } @else if (busqueda().trim()) {

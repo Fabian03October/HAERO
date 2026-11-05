@@ -20,4 +20,7 @@ public class RecetaIntelisisResponse {
     // Estado de esa receta en HAERO (SURTIDA, PARCIAL o NO_DISPENSADA); null si aún no se registra.
     private String estadoEnHaero;
     private List<PartidaRecetaIntelisis> partidas;
+    // Médico que hizo la receta (vsa_Receta.Usuario) y, si es otro, su médico adscrito.
+    private String medico;
+    private String medicoAdscrito;
 }

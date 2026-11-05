@@ -6,7 +6,8 @@ import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
-import { ClaveReceta, FarmaciaApi, Receta } from '../../farmacia-api';
+import { ClaveReceta, FarmaciaApi, Receta } from '../../farmacia-api';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 type EstadoReceta = 'PARCIAL' | 'NO_DISPENSADA';
 type RecetaPendiente = Receta & { estado: EstadoReceta };
@@ -15,7 +16,7 @@ type RecetaPendiente = Receta & { estado: EstadoReceta };
 // pendiente o sin surtir, con lo entregado y lo pendiente de cada clave.
 @Component({
   selector: 'app-recetas-parciales',
-  imports: [FormsModule, RouterLink, Topbar, Sidebar],
+  imports: [MarcaSeguridad, FormsModule, RouterLink, Topbar, Sidebar],
   templateUrl: './recetas-parciales.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './recetas-parciales.css'],
 })

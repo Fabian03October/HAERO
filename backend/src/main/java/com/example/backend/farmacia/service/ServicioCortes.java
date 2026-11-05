@@ -4,6 +4,7 @@ import com.example.backend.entity.Usuario;
 import com.example.backend.farmacia.dto.CorteDiaResponse;
 import com.example.backend.farmacia.dto.RenglonBajaResponse;
 import com.example.backend.farmacia.dto.RenglonResumenResponse;
+import com.example.backend.farmacia.dto.ResumenAreaResponse;
 import com.example.backend.farmacia.dto.RenglonVerificacionResponse;
 import com.example.backend.farmacia.dto.VerificacionResponse;
 import com.example.backend.farmacia.entity.BajaFarmacia;
@@ -84,6 +85,38 @@ public class ServicioCortes {
         List<Devolucion> devoluciones = devolucionRepository.findByDiaResumen(dia);
         List<BajaFarmacia> bajas = bajaRepository.findByFechaBetweenOrderByFechaAsc(desde, hasta);
 
+        // Hospitalización, Quimioterapia y Quirófano tienen su propia baja por volumen: van aparte para
+        // que no se capturen dos veces en Intelisis. Aquí queda solo lo de ventanilla.
+        Map<String, AcumuladoArea> porArea = new LinkedHashMap<>();
+        AREAS.forEach((prefijo, nombre) -> porArea.put(prefijo, new AcumuladoArea(nombre)));
+        List<Entrega> deVentanilla = new ArrayList<>();
+        for (Entrega entrega : entregas) {
+            String prefijo = prefijoArea(entrega.getReceta());
+            if (prefijo == null) {
+                deVentanilla.add(entrega);
+                continue;
+            }
+            AcumuladoArea area = porArea.get(prefijo);
+            area.pacientes.add(paciente(entrega.getReceta()));
+            if (entrega.getBajaVolumenFolio() == null) {
+                area.sinBaja++;
+            } else {
+                area.folios.add(entrega.getBajaVolumenFolio());
+            }
+            for (PartidaEntrega partida : entrega.getPartidas()) {
+                area.piezas += partida.getPiezas();
+                area.claves.add(partida.getLote().getMedicamento().getClave());
+            }
+        }
+        entregas = deVentanilla;
+        devoluciones = devoluciones.stream().filter(d -> {
+            String prefijo = prefijoArea(d.getEntrega().getReceta());
+            if (prefijo != null && Devolucion.RESTA.equals(d.getEnResumen())) {
+                d.getPartidas().forEach(p -> porArea.get(prefijo).piezas -= p.getPiezas());
+            }
+            return prefijo == null;
+        }).toList();
+
         // CA1: consumo de pacientes por clave y lote; CA2: ya resta las devoluciones del día.
         Map<String, Acumulado> consumo = new TreeMap<>();
         Set<String> pacientes = new HashSet<>();
@@ -136,12 +169,52 @@ public class ServicioCortes {
         }
         Set<String> claves = new HashSet<>();
         renglonesConsumo.forEach(r -> claves.add(r.getClaveIntelisis()));
+        List<ResumenAreaResponse> areas = new ArrayList<>();
+        porArea.forEach((prefijo, a) -> {
+            if (a.piezas > 0 || a.sinBaja > 0) {
+                areas.add(new ResumenAreaResponse(prefijo.replace("-", ""), a.nombre, a.piezas, a.claves.size(), a.pacientes.size(), a.sinBaja,
+                        String.join(", ", a.folios.stream().sorted().map(f -> String.format("V%06d", f)).toList())));
+            }
+        });
         return new CorteDiaResponse(dia, corte == null ? CorteFarmacia.PENDIENTE : corte.getEstado(),
                 corte == null ? null : corte.getFolioIntelisis(), corte == null ? null : corte.getMarcadoEn(),
                 corte == null ? null : corte.getMarcadoPor().getNombreCompleto(), cambios,
                 renglonesConsumo, renglonesDevolucion, renglonesBaja,
                 claves.size(), renglonesConsumo.stream().mapToInt(RenglonResumenResponse::getPiezas).sum(), pacientes.size(),
-                diasPendientes());
+                diasPendientes(), areas);
+    }
+
+    // Prefijo del folio de receta → área con baja por volumen propia.
+    static final Map<String, String> AREAS = new LinkedHashMap<>();
+
+    static {
+        AREAS.put(ServicioCarrito.PREFIJO_FOLIO, "Hospitalización");
+        AREAS.put(ServicioQuimioterapia.PREFIJO_FOLIO, "Quimioterapia");
+        AREAS.put(ServicioCajasQuirofano.PREFIJO_FOLIO, "Quirófano");
+    }
+
+    /** El área de la receta (su prefijo), o null si es de ventanilla. */
+    static String prefijoArea(Receta receta) {
+        String folio = receta.getFolio() == null ? "" : receta.getFolio().toUpperCase(Locale.ROOT);
+        return AREAS.keySet().stream().filter(folio::startsWith).findFirst().orElse(null);
+    }
+
+    /** Condición SQL para excluir las recetas de las áreas (alias de farmacia_receta = r). */
+    private static String sinAreas() {
+        return String.join(" ", AREAS.keySet().stream().map(p -> "AND r.folio NOT LIKE '" + p + "%'").toList());
+    }
+
+    private static final class AcumuladoArea {
+        private final String nombre;
+        private int piezas;
+        private int sinBaja;
+        private final Set<String> claves = new HashSet<>();
+        private final Set<String> pacientes = new HashSet<>();
+        private final Set<Integer> folios = new java.util.TreeSet<>();
+
+        private AcumuladoArea(String nombre) {
+            this.nombre = nombre;
+        }
     }
 
     /**
@@ -152,9 +225,14 @@ public class ServicioCortes {
         String sql = """
                 SELECT x.dia
                 FROM (
-                    SELECT CAST(fecha AS date) AS dia, MAX(fecha) AS ultima FROM farmacia_entrega GROUP BY CAST(fecha AS date)
+                    SELECT CAST(e.fecha AS date) AS dia, MAX(e.fecha) AS ultima FROM farmacia_entrega e
+                    JOIN farmacia_receta r ON r.id = e.receta_id WHERE 1 = 1 """ + sinAreas() + """
+                     GROUP BY CAST(e.fecha AS date)
                     UNION ALL
-                    SELECT dia_resumen, MAX(fecha) FROM farmacia_devolucion GROUP BY dia_resumen
+                    SELECT d.dia_resumen, MAX(d.fecha) FROM farmacia_devolucion d
+                    JOIN farmacia_entrega e ON e.id = d.entrega_id JOIN farmacia_receta r ON r.id = e.receta_id
+                    WHERE 1 = 1 """ + sinAreas() + """
+                     GROUP BY d.dia_resumen
                     UNION ALL
                     SELECT CAST(fecha AS date), MAX(fecha) FROM farmacia_baja GROUP BY CAST(fecha AS date)
                 ) x
@@ -203,6 +281,21 @@ public class ServicioCortes {
         Map<String, String[]> nombres = new LinkedHashMap<>();
         resumen.getConsumo().forEach(r -> sumar(haeroPorLote, nombres, r.getClaveIntelisis(), r.getLote(), r.getPiezas()));
         resumen.getDevoluciones().forEach(r -> sumar(haeroPorLote, nombres, r.getClaveIntelisis(), r.getLote(), -r.getPiezas()));
+        // Las bajas de las áreas también se capturan como "Consumo Farmacia" ese día: para comparar
+        // contra Intelisis se suman (lo entregado menos lo ya devuelto).
+        haero.query("""
+                SELECT rc.medicamento_clave, fl.numero_lote, SUM(p.piezas - p.piezas_devueltas)
+                FROM farmacia_entrega_partida p
+                JOIN farmacia_entrega e ON e.id = p.entrega_id
+                JOIN farmacia_receta r ON r.id = e.receta_id
+                JOIN farmacia_receta_clave rc ON rc.id = p.receta_clave_id
+                JOIN farmacia_lote fl ON fl.id = p.farmacia_lote_id
+                LEFT JOIN farmacia_baja_volumen b ON b.folio = e.baja_volumen_folio
+                WHERE COALESCE(b.dia, CAST(e.fecha AS date)) = ? AND NOT (1 = 1 """ + sinAreas() + """
+                ) GROUP BY rc.medicamento_clave, fl.numero_lote
+                """, rs -> {
+            sumar(haeroPorLote, nombres, rs.getString(1) + SUFIJO_FARMACIA, rs.getString(2), rs.getInt(3));
+        }, java.sql.Date.valueOf(dia));
 
         // CA1: lo dado de baja en Intelisis, del espejo de la sincronización.
         Map<String, int[]> intelisisPorLote = new TreeMap<>();
@@ -250,6 +343,12 @@ public class ServicioCortes {
         csv.append("Tipo,Clave Intelisis,Medicamento,Lote,Piezas,Pacientes\n");
         resumen.getConsumo().forEach(r -> csv.append(fila("Consumo Farmacia", r)));
         resumen.getDevoluciones().forEach(r -> csv.append(fila("Devolucion Farmacia", r)));
+        if (!resumen.getAreas().isEmpty()) {
+            csv.append('\n').append("Ya van en la baja por volumen de su área (NO capturar aquí)\n");
+            csv.append("Área,Piezas,Claves,Pacientes,Folios de baja,Entregas sin baja\n");
+            resumen.getAreas().forEach(a -> csv.append(celda(a.nombre())).append(',').append(a.piezas()).append(',').append(a.claves())
+                    .append(',').append(a.pacientes()).append(',').append(celda(a.foliosBaja())).append(',').append(a.entregasSinBaja()).append('\n'));
+        }
         csv.append('\n').append("Bajas por caducidad o daño (no son consumo)\n");
         csv.append("Clave Intelisis,Lote,Piezas,Motivo\n");
         resumen.getBajas().forEach(b -> csv.append(celda(b.getClaveIntelisis())).append(',').append(celda(b.getLote())).append(',')

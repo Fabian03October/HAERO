@@ -24,7 +24,7 @@
               </div>
             </div>
             <div class="en-linea">
-              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" placeholder="Folio de la entrega o de la receta, expediente o escanea la caja" />
+              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" placeholder="Folio de entrega o receta, expediente, nombre o CURP del paciente, o escanea la caja" />
               <button class="btn secondary" type="button" [disabled]="buscando()" (click)="buscar()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
             </div>
             @if (error()) {
@@ -37,18 +37,23 @@
               <ul class="order-list">
                 @for (opcion of encontradas(); track opcion.id) {
                   <li class="fila" (click)="elegirEntrega(opcion)">
-                    <div class="order-top"><strong>{{ opcion.folio }}</strong><span>receta {{ opcion.receta }}</span></div>
-                    <small>{{ opcion.paciente }} · {{ opcion.partidas.length }} {{ opcion.partidas.length === 1 ? 'lote' : 'lotes' }}</small>
+                    <div class="order-top"><strong>{{ opcion.paciente }}</strong><span>{{ opcion.folio }}</span></div>
+                    <small>Exp. {{ opcion.expediente ?? '—' }} · receta {{ opcion.receta }} · {{ opcion.fecha }} · {{ opcion.partidas.length }} {{ opcion.partidas.length === 1 ? 'lote' : 'lotes' }}</small>
                   </li>
                 }
               </ul>
             }
 
             @if (entrega(); as encontrada) {
+              <div class="paciente-devuelve">
+                <span class="eyebrow">Paciente que devuelve</span>
+                <strong>{{ encontrada.paciente }}</strong>
+                <small>Expediente {{ encontrada.expediente ?? 'sin expediente' }}</small>
+              </div>
               <dl class="datos">
                 <div><dt>Entrega</dt><dd>{{ encontrada.folio }} · receta {{ encontrada.receta }}</dd></div>
-                <div><dt>Paciente</dt><dd>{{ encontrada.paciente }} (exp. {{ encontrada.expediente ?? '—' }})</dd></div>
                 <div><dt>Fecha</dt><dd>{{ encontrada.fecha }}</dd></div>
+                <div><dt>Entregó</dt><dd>{{ encontrada.despachador }}</dd></div>
               </dl>
             }
 
@@ -66,7 +71,7 @@
                 <tbody>
                   @for (partida of partidas(); track partida.clave + partida.lote; let i = $index) {
                     <tr [class.excede]="partida.excede">
-                      <td><strong>{{ partida.clave }}</strong><small class="sub">{{ partida.medicamento }}</small></td>
+                      <td><strong>{{ partida.clave }}</strong> <app-marca-seguridad [clave]="partida.clave" /><small class="sub">{{ partida.medicamento }}</small></td>
                       <td>{{ partida.lote }}</td>
                       <td class="number">{{ partida.entregada }}</td>
                       <td class="number"><input class="celda corta" type="number" min="0" [max]="partida.entregada" [ngModel]="partida.devolver || null" (ngModelChange)="cambiarPartida(i, { devolver: +$event })" /></td>
@@ -108,6 +113,7 @@
                 @for (devolucion of devolucionesHoy(); track devolucion.folioEntrega + devolucion.lote + devolucion.hora) {
                   <li>
                     <div class="order-top"><strong>{{ devolucion.clave }}</strong><span>{{ devolucion.piezas }} piezas</span></div>
+                    <small><b>{{ devolucion.paciente }}</b>{{ devolucion.expediente ? ' · exp. ' + devolucion.expediente : '' }}</small>
                     <small>Lote {{ devolucion.lote }} · entrega {{ devolucion.folioEntrega }} · {{ devolucion.hora }}</small>
                     @if (devolucion.danado) {
                       <small class="pendiente">Dañado: se registró como merma</small>

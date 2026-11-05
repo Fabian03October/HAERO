@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SolicitudesAlmacen } from '../../solicitudes-almacen';
 import { Medicamento } from '../../almacen-api';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 // Se pintan de a poco: el catálogo de Intelisis son casi mil claves.
 const FILAS_POR_TANDA = 200;
@@ -14,7 +15,7 @@ type FiltroAlta = 'TODOS' | 'ALTA' | 'SIN_ALTA';
 // clave con código está "dada de alta en HAERO" y solo esas entran al inventario.
 @Component({
   selector: 'app-catalogo-medicamentos',
-  imports: [FormsModule],
+  imports: [MarcaSeguridad, FormsModule],
   templateUrl: './catalogo-medicamentos.html',
   styleUrls: ['../recepcion-comun.css', '../pedidos/pedidos-recepcion.css', '../inventario-inicial.css', './catalogo-medicamentos.css'],
   host: { '(document:keydown.escape)': 'cerrarDetalle()' },

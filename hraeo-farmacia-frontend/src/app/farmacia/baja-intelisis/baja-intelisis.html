@@ -77,7 +77,31 @@
               </tbody>
             </table>
           </div>
-          <p class="nota">La clave se muestra como se captura en Intelisis (con "-1") y en piezas; las cajas son de referencia.</p>
+          <p class="nota">La clave se muestra como se captura en Intelisis (con "-1") y en piezas; las cajas son de referencia. Solo es lo de ventanilla.</p>
+
+          @if (areas().length) {
+            <h2 class="titulo-tabla">Ya van en la baja de su área · NO capturar aquí</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Área</th><th class="number">Piezas</th><th class="number">Claves</th><th class="number">Pacientes</th><th>Baja del área</th></tr></thead>
+                <tbody>
+                  @for (a of areas(); track a.area) {
+                    <tr>
+                      <td><strong>{{ a.nombre }}</strong></td>
+                      <td class="number">{{ a.piezas }}</td>
+                      <td class="number">{{ a.claves }}</td>
+                      <td class="number">{{ a.pacientes }}</td>
+                      <td>
+                        {{ a.foliosBaja || 'Sin baja todavía' }}
+                        @if (a.entregasSinBaja) { <small class="sub pendiente">{{ a.entregasSinBaja }} entregas sin pasar a la baja: termina el día en {{ a.nombre }}</small> }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="nota">Se capturan en Intelisis con la hoja de baja por volumen de su área. En la verificación sí se suman, porque en Intelisis todo queda como "Consumo Farmacia".</p>
+          }
 
           @if (devolucionesPosteriores().length) {
             <h2 class="titulo-tabla">Devoluciones de días ya dados de baja · "Devolucion Farmacia"</h2>

@@ -3,3 +3,6 @@
 *.log
 graphify-out/
 .DS_Store
+
+# Informe técnico de guía (no es parte del sistema)
+docs/INFORME_TECNICO.pdf

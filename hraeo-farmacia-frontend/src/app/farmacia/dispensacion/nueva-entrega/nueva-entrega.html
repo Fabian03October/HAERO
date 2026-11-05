@@ -92,6 +92,7 @@
                         <strong>Folio {{ receta.folio ?? '—' }} · núm. {{ receta.idReceta }}</strong>
                         <small>
                           {{ receta.fecha ? fechaHora(receta.fecha) : '' }} · {{ receta.origen ?? '' }} · {{ receta.partidas.length }} {{ receta.partidas.length === 1 ? 'clave' : 'claves' }}
+                          @if (receta.medico) { · Dr(a). {{ receta.medico }}{{ receta.medicoAdscrito ? ' (adscrito: ' + receta.medicoAdscrito + ')' : '' }} }
                           @if (receta.estadoEnHaero) { · {{ receta.estadoEnHaero === 'SURTIDA' ? 'ya surtida' : 'pendiente en Farmacia' }} }
                         </small>
                       </button>
@@ -104,13 +105,16 @@
             <div class="field">
               <label for="folio">Folio de la receta</label>
               <input id="folio" [ngModel]="folioReceta()" (ngModelChange)="folioReceta.set($event)" [readonly]="!!recetaExistente()" placeholder="Ej. R-2026-004512" autocomplete="off" />
+              @if (medicoReceta()) {
+                <p class="hint">Médico que hizo la receta: <strong>{{ medicoReceta() }}</strong></p>
+              }
             </div>
 
             <div class="field">
               <label>Claves de la receta</label>
               @if (elegida(); as medicamento) {
                 <div class="elegida">
-                  <div><strong>{{ medicamento.clave }}</strong><span>{{ medicamento.nombreGenerico }}</span></div>
+                  <div><strong>{{ medicamento.clave }}</strong> <app-marca-seguridad [clave]="medicamento.clave" /><span>{{ medicamento.nombreGenerico }}</span></div>
                   <button class="link" type="button" (click)="elegida.set(null)">Cambiar</button>
                 </div>
                 <div class="en-linea">
@@ -127,9 +131,12 @@
                 @for (item of claves(); track item.clave) {
                   <li>
                     <div>
-                      <strong>{{ item.clave }}</strong>
+                      <strong>{{ item.clave }}</strong> <app-marca-seguridad [clave]="item.clave" />
                       <span>{{ item.medicamento }}</span>
                       <small>{{ item.indicada }} piezas indicadas</small>
+                      @if (yaRecibio().get(item.clave); as previa) {
+                        <small class="ya-recibio">⚠ Ya se le entregó el {{ previa.fecha | date: 'dd/MM/yyyy HH:mm' }}: {{ previa.piezas }} piezas · receta {{ previa.folioReceta }} · {{ previa.despachador }}. Revisa que no sea la misma dosis.</small>
+                      }
                     </div>
                     <button class="link danger" type="button" (click)="quitarClave(item.clave)">Quitar</button>
                   </li>
@@ -239,7 +246,7 @@
               <tbody>
                 @for (item of resumen(); track item.clave) {
                   <tr [class.excede]="item.excede">
-                    <td><strong>{{ item.clave }}</strong></td>
+                    <td><strong>{{ item.clave }}</strong> <app-marca-seguridad [clave]="item.clave" /></td>
                     <td>{{ item.medicamento }}</td>
                     <td class="number">{{ item.indicada }}</td>
                     <td class="number">{{ item.entregada }}</td>

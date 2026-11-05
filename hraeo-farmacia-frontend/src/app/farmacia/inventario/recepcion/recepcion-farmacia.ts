@@ -6,14 +6,15 @@ import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { folioSolicitud, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
-import { DespachoPorRecibir, FarmaciaApi } from '../../farmacia-api';
+import { DespachoPorRecibir, FarmaciaApi } from '../../farmacia-api';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 // Farmacia · Recepción de lo despachado por Almacén (HU26). Cada despacho llega con sus lotes;
 // Farmacia confirma las cajas que llegaron de cada lote y entran a su inventario en piezas, con
 // el mismo lote y caducidad. Si llega algo distinto se pide el motivo y Almacén lo ve.
 @Component({
   selector: 'app-recepcion-farmacia',
-  imports: [FormsModule, DatePipe, Topbar, Sidebar],
+  imports: [MarcaSeguridad, FormsModule, DatePipe, Topbar, Sidebar],
   templateUrl: './recepcion-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css'],
 })

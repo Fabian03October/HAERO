@@ -4,7 +4,7 @@ import { AlmacenApi } from '../../almacen/almacen-api';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
 import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar } from '../../shared/sidebar/sidebar';
-import { MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen } from '../../almacen/rotacion-almacen';
+import { MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen, TIPO_ALERTA_TEXTO } from '../../almacen/rotacion-almacen';
 import { SUPERVISION_MENU } from '../supervision-nav';
 
 // Alertas que se muestran en el Inicio; el resto en la página de alertas.
@@ -24,6 +24,7 @@ export class PanelSupervision {
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   protected readonly mesesMinimo = MESES_STOCK_MINIMO;
   protected readonly mesesMaximo = MESES_STOCK_MAXIMO;
+  protected readonly tipoTexto = TIPO_ALERTA_TEXTO;
   readonly items = SUPERVISION_MENU;
 
   readonly fechaHoy = (() => {

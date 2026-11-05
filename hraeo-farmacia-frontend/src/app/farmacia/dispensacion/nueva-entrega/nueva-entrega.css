@@ -7,6 +7,7 @@
 .paciente small { color: #8c8a86; font-size: 12px; }
 .paciente .link { justify-self: start; padding-left: 0; }
 p.pendiente { margin: -8px 0 16px; }
+.ya-recibio { display: block; margin-top: 4px; padding: 6px 8px; border-radius: 6px; background: #fff3e2; color: #8a5a00; font-size: 11.5px; font-weight: 600; }
 
 .modos { margin-bottom: 8px; }
 .coincidencias { display: grid; gap: 6px; margin: -6px 0 16px; padding: 0; list-style: none; }

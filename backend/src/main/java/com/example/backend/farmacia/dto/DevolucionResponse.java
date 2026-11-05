@@ -20,4 +20,7 @@ public class DevolucionResponse {
     // RESTA (se resta en el día de la entrega) o DEVOLUCION ("Devolucion Farmacia" en el día de hoy).
     private String enResumen;
     private LocalDate diaResumen;
+    // Quién devolvió: el paciente de la entrega.
+    private String paciente;
+    private String expediente;
 }

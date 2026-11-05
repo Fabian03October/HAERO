@@ -81,6 +81,14 @@ public class ServicioDevoluciones {
         recetaRepository.findByFolioIgnoreCase(busqueda)
                 .ifPresent(r -> entregaRepository.findByRecetaIdOrderByFechaAsc(r.getId()).forEach(e -> encontradas.put(e.getId(), e)));
         entregaRepository.findTop20ByRecetaPacienteExpedienteOrderByFechaDesc(busqueda).forEach(e -> encontradas.put(e.getId(), e));
+        // También por CURP o por nombre del paciente (solo letras, para no confundirlo con un lote).
+        if (busqueda.length() == 18) {
+            entregaRepository.findTop20ByRecetaPacienteCurpIgnoreCaseOrderByFechaDesc(busqueda).forEach(e -> encontradas.putIfAbsent(e.getId(), e));
+        }
+        if (busqueda.matches("[\\p{L} ]{4,}")) {
+            entregaRepository.findTop20ByRecetaPacienteNombreContainingIgnoreCaseOrderByFechaDesc(busqueda)
+                    .forEach(e -> encontradas.putIfAbsent(e.getId(), e));
+        }
         List<Long> lotes = loteFarmaciaRepository.findByNumeroLoteIgnoreCase(busqueda).stream().map(l -> l.getId()).toList();
         if (!lotes.isEmpty()) {
             partidaEntregaRepository.findByLoteIdIn(lotes).stream()
@@ -169,7 +177,8 @@ public class ServicioDevoluciones {
         var lote = partida.getPartidaEntrega().getLote();
         return new DevolucionResponse(partida.getId(), devolucion.getEntrega().folio(), lote.getMedicamento().getClave(),
                 lote.getNumeroLote(), partida.getPiezas(), partida.isDanado(), devolucion.getFecha(),
-                devolucion.getEnResumen(), devolucion.getDiaResumen());
+                devolucion.getEnResumen(), devolucion.getDiaResumen(),
+                devolucion.getEntrega().getReceta().getPacienteNombre(), devolucion.getEntrega().getReceta().getPacienteExpediente());
     }
 
     static EntregaEncontradaResponse aRespuesta(Entrega entrega) {

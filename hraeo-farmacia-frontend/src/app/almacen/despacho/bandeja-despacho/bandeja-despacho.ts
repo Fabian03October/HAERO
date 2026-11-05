@@ -13,7 +13,8 @@ import {
 } from '../../almacen-api';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../../solicitudes-almacen';
 import { RotacionAlmacen } from '../../rotacion-almacen';
-import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 interface RenglonDespacho extends Existencia {
   aDespachar: number;
@@ -25,7 +26,7 @@ interface RenglonDespacho extends Existencia {
 // de lotes posteriores se muestra en vivo, pero quien valida al confirmar es el backend.
 @Component({
   selector: 'app-bandeja-despacho',
-  imports: [FormsModule, DatePipe],
+  imports: [MarcaSeguridad, FormsModule, DatePipe],
   templateUrl: './bandeja-despacho.html',
   styleUrls: ['../../recepcion-almacen/recepcion-comun.css', '../despacho-comun.css', './bandeja-despacho.css'],
 })

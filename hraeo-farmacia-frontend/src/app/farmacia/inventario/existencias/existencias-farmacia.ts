@@ -7,6 +7,9 @@ import { leerGs1 } from '../../../shared/gs1';
 import { mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { FarmaciaApi, LoteFarmacia } from '../../farmacia-api';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
+import { descargarCsv, hoyIso } from '../../../shared/csv';
+import { CajasQuirofano, PiezasEnCaja } from '../../cajas-quirofano/cajas-quirofano';
 
 // Meses hacia adelante para considerar un lote "próximo a caducar", igual que en Almacén.
 const MESES_ALERTA_CADUCIDAD = 9;
@@ -17,7 +20,7 @@ type Filtro = '' | 'FEFO' | 'POR_CADUCAR' | 'VENCIDO';
 // y la recepción (HU26); el backend calcula el lote que sale primero, los por caducar y los vencidos.
 @Component({
   selector: 'app-existencias-farmacia',
-  imports: [FormsModule, Topbar, Sidebar],
+  imports: [MarcaSeguridad, FormsModule, Topbar, Sidebar],
   templateUrl: './existencias-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './existencias-farmacia.css'],
 })
@@ -39,7 +42,50 @@ export class ExistenciasFarmacia {
     [...this.lotes()].sort((a, b) => a.clave.localeCompare(b.clave) || a.caducidad.localeCompare(b.caducidad)),
   );
 
+  /** Reporte para Supervisión: en Farmacia no debería caducar nada, porque todo es para pacientes. */
+  descargarProximosACaducar(): void {
+    const hoy = Date.now();
+    const dias = (caducidad: string) => Math.ceil((new Date(caducidad).getTime() - hoy) / 86400000);
+    const filas: (string | number)[][] = this.lotesConEstado()
+      .filter((l) => l.piezas > 0 && (l.porCaducar || l.estado === 'VENCIDO'))
+      .map((l) => [
+        l.clave, l.medicamento, l.lote, l.caducidad, dias(l.caducidad),
+        l.piezas, l.estado === 'VENCIDO' ? 'Vencido' : l.estado === 'FEFO' ? 'Sale primero' : 'En espera', 'Estante',
+      ]);
+    // También lo que está dentro de las cajas de quirófano.
+    for (const l of this.enCajas().filter((c) => this.porCaducar(c.caducidad) || this.vencido(c.caducidad))) {
+      filas.push([l.clave, l.medicamento, l.lote, l.caducidad, dias(l.caducidad), l.piezas, this.vencido(l.caducidad) ? 'Vencido' : 'Por caducar', l.cajas.join(' · ')]);
+    }
+    filas.sort((a, b) => String(a[3]).localeCompare(String(b[3])));
+    descargarCsv(
+      `farmacia-proximos-a-caducar-${hoyIso()}.csv`,
+      `Farmacia · próximos a caducar (${MESES_ALERTA_CADUCIDAD} meses) y vencidos · ${hoyIso()}`,
+      ['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Días para caducar', 'Piezas', 'Estado', 'Dónde está'],
+      filas,
+    );
+  }
+
+  // ---------- Lo que está dentro de las cajas de quirófano ----------
+  readonly enCajas = signal<PiezasEnCaja[]>([]);
+  readonly piezasEnCajas = computed(() => this.enCajas().reduce((t, l) => t + l.piezas, 0));
+  readonly enCajasPorCaducar = computed(() => this.enCajas().filter((l) => this.porCaducar(l.caducidad) || this.vencido(l.caducidad)).length);
+  private readonly hoy = hoyIso();
+  private readonly limiteCaducidad = (() => {
+    const fecha = new Date();
+    fecha.setMonth(fecha.getMonth() + MESES_ALERTA_CADUCIDAD);
+    return fecha.toISOString().slice(0, 10);
+  })();
+
+  vencido(caducidad: string): boolean {
+    return caducidad < this.hoy;
+  }
+
+  porCaducar(caducidad: string): boolean {
+    return caducidad >= this.hoy && caducidad <= this.limiteCaducidad;
+  }
+
   constructor() {
+    inject(CajasQuirofano).enCajas().subscribe({ next: (lista) => this.enCajas.set(lista), error: () => this.enCajas.set([]) });
     inject(FarmaciaApi).existencias().subscribe({
       next: (lotes) => {
         this.lotes.set(lotes);

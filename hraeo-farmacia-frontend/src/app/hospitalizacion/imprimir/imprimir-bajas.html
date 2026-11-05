@@ -28,9 +28,9 @@
     <div class="referencia">
       @if (h.paciente) {
         <div><b>Referencia:</b> {{ h.paciente }}</div>
-        <div><b>Concepto:</b> Cama {{ h.cama }} · {{ h.area }} · Exp. {{ h.expediente }}</div>
+        <div><b>Concepto:</b> {{ h.cama ? 'Cama ' + h.cama + ' · ' : '' }}{{ nombreArea(h.area) }} · Exp. {{ h.expediente }}</div>
       } @else {
-        <div><b>Referencia:</b> Hospitalización {{ h.area }}</div>
+        <div><b>Referencia:</b> {{ nombreArea(h.area) }}</div>
         <div><b>Concepto:</b> Baja por volumen · el detalle por paciente está en HAERO</div>
       }
       <div><b>Observaciones:</b> {{ h.observaciones }}</div>
@@ -90,6 +90,6 @@
   </section>
 } @empty {
   @if (!cargando() && !error()) {
-    <p class="vacio no-imprimir">No hay hojas de baja: termina el carrito para generarlas.</p>
+    <p class="vacio no-imprimir">No hay hojas de baja: termina el carrito (o el día de Quimioterapia o Quirófano) para generarlas.</p>
   }
 }

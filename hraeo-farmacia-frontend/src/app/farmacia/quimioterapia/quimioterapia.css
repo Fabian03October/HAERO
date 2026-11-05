@@ -1,0 +1,66 @@
+/* Farmacia · Quimioterapia */
+td.nombre { white-space: normal; min-width: 200px; }
+textarea { width: 100%; min-height: 90px; padding: 10px 12px; border: 1px solid #ddd4c8; border-radius: 8px; font: inherit; font-size: 13px; resize: vertical; box-sizing: border-box; }
+.paciente-ok { padding: 12px 14px; border-radius: 10px; background: #e8f5ea; }
+.paciente-mal { padding: 12px 14px; border-radius: 10px; background: #fdecea; }
+.paciente-ok strong, .paciente-mal strong { display: block; font-size: 14px; }
+.paciente-ok small, .paciente-mal small { color: #6f7271; font-size: 12px; }
+.coincidencias { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.coincidencias button { width: 100%; padding: 8px 12px; border: 1px solid #e4ddd3; border-radius: 8px; background: #fff; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.coincidencias button:hover { border-color: #611232; }
+.texto-medico { display: block; margin-top: 3px; color: #8c8a86; font-size: 11px; font-style: italic; white-space: normal; }
+.alternativa { display: block; margin-top: 3px; color: #9a651c; font-size: 11px; }
+tr.activo td { background: #f6e9ed; }
+tr.listo td:first-child { box-shadow: inset 4px 0 0 #1c7c3c; }
+.check { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 13px; }
+.paso { margin-top: 16px; }
+tr.falta td { background: #fff8ec; }
+.baja-dia { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.baja-dia > div:first-child { display: grid; gap: 2px; }
+.baja-dia small { color: #6f7271; font-size: 12px; }
+.baja-dia .acciones { align-items: center; }
+.sin-existencia { display: block; margin-top: 3px; color: #b3261e; font-size: 11px; font-weight: 600; }
+.alternativa-usada { display: block; font-size: 12px; }
+.celda.motivo { margin-top: 6px; }
+.sobrante { align-items: center; margin-top: 6px; }
+.sobrante small { white-space: nowrap; color: #9a651c; font-weight: 600; }
+
+/* Solicitudes de Oncología leídas de Intelisis */
+.hero-quimio { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.lectura { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #e4ddd3; border-radius: 12px; background: #faf8f4; font-size: 12px; }
+.lectura strong { display: block; color: #2b2b2b; font-size: 13px; }
+.lectura small { color: #6f7271; }
+.punto { width: 10px; height: 10px; border-radius: 50%; background: #c9c3b9; flex: none; }
+.punto.ok { background: #1c7c3c; box-shadow: 0 0 0 3px #e8f5ea; }
+.punto.mal { background: #b3261e; box-shadow: 0 0 0 3px #fdecea; }
+.buscar-solicitud { display: flex; gap: 8px; margin-bottom: 12px; }
+.buscar-solicitud input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #ddd4c8; border-radius: 8px; font: inherit; }
+.filtros { margin-bottom: 12px; }
+tr.fila-solicitud { cursor: pointer; }
+tr.fila-solicitud:hover td { background: #f6e9ed; }
+.estado { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #fff3dd; color: #9a651c; font-size: 11px; font-weight: 700; }
+.estado.ok { background: #e8f5ea; color: #1c7c3c; }
+.datos-solicitud { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 18px; margin: 0; padding: 14px; border-radius: 10px; background: #faf8f4; }
+.datos-solicitud div { min-width: 0; }
+.datos-solicitud .ancho { grid-column: 1 / -1; }
+.datos-solicitud dt { color: #8c8a86; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.datos-solicitud dd { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.multilinea, .nota-medico { white-space: pre-wrap; }
+.nota-medico { margin: 0; max-height: 320px; overflow: auto; padding: 12px 14px; border: 1px solid #e4ddd3; border-radius: 8px; background: #fffdf8; font: inherit; font-size: 13px; line-height: 1.5; }
+.ciclo-anterior { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; padding: 12px 14px; border-radius: 10px; background: #eef4fb; }
+.ciclo-anterior strong { display: block; font-size: 13px; }
+.ciclo-anterior small { color: #4a5563; font-size: 12px; }
+.sugerencias { display: grid; gap: 10px; margin: 14px 0 18px; }
+.sugerencia { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: 10px; padding: 10px 12px; border: 1px solid #e4ddd3; border-radius: 10px; }
+.sugerencia-texto small { display: block; margin-top: 3px; color: #8c8a86; font-size: 11px; font-style: italic; overflow-wrap: anywhere; }
+.claves-sugeridas { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.clave-sugerida { display: grid; gap: 1px; max-width: 240px; padding: 7px 10px; border: 1px solid #ddd4c8; border-radius: 8px; background: #fff; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.clave-sugerida:hover:not(:disabled) { border-color: #611232; background: #f6e9ed; }
+.clave-sugerida span { color: #4a4a4a; overflow-wrap: anywhere; }
+.clave-sugerida small { color: #1c7c3c; font-size: 11px; font-weight: 600; }
+.clave-sugerida.sin-piezas small { color: #b3261e; }
+.clave-sugerida.agregada { border-color: #1c7c3c; background: #e8f5ea; cursor: default; }
+@media (max-width: 720px) {
+  .sugerencia { grid-template-columns: 1fr; }
+  .buscar-solicitud { flex-direction: column; }
+}

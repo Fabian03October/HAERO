@@ -49,7 +49,7 @@
         <div>
           <p class="eyebrow">{{ folio(actual.id) }} · {{ actual.fecha | date: 'dd/MM/yyyy HH:mm' }}</p>
           <h2>{{ actual.nombreGenerico || 'Clave ' + actual.clave }}</h2>
-          <p class="card-help">Clave {{ actual.clave }} · Solicitud de Farmacia</p>
+          <p class="card-help">Clave {{ actual.clave }} · Solicitud de Farmacia <app-marca-seguridad [clave]="actual.clave" /></p>
         </div>
         <div class="quantity">
           <strong>{{ porSurtir() }}</strong>

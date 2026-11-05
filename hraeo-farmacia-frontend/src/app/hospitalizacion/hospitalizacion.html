@@ -229,7 +229,7 @@
                       <div class="confirmar-cabecera">
                         <div>
                           <p class="eyebrow">Meter al carrito</p>
-                          <strong>{{ e.medicamento }}</strong>
+                          <strong>{{ e.medicamento }}</strong> <app-marca-seguridad [clave]="e.clave" />
                           <small class="sub">{{ e.clave }} · {{ e.lote ? 'lote ' + e.lote + ' (del código)' : 'lote que caduca primero' }}</small>
                         </div>
                         <button class="link" type="button" (click)="cancelarSurtido()">Cancelar</button>

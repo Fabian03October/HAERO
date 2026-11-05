@@ -8,6 +8,11 @@
 .buscar { flex-grow: 1; min-width: 220px; max-width: 380px; padding: 9px 12px; border: 1px solid #ddd4c8; border-radius: 8px; font: inherit; font-size: 13px; }
 .buscar:focus { outline: 0; border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
 
+/* Devoluciones: el paciente de la entrega, bien visible. */
+.paciente-devuelve { display: grid; gap: 2px; margin: 12px 0; padding: 12px 14px; border-left: 4px solid #9f2241; border-radius: 10px; background: #f6e9ed; }
+.paciente-devuelve strong { color: #611232; font-size: 16px; }
+.paciente-devuelve small { color: #6f7271; font-size: 12px; }
+
 .scanner { display: flex; gap: 8px; margin-bottom: 12px; }
 .scanner input { flex-grow: 1; min-width: 0; padding: 11px 12px; border: 1px solid #ddd4c8; border-radius: 8px; font: inherit; font-size: 14px; }
 .scanner input:focus { outline: 0; border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }

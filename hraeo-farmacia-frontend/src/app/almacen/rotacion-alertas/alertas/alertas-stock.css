@@ -47,7 +47,8 @@
 }
 
 /* Resumen: desabasto, sobreabasto y caducidad próxima como tarjetas que abren su lista. */
-.alert-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.alert-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+td small.merma { display: block; color: #b3261e; font-size: 11px; font-weight: 600; }
 
 .alert-card {
   --acento: #a9463e;

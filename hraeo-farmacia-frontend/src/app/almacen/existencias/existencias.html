@@ -4,16 +4,167 @@
   <p>Consulta en qué ubicación está cada lote para saber de dónde tomarlo al despachar.</p>
 </header>
 
+<!-- Inventario general: activos y caducados. Los caducados no se borran: siguen siendo bienes del hospital. -->
+<div class="inventario-general">
+  <button type="button" class="resumen-inv" [class.active]="vistaInventario() === 'ACTIVOS'" (click)="vistaInventario.set('ACTIVOS')">
+    <span class="eyebrow">Activos</span>
+    <strong>{{ cajasActivas() }}</strong>
+    <small>cajas vigentes · {{ gruposActivos().length }} lotes</small>
+  </button>
+  <button type="button" class="resumen-inv caducados" [class.active]="vistaInventario() === 'CADUCADOS'" (click)="vistaInventario.set('CADUCADOS')">
+    <span class="eyebrow">Caducados</span>
+    <strong>{{ cajasCaducadas() }}</strong>
+    <small>cajas · {{ gruposVencidos().length }} por apartar · {{ caducados().length }} apartados</small>
+  </button>
+  <div class="resumen-inv total">
+    <span class="eyebrow">Inventario general</span>
+    <strong>{{ cajasActivas() + cajasCaducadas() }}</strong>
+    <small>cajas en total</small>
+  </div>
+  <div class="reportes">
+    <span class="eyebrow">Reportes (Excel)</span>
+    <button type="button" class="link-button" (click)="descargarProximosACaducar()">Próximos a caducar</button>
+    <button type="button" class="link-button" [disabled]="generandoReporte()" (click)="descargarReporteLotes()">{{ generandoReporte() ? 'Generando…' : 'Por lote: llegaron y quedan' }}</button>
+  </div>
+</div>
+
+@if (vistaInventario() === 'CADUCADOS') {
+  <section class="card">
+    <div class="card-heading">
+      <div>
+        <p class="eyebrow">No se borran del inventario</p>
+        <h2>Caducados</h2>
+      </div>
+    </div>
+    <div class="filters">
+      <input [ngModel]="filtroClave()" (ngModelChange)="filtroClave.set($event)" placeholder="Clave o medicamento" />
+      <input [ngModel]="filtroLote()" (ngModelChange)="filtroLote.set($event)" placeholder="Lote" />
+    </div>
+    <p class="card-help">Los medicamentos caducados siguen siendo bienes del hospital. Salen del inventario solo con la baja definitiva (la empresa los recoge y se levanta el acta ante las autoridades). Mientras tanto no se despachan.</p>
+
+    @if (gruposVencidos().length) {
+      <h3 class="subtitulo">Vencidos por apartar ({{ gruposVencidos().length }})</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Ubicaciones</th><th class="number">Cajas</th><th></th></tr></thead>
+          <tbody>
+            @for (grupo of gruposVencidos(); track grupo.clave + grupo.lote) {
+              <tr class="expired">
+                <td><strong>{{ grupo.clave }}</strong><small>{{ grupo.medicamento || 'Sin nombre en catálogo' }}</small></td>
+                <td>{{ grupo.lote }}</td>
+                <td>{{ formatoCaducidad(grupo.caducidad) }}</td>
+                <td>@for (u of grupo.ubicaciones; track $index) { <small>{{ u.ubicacion }} ({{ u.cajas }})</small> }</td>
+                <td class="number total">{{ grupo.total }}</td>
+                <td>
+                  @if (!soloLectura) {
+                    <a class="status cancelado" routerLink="/almacen/movimientos-especiales/caducados">Apartar</a>
+                  } @else {
+                    <span class="status cancelado">Por apartar</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <h3 class="subtitulo">Apartados ({{ caducados().length }})</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>@if (!soloLectura) { <th>Baja</th> }<th>Clave</th><th>Lote</th><th>Caducidad</th><th>Proveedor</th><th>Ubicaciones</th><th class="number">Cajas</th><th>Apartado</th></tr></thead>
+        <tbody>
+          @for (c of caducados(); track c.loteId) {
+            <tr>
+              @if (!soloLectura) {
+                <td><input type="checkbox" [checked]="paraBaja().has(c.loteId)" (change)="alternarParaBaja(c.loteId, $any($event.target).checked)" [attr.aria-label]="'Incluir el lote ' + c.numeroLote + ' en la baja definitiva'" /></td>
+              }
+              <td><strong>{{ c.clave }}</strong><small>{{ c.nombreGenerico }}</small></td>
+              <td>{{ c.numeroLote }}</td>
+              <td>{{ formatoCaducidad(c.caducidad) }}</td>
+              <td>{{ c.proveedor }}</td>
+              <td>@for (u of c.ubicaciones; track $index) { <small>{{ u.ubicacion }} ({{ u.cajas }})</small> }</td>
+              <td class="number total">{{ c.cajas }}</td>
+              <td>{{ c.fechaApartado | date: 'dd/MM/yyyy' }}<small>{{ c.usuario }}</small></td>
+            </tr>
+          } @empty {
+            <tr><td [attr.colspan]="soloLectura ? 7 : 8" class="empty">No hay lotes apartados en caducados.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (mensaje()) {
+      <div class="message" [class.error]="tipoMensaje() === 'error'" [class.success]="tipoMensaje() === 'success'">{{ mensaje() }}</div>
+    }
+
+    @if (!soloLectura && caducados().length) {
+      <form class="captura" (ngSubmit)="registrarBajaDefinitiva()">
+        <div class="captura-cabecera">
+          <div>
+            <p class="eyebrow">Baja definitiva</p>
+            <strong>La empresa recogió los caducados</strong>
+            <small>Marca arriba los lotes que se llevó: {{ paraBaja().size }} lotes · {{ cajasParaBaja() }} cajas. Al registrarlo salen del inventario.</small>
+          </div>
+        </div>
+        <div class="captura-campos">
+          <label>Folio del acta
+            <input name="folioActa" maxlength="60" [ngModel]="folioActa()" (ngModelChange)="folioActa.set($event)" />
+          </label>
+          <label class="ancho">Empresa que los recogió
+            <input name="empresa" maxlength="150" [ngModel]="empresaBaja()" (ngModelChange)="empresaBaja.set($event)" />
+          </label>
+          <label>Fecha de recolección
+            <input name="fechaRecoleccion" type="date" [max]="hoy" [ngModel]="fechaRecoleccion()" (ngModelChange)="fechaRecoleccion.set($event)" />
+          </label>
+          <label class="ancho">Observaciones (opcional)
+            <input name="observaciones" maxlength="500" [ngModel]="observacionesBaja()" (ngModelChange)="observacionesBaja.set($event)" />
+          </label>
+          <label class="ancho">Acta en PDF
+            <input name="acta" type="file" accept="application/pdf" (change)="elegirActa($event)" />
+          </label>
+        </div>
+        @if (faltaParaBaja().length) {
+          <p class="captura-aviso">Falta: {{ faltaParaBaja().join(', ') }}.</p>
+        }
+        <button class="primary-button" type="submit" [disabled]="faltaParaBaja().length > 0 || guardandoBaja()">
+          {{ guardandoBaja() ? 'Guardando…' : 'Registrar baja definitiva' }}
+        </button>
+      </form>
+    }
+
+    <h3 class="subtitulo">Bajas definitivas ({{ bajasDefinitivas().length }})</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Acta</th><th>Empresa</th><th>Recolección</th><th>Lotes</th><th class="number">Cajas</th><th>Registró</th></tr></thead>
+        <tbody>
+          @for (b of bajasDefinitivas(); track b.id) {
+            <tr>
+              <td><strong>{{ b.folioActa }}</strong><button type="button" class="link-button" (click)="verActa(b.id)">Ver acta</button></td>
+              <td>{{ b.empresa }}@if (b.observaciones) { <small>{{ b.observaciones }}</small> }</td>
+              <td>{{ formatoCaducidad(b.fechaRecoleccion) }}</td>
+              <td>@for (l of b.lotes; track l.loteId) { <small>{{ l.clave }} · lote {{ l.numeroLote }} ({{ l.cajas }})</small> }</td>
+              <td class="number total">{{ cajasDe(b) }}</td>
+              <td>{{ b.usuario }}<small>{{ b.fecha | date: 'dd/MM/yyyy HH:mm' }}</small></td>
+            </tr>
+          } @empty {
+            <tr><td colspan="6" class="empty">Todavía no hay bajas definitivas.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+} @else {
 <section class="card">
   <div class="card-heading">
     <div>
       <p class="eyebrow">Control por ubicación</p>
-      <h2>Lotes en almacén</h2>
+      <h2>Lotes activos en almacén</h2>
     </div>
     <div class="counters">
-      <span>{{ inventario.lotes().length }} registros</span>
+      <span>{{ gruposActivos().length }} lotes</span>
       <span>{{ ubicaciones().length }} ubicaciones</span>
-      <span>{{ inventario.totalCajas() }} cajas</span>
+      <span>{{ cajasActivas() }} cajas</span>
       <button type="button" class="link-button" [disabled]="inventario.cargando()" (click)="inventario.recargar()">Actualizar</button>
     </div>
   </div>
@@ -99,12 +250,12 @@
         </tr>
       </thead>
       <tbody>
-        @for (grupo of grupos(); track grupo.clave + grupo.lote) {
+        @for (grupo of gruposActivos(); track grupo.clave + grupo.lote) {
           @for (renglon of grupo.ubicaciones; track $index; let primero = $first) {
             <tr [class.group-start]="primero" [class.expired]="grupo.vencido">
               @if (primero) {
                 <td [attr.rowspan]="grupo.ubicaciones.length">
-                  <strong>{{ grupo.clave }}</strong><small>{{ grupo.medicamento || 'Sin nombre en catálogo' }}</small>
+                  <strong>{{ grupo.clave }}</strong><small>{{ grupo.medicamento || 'Sin nombre en catálogo' }}</small><app-marca-seguridad [clave]="grupo.clave" />
                 </td>
                 <td [attr.rowspan]="grupo.ubicaciones.length">
                   {{ grupo.lote }}
@@ -153,8 +304,9 @@
       </tbody>
     </table>
   </div>
-  <p class="card-help">Un lote puede estar repartido en varias ubicaciones. Al despachar, las cajas se descuentan de la ubicación elegida, no del total.</p>
+  <p class="card-help">Un lote puede estar repartido en varias ubicaciones. Al despachar, las cajas se descuentan de la ubicación elegida, no del total. Los lotes vencidos están en la pestaña Caducados.</p>
 </section>
+}
 
 <section class="card">
   <div class="card-heading">

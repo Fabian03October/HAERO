@@ -7,6 +7,7 @@ import { leerGs1 } from '../../../shared/gs1';
 import { mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { Devolucion, EntregaEncontrada as EntregaApi, FarmaciaApi } from '../../farmacia-api';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 // Partida de una entrega que se puede devolver (HU34).
 interface PartidaEntregada {
@@ -28,6 +29,7 @@ interface EntregaEncontrada {
   expediente: string | null;
   paciente: string;
   fecha: string;
+  despachador: string;
   partidas: PartidaEntregada[];
 }
 
@@ -39,6 +41,8 @@ interface DevolucionRegistrada {
   piezas: number;
   danado: boolean;
   hora: string;
+  paciente: string;
+  expediente: string | null;
 }
 
 // Farmacia · Devoluciones (HU34). La entrega se busca por su folio, el de la receta, el
@@ -46,7 +50,7 @@ interface DevolucionRegistrada {
 // como merma (HU35).
 @Component({
   selector: 'app-devoluciones',
-  imports: [FormsModule, Topbar, Sidebar],
+  imports: [MarcaSeguridad, FormsModule, Topbar, Sidebar],
   templateUrl: './devoluciones.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css'],
 })
@@ -149,6 +153,7 @@ export class Devoluciones {
       expediente: entrega.expediente,
       paciente: entrega.paciente,
       fecha: new Date(entrega.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }),
+      despachador: entrega.despachador,
       // Solo lo que todavía se puede devolver de cada lote.
       partidas: entrega.partidas.map((p) => ({
         partidaId: p.partidaId,
@@ -198,6 +203,8 @@ export class Devoluciones {
       piezas: devolucion.piezas,
       danado: devolucion.danado,
       hora: new Date(devolucion.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      paciente: devolucion.paciente,
+      expediente: devolucion.expediente,
     };
   }
 

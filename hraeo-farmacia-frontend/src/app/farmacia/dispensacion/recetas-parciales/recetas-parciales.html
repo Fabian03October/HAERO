@@ -78,7 +78,7 @@
                   @for (item of receta.claves; track item.clave) {
                     <li>
                       <div class="clave-top">
-                        <strong>{{ item.clave }}</strong>
+                        <strong>{{ item.clave }}</strong> <app-marca-seguridad [clave]="item.clave" />
                         @if (item.noDispensada) {
                           <span class="estado NO_DISPENSADA">No dispensada</span>
                         } @else {
@@ -111,7 +111,7 @@
                 <ul class="order-list">
                   @for (item of clavesMasPendientes(); track item.clave) {
                     <li>
-                      <div class="order-top"><strong>{{ item.clave }}</strong><span>{{ item.piezas }} piezas</span></div>
+                      <div class="order-top"><strong>{{ item.clave }}</strong> <app-marca-seguridad [clave]="item.clave" /><span>{{ item.piezas }} piezas</span></div>
                       <small>{{ item.medicamento }} · {{ item.recetas }} {{ item.recetas === 1 ? 'receta' : 'recetas' }}</small>
                     </li>
                   }

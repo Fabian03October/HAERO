@@ -31,6 +31,7 @@ export class BajaIntelisis {
   readonly resumen = computed(() => this.corte()?.consumo ?? []);
   readonly devolucionesPosteriores = computed(() => this.corte()?.devoluciones ?? []);
   readonly bajas = computed(() => this.corte()?.bajas ?? []);
+  readonly areas = computed(() => this.corte()?.areas ?? []);
   readonly verificacion = signal<RenglonVerificacion[]>([]);
   readonly sincronizadoEn = signal<string | null>(null);
   readonly diasPendientes = computed(() => this.corte()?.diasPendientes ?? []);

@@ -15,51 +15,64 @@ en Almacén módulo de Almacén)
 Prioridad en el negocio: Alta Riesgo en desarrollo: Medio
 Puntos asignados: 5 Iteración asignada: Iteración 2
 Responsable: Fabian de Jesús Jiménez Castillejos
-Detalle: Como despachador de Almacén, quiero registrar la entrada de un lote de medicamento confirmando con un
-disparo de la pistola lectora de código de barras los datos que el sistema ya tiene precargados del pedido (clave,
-proveedor y cantidad esperada), y completando solo número de lote, caducidad, cantidad recibida en cajas y
-ubicación física, para llevar el control del inventario que hoy se hace en un Excel/Drive compartido. En esta iteración
-la validación automática contra el sistema de Contratos queda fuera de alcance y se contempla para una iteración
-posterior.
+Detalle: Como despachador de Almacén, quiero registrar la entrada de una caja de medicamento escaneándola con la
+pistola lectora (o la cámara) y eligiendo el registro que Intelisis ya tiene de esa entrada (compra con su pedido y
+contrato, donación o traspaso), indicando solo la ubicación física y las cajas que conté, para no volver a teclear lote
+ni caducidad y que lo recibido en Almacén quede ligado a lo que registró Intelisis. Intelisis (el ERP del hospital) es la
+fuente de los datos y solo se consulta; HAERO nunca escribe en él.
 Criterios de
 aceptación
-CA1 El despachador puede registrar una entrada escaneando el código de barras de la caja; el
-sistema identifica la clave y el proveedor y precarga los datos del pedido, y el despachador
-confirma lote, cantidad en cajas, caducidad y una o varias ubicaciones donde se coloca el
-lote.
-CA2 El sistema no permite guardar una entrada sin los campos obligatorios (clave, lote,
-cantidad, caducidad).
-
+CA1 El despachador escanea la caja; el sistema identifica la clave por su código de barras y
+muestra los registros de entrada de Intelisis de esa clave (compras "Ent. Compra Farmacia",
+donaciones FONSABI y Farmacia, y traspasos IMSS de los últimos 90 días). El despachador
+elige uno y solo captura una o varias ubicaciones y las cajas que contó.
+CA2 Lote, caducidad, proveedor, pedido y contrato se toman del registro de Intelisis y no se
+teclean. Si la caja trae un código GS1 (DataMatrix) con lote, el sistema elige solo el registro
+de ese lote y avisa si el lote de la caja no está en Intelisis.
 CA3 La cantidad se maneja en la presentación de compra (caja) tal como llega, no en unidades
-sueltas ni en unidosis.
-CA4 Cada entrada queda asociada al usuario que la registró y a la fecha y hora del registro.
-CA5 El código de barras del lote, si se captura, se guarda asociado a ese lote específico y no a
-la clave del medicamento, ya que una misma clave puede tener hasta cinco proveedores
-distintos, cada uno con su propio código.
-Nota: HU10 se actualizó conforme a la observación de que el despachador solo confirma los datos precargados con
-un disparo de la pistola lectora.
+sueltas ni en unidosis. Si las cajas contadas no coinciden con Intelisis, la diferencia se
+muestra y queda registrada en el lote.
+CA4 Cada entrada queda asociada al usuario que la registró, a la fecha y hora, y guarda una
+"foto" del registro de Intelisis (movimiento, lote, caducidad, piezas y cajas, contrato) que no
+cambia aunque Intelisis cambie después, para la trazabilidad.
+CA5 El código de barras se asocia a la clave una sola vez, la primera vez que se recibe esa
+caja; desde ahí se reconoce solo. Una clave con código de barras queda "dada de alta" en
+HAERO.
+CA6 No se puede recibir: lo que Intelisis todavía no tiene capturado, una clave que no está en
+el catálogo de Intelisis, un pedido o partida cancelados en Intelisis, ni el mismo registro de
+Intelisis dos veces.
+Nota: HU10 se actualizó con el diseño aprobado de la integración con Intelisis (octubre de 2026): el despachador ya
+no captura lote ni caducidad, los elige del registro de Intelisis. Se eliminó la entrada "sin pedido" con motivo manual:
+el motivo sale del movimiento de Intelisis (donación o traspaso).
+Nota de implementación: cada código de barras se asocia a la clave y al proveedor (tabla codigo_barras), no a un
+lote, para que una caja se reconozca aunque llegue en un lote nuevo; el lote de cada entrada queda en la tabla lote
+con su foto de Intelisis.
 Historia de usuario
 Número: HU11 Usuario: ENCARGADA / DESPACHADOR DE
 ALMACÉN
-Nombre de la historia: Marcar un pedido como Dependencia para su desarrollo: HU10
-cancelado
+Nombre de la historia: Consulta de pedidos y Dependencia para su desarrollo: HU10, HU22
+partidas cancelados
 Prioridad en el negocio: Media Riesgo en desarrollo: Bajo
 Puntos asignados: 2 Iteración asignada: Iteración 2
 Responsable: Fabian de Jesús Jiménez Castillejos
-Detalle: Como encargada de Almacén, quiero marcar manualmente un pedido como cancelado cuando el nivel
-central (FONSABI) me notifique que fue cancelado, para evitar que el despachador intente recibirlo por error. El
-aviso de cancelación se recibe hoy por fuera del sistema (correo o llamada); no se contempla en esta iteración una
-integración automática con la plataforma central.
+Detalle: Como encargada de Almacén, quiero ver qué pedidos o partidas se cancelaron en Intelisis y recibir un aviso
+cuando pase, para que el despachador no reciba por error medicamento de un pedido cancelado. La cancelación se
+hace en Intelisis; en HAERO solo se consulta y se avisa.
 Criterios de aceptación
-CA1 Un usuario de Almacén con permiso puede cambiar
-el estatus de un pedido registrado a “cancelado”,
-indicando el motivo.
-CA2 Un pedido marcado como cancelado no puede
-seleccionarse al registrar una entrada (HU10).
-CA3 Si se intenta recibir un pedido cancelado, el sistema
-muestra un aviso y no permite continuar.
-CA4 El cambio de estatus queda registrado con fecha,
-hora y usuario que lo realizó.
+CA1 El sistema muestra los pedidos cancelados en
+Intelisis ("no recibir") y, por separado, las partidas
+canceladas de pedidos vigentes, con cuántas cajas
+canceló Intelisis y cuántas había recibido HAERO.
+CA2 Cuando la sincronización detecta que Intelisis
+canceló un pedido o una partida, se genera un aviso
+"por revisar" para Almacén y Supervisión.
+CA3 Si se intenta recibir algo de un pedido o partida
+cancelados (HU10), el sistema muestra el motivo y no
+permite continuar.
+CA4 Almacén no puede cancelar ni modificar pedidos en
+HAERO; lo que ya recibió físicamente se conserva.
+Nota: HU11 se actualizó con el diseño aprobado de la integración con Intelisis (octubre de 2026): antes Almacén
+marcaba la cancelación a mano; ahora viene de Intelisis y la historia pasa a ser de consulta y avisos.
 Historia de usuario
 Número: HU12 Usuario: DESPACHADOR DE ALMACÉN
 
@@ -82,6 +95,9 @@ CA3 Al registrar una salida (HU14), el descuento se
 aplica sobre la ubicación específica elegida y no
 sobre el total del lote.
 CA4 La consulta permite filtrar por clave, lote o ubicación.
+CA5 Cada lote muestra de qué registro de Intelisis salió
+(compra, donación, traspaso o existencia del alta
+inicial) y la fecha en que entró a HAERO.
 Historia de usuario
 Número: HU13 Usuario: PERSONAL DE FARMACIA
 Nombre de la historia: Solicitud de medicamento de Dependencia para su desarrollo: HU02 (acceso al
@@ -100,11 +116,17 @@ clave y cantidad solicitada; el sistema registra
 automáticamente fecha y quién la generó.
 CA2 La solicitud queda visible para Almacén con estatus
 “pendiente” hasta que sea atendida.
-CA3 Farmacia puede consultar el estatus de sus
-solicitudes (pendiente, atendida).
+CA3 Farmacia puede consultar el estatus de las solicitudes del área
+(pendiente, parcial, atendida) e identificar quién generó cada una.
+Nota: se cambió de "sus solicitudes" a "las del área" para que, en cambio de turno, cualquier persona de
+Farmacia vea lo pendiente y no se pida dos veces lo mismo.
 CA4 Una solicitud no modifica el inventario de Almacén
 por sí sola; el descuento ocurre hasta que Almacén
 la valida (HU14).
+CA5 Farmacia solo puede solicitar claves dadas de alta
+en HAERO (con código de barras, HU10 CA5); las
+demás claves del catálogo de Intelisis no aparecen
+para solicitar.
 Historia de usuario
 Número: HU14 Usuario: DESPACHADOR DE ALMACÉN
 Nombre de la historia: Validación y despacho de Dependencia para su desarrollo: HU12, HU13
@@ -179,6 +201,8 @@ CA4 El cálculo excluye del consumo los movimientos que
 no son salidas normales a Farmacia (por ejemplo,
 préstamos, transferencias o bajas por caducidad),
 para no distorsionar la rotación real.
+Nota: al quitar la carga por Excel (HU21) ya no hay "CPM de la hoja" como respaldo. Mientras una clave no tenga
+salidas a Farmacia registradas en HAERO aparece como "sin consumo" y no genera alertas de stock (HU17).
 Historia de usuario
 Número: HU17 Usuario: ENCARGADA DE ALMACÉN /
 SUPERVISIÓN
@@ -282,47 +306,118 @@ parte del historial del movimiento.
 4. Historias propuestas (por validar con la encargada de Almacén)
 Historia de usuario
 Número: HU21 (propuesta) Usuario: ENCARGADA DE ALMACÉN
-Nombre de la historia: Carga inicial de inventario Dependencia para su desarrollo: HU01
+Nombre de la historia: Alta inicial del inventario Dependencia para su desarrollo: HU01, HU10, HU23
 Prioridad en el negocio: Alta Riesgo en desarrollo: Medio
 Puntos asignados: 3 Iteración asignada: Iteración 2
 Responsable: Fabian de Jesús Jiménez Castillejos
-Detalle: Como encargada de Almacén, quiero importar las existencias que hoy se llevan en el Excel/Drive
-compartido, para que el sistema arranque con el inventario real y no haya que capturar las cerca de 700 claves una
-por una.
+Detalle: Como encargada de Almacén, quiero dar de alta en HAERO lo que ya está en los anaqueles escaneando cada
+caja y eligiendo su lote de la existencia actual del almacén de medicamentos (25301) en Intelisis, para que el sistema
+arranque con el inventario real sin capturar lote ni caducidad y sin cargar un Excel.
 Criterios de aceptación
-CA1 El sistema acepta un archivo con clave, lote,
-caducidad, proveedor, ubicación y cantidad en cajas
-por renglón.
-CA2 Antes de guardar, el sistema muestra los renglones
-con error y no importa nada hasta que se corrijan o
-se descarten.
-CA3 Cada renglón importado genera un movimiento de
-carga inicial, que no cuenta como consumo para el
-CPM.
-
-CA4 La carga queda registrada con usuario, fecha y hora.
+CA1 Al escanear una caja, el sistema muestra los lotes
+con existencia de esa clave en Intelisis, con su
+caducidad, piezas y cajas, proveedor y última entrada;
+se puede buscar y filtrar entre ellos.
+CA2 Almacén elige el lote y captura solo la ubicación y
+las cajas que contó; la ubicación se queda puesta para
+la siguiente caja del mismo anaquel.
+CA3 Cada alta genera un movimiento de carga inicial,
+que no cuenta como consumo para el CPM.
+CA4 Un mismo lote no se puede dar de alta dos veces, ni
+un lote que ya entró a HAERO por una entrada (HU10).
+CA5 El alta queda registrada con usuario, fecha y hora, y
+con la foto de la existencia de Intelisis.
+CA6 El inventario de HAERO se puede descargar en
+Excel; ya no se sube ningún archivo.
+Nota: HU21 se actualizó con el diseño aprobado de la integración con Intelisis (octubre de 2026): la carga por Excel
+se reemplazó por el alta con escaneo contra la existencia de Intelisis.
 Historia de usuario
 Número: HU22 (propuesta) Usuario: ENCARGADA DE ALMACÉN
-Nombre de la historia: Registro de pedido con su Dependencia para su desarrollo: HU01
-detalle
+Nombre de la historia: Consulta de pedidos de Dependencia para su desarrollo: HU01
+Intelisis
 Prioridad en el negocio: Alta Riesgo en desarrollo: Bajo
 Puntos asignados: 3 Iteración asignada: Iteración 2
 Responsable: Fabian de Jesús Jiménez Castillejos
-Detalle: Como encargada de Almacén, quiero registrar cada pedido con su número, fecha, proveedor y las claves y
-cantidades en cajas que se esperan, para que al llegar el medicamento el despachador solo confirme lo recibido con
-la pistola lectora (HU10). Mientras no exista la integración con FONSABI, el pedido se captura manualmente.
+Detalle: Como encargada de Almacén, quiero consultar los pedidos a proveedor que se capturan en Intelisis, con su
+contrato, entrega comprometida y partidas, y ver cuánto ha recibido físicamente Almacén contra lo que dice Intelisis,
+para saber qué falta por llegar. Los pedidos se capturan en Intelisis; en HAERO no se registra ni se modifica ninguno.
 Criterios de aceptación
-CA1 El pedido se registra con número de pedido, fecha,
-proveedor y al menos una partida (clave y cantidad
-esperada en cajas).
-CA2 No se permite registrar dos pedidos con el mismo
-número.
-CA3 El pedido queda activo y disponible para el
-despachador al registrar entradas (HU10).
-CA4 El registro queda asociado al usuario, fecha y hora.
+CA1 El sistema muestra los pedidos de Intelisis del último
+año con número, contrato, proveedor, fecha de
+entrega (marcando las vencidas) y su estado:
+pendiente, parcial, recibido o cancelado.
+CA2 Cada partida muestra lo esperado, lo recibido en
+HAERO y lo recibido y cancelado en Intelisis.
+CA3 Los pedidos se actualizan solos con cada
+sincronización (cada 15 minutos); lo recibido en
+HAERO nunca se sobrescribe con lo de Intelisis.
+CA4 Un pedido nuevo en Intelisis genera un aviso
+informativo; el Inicio solo cuenta como "por recibir" los
+de entrega reciente o próxima.
+Nota: HU22 se actualizó con el diseño aprobado de la integración con Intelisis (octubre de 2026): antes Almacén
+capturaba el pedido; ahora es de consulta. Queda por confirmar dónde se registra la orden de suministro (empieza
+con "HRAEO…" y no se encontró en Intelisis); hoy se muestra el contrato.
+Historia de usuario
+Número: HU23 (propuesta) Usuario: ENCARGADA DE ALMACÉN
+Nombre de la historia: Catálogo de medicamentos Dependencia para su desarrollo: HU01
+desde Intelisis
+Prioridad en el negocio: Alta Riesgo en desarrollo: Medio
+Puntos asignados: 3 Iteración asignada: Iteración 2
+Responsable: Rubi Morales
+Detalle: Como encargada de Almacén, quiero que el catálogo de medicamentos se lea de Intelisis con su ficha
+(nombre, presentación, forma farmacéutica, concentración, CUCOP, grupo terapéutico, piezas por caja), para no
+capturarlo en HAERO y trabajar siempre con las mismas claves que el resto del hospital. En HAERO solo se agregan
+los códigos de barras.
+Criterios de aceptación
+CA1 El catálogo se copia de Intelisis (claves de Farmacia
+"-1") y se actualiza solo; una clave nueva en Intelisis
+genera un aviso informativo.
+CA2 En HAERO no se puede capturar, editar ni borrar un
+medicamento; solo se consulta, con búsqueda por
+clave, nombre o CUCOP y el detalle de su ficha.
+CA3 El catálogo distingue las claves dadas de alta en
+HAERO (con código de barras) de las que todavía no
+lo están.
+CA4 Las piezas por caja salen de Intelisis (movimientos
+"Conversion" o ficha del medicamento) y se usan
+para pasar piezas a cajas.
+CA5 Una clave que no está en el catálogo de Intelisis no
+se puede registrar en HAERO.
+Historia de usuario
+Número: HU24 (propuesta) Usuario: ENCARGADA DE ALMACÉN /
+SUPERVISIÓN
+Nombre de la historia: Avisos de cambios y Dependencia para su desarrollo: HU10, HU21, HU22
+comparación con Intelisis
+Prioridad en el negocio: Alta Riesgo en desarrollo: Medio
+Puntos asignados: 5 Iteración asignada: Iteración 2
+Responsable: Rubi Morales
+Detalle: Como encargada de Almacén, quiero que el sistema me avise cuando Intelisis cambie algo que afecta lo que
+Almacén ya tiene, y comparar en cajas lo que hay en HAERO contra lo que dice Intelisis, para que Supervisión vea
+las diferencias (por ejemplo 20 contra 50) y se ajuste Intelisis. HAERO lleva el control físico; la sincronización nunca
+modifica lo que registró Almacén.
+Criterios de aceptación
+CA1 Se generan avisos "por revisar" cuando Intelisis
+cancela un pedido o una partida y cuando cambia la
+caducidad de un lote que Almacén tiene en HAERO.
+CA2 Se generan avisos informativos por clave nueva,
+pedido nuevo y lote nuevo en Intelisis pendiente de
+recibir en HAERO.
+CA3 Almacén puede marcar cada aviso como revisado
+(queda quién y cuándo); Supervisión los consulta sin
+poder marcarlos.
+CA4 La comparación muestra, por clave, las cajas en
+HAERO y en Intelisis y su diferencia, con un filtro
+"Con diferencia"; Almacén y Supervisión la ven.
+CA5 Los avisos por revisar sin atender se muestran en el
+Inicio de Almacén y de Supervisión.
 5. Ajustes sugeridos a las historias
-Las historias se conservan como se levantaron. Estos son los ajustes que el diseño de la iteración ya contempla y
-que conviene validar con la encargada para agregarlos como criterios:
+Actualización (octubre de 2026): con el acceso de solo lectura a Intelisis, el equipo aprobó un diseño en el que
+Intelisis es la fuente de los datos (catálogo, pedidos, entradas y existencia) y HAERO agrega lo que Intelisis no tiene
+(códigos de barras, ubicación física y cajas contadas) y lleva las operaciones internas (despacho FEFO, canjes,
+caducados, préstamos y avisos). Por eso cambiaron HU10, HU11, HU21 y HU22, se ajustaron HU12, HU13 y HU16 y
+se agregaron HU23 y HU24, todas del módulo de Almacén.
+Estos son los ajustes que el diseño de la iteración ya contempla y que conviene validar con la encargada para
+agregarlos como criterios:
 HU Ajuste sugerido Motivo
 HU14 Permitir completar la cantidad con El prototipo de la bandeja ya lo
 otra ubicación o con el siguiente propone cuando la ubicación no
@@ -343,19 +438,26 @@ Farmacia en esta iteración. la prueba de aceptación de HU13.
 3.3.1 Planeación
 En la sesión de planificación de la Iteración 2 se seleccionaron las historias de usuario HU10 a
 HU20 y se proponen dos historias nuevas (HU21 y HU22) detectadas durante el diseño, sin las
-cuales el módulo no puede operar el primer día. La priorización sigue el criterio de
-dependencias funcionales: primero se registran pedidos y existencias, después se atienden
+cuales el módulo no puede operar el primer día. Con la integración de solo lectura con Intelisis se
+agregan HU23 (catálogo desde Intelisis) y HU24 (avisos y comparación con Intelisis), también del
+módulo de Almacén. La priorización sigue el criterio de dependencias funcionales: primero se
+leen de Intelisis el catálogo y los pedidos y se da de alta la existencia, después se atienden
 solicitudes, y al final se calculan rotación y alertas, porque el CPM depende de las salidas ya
 registradas.
 No. Historia de usuario Categoría S.P. Prioridad Responsable
 Módulo: Recepción
-HU22 Registro de pedido con su detalle Alimenta 3 Alta Fabián Jiménez
+HU23 Catálogo de medicamentos desde Alimenta 3 Alta Rubi Morales
+Intelisis (propuesta)
+HU22 Consulta de pedidos de Intelisis Documenta 3 Alta Fabián Jiménez
 (propuesta)
 HU10 Recepción de medicamento con Alimenta 5 Alta Fabián Jiménez
-lector de código de barras
-HU11 Marcar un pedido como cancelado Alimenta 2 Media Fabián Jiménez
-HU21 Carga inicial de inventario Alimenta 3 Alta Fabián Jiménez
+registro de Intelisis
+HU11 Consulta de pedidos y partidas Documenta 2 Media Fabián Jiménez
+cancelados
+HU21 Alta inicial del inventario Alimenta 3 Alta Fabián Jiménez
 (propuesta)
+HU24 Avisos de cambios y comparación Procesa 5 Alta Rubi Morales
+con Intelisis (propuesta)
 Módulo: Existencias y despacho
 
 HU12 Consulta y control de existencias por Documenta 3 Alta Fabián Jiménez
@@ -377,31 +479,33 @@ caducados
 HU20 Registro de préstamos y Alimenta 3 Media Fabián Jiménez
 transferencias con otras instituciones
 Total 45 S.P. originales + 6 S.P.
-propuestos = 51 S.P.
+propuestos (HU21, HU22) + 8 S.P. de la integración con Intelisis (HU23, HU24) = 59 S.P.
 Tabla X. Resumen de historias de usuario a trabajar en la Iteración 2.
-Carga por residente: Fabián Jiménez, 51 puntos; Rubi Morales, 0 puntos (concentra su carga
+Carga por residente: Fabián Jiménez, 51 puntos; Rubi Morales, 8 puntos (integración con Intelisis,
 
-en la Iteración 3, de Farmacia).
+HU23 y HU24; el resto de su carga está en la Iteración 3, de Farmacia).
 Velocidad y duración: falta definir cuántas semanas dura la iteración y la velocidad estimada del
 equipo. Como referencia, 51 puntos para un solo residente es una carga alta; si la velocidad
 real queda por debajo, conviene mover HU18, HU19 y HU20 (prioridad media, 9 puntos) a un
 incremento posterior sin afectar el resto del módulo.
 3.3.2 Análisis
-Las trece historias de la Iteración 2 cubren cuatro responsabilidades del módulo de Almacén:
-recibir el medicamento (HU22, HU10, HU11, HU21), saber dónde está y entregarlo a Farmacia
-en orden de caducidad (HU12 a HU15), medir su rotación (HU16, HU17) y registrar los
-movimientos que no son entrada ni salida normal (HU18 a HU20).
+Las quince historias de la Iteración 2 cubren cinco responsabilidades del módulo de Almacén:
+recibir el medicamento con lo que registró Intelisis (HU23, HU22, HU10, HU11, HU21), saber
+dónde está y entregarlo a Farmacia en orden de caducidad (HU12 a HU15), medir su rotación
+(HU16, HU17), registrar los movimientos que no son entrada ni salida normal (HU18 a HU20) y
+vigilar que HAERO e Intelisis cuadren (HU24).
 Dependencia con iteraciones futuras
 HU Nombre Dependencia con iteraciones futuras
-HU22 Registro de pedido Es el punto donde se conectará FONSABI: en una iteración
-posterior los pedidos llegarán de ese sistema en lugar de
-capturarse.
+HU23 Catálogo desde Intelisis Farmacia (Iteración 3) usará el mismo catálogo y solo podrá
+pedir claves dadas de alta en Almacén.
+HU22 Consulta de pedidos Ya se leen de Intelisis; falta confirmar dónde está la orden de
+suministro.
 HU10 Recepción con lector Cada lote recibido es la materia prima de la dispensación de la
 Iteración 3.
-HU11 Cancelar pedido Se sustituirá por el bloqueo automático cuando exista la integración
-con FONSABI.
-HU21 Carga inicial Sin inventario inicial, la Iteración 3 no tendría existencias que
+HU11 Pedidos cancelados Ya viene de Intelisis; no depende de una iteración futura.
+HU21 Alta inicial Sin inventario inicial, la Iteración 3 no tendría existencias que
 dispensar.
+HU24 Avisos y comparación Base de los reportes de diferencias para Supervisión.
 HU12 Existencias por ubicación Farmacia consultará en la Iteración 3 la existencia de Almacén
 antes de solicitar.
 HU13 Solicitud de Farmacia La pantalla mínima de esta iteración se integra al módulo completo
@@ -427,8 +531,13 @@ autenticación construida en la Iteración 1. El alcance de esta iteración es �
 de Almacén de Medicamentos; el módulo de Farmacia/Dispensación se aborda en la Iteración
 3.
 Decisiones técnicas que guían el diseño
-● El código de barras se asocia al lote y no a la clave, porque una misma clave puede
-tener hasta cinco proveedores distintos, cada uno con su propio código.
+● Intelisis es la fuente de los datos y solo se consulta (usuario de solo lectura): catálogo,
+pedidos, entradas y existencia se copian a tablas de consulta en HAERO cada 15 minutos.
+HAERO nunca escribe en Intelisis y la sincronización nunca cambia lo que registró Almacén;
+si Intelisis cambia algo que afecta a HAERO, queda un aviso (HU24).
+● El código de barras se asocia a la clave y al proveedor (no al lote), porque una misma
+clave puede tener hasta cinco proveedores distintos, cada uno con su propio código, y así
+la caja se reconoce aunque llegue en un lote nuevo.
 ● La unidad de manejo es la caja (presentación de compra tal como llega), no unidosis ni
 piezas sueltas.
 ● Las salidas de Almacén nunca son directas: siempre pasan por una solicitud de
@@ -438,9 +547,10 @@ pueda ignorar (HU15).
 
 ● El CPM se calcula de forma continua a partir de movimientos reales; no se captura
 manualmente.
-● La integración con el sistema de Contratos/FONSABI (cotejo automático de entradas y
-bloqueo automático de órdenes canceladas) queda fuera de esta iteración; HU10 y
-HU11 operan de forma autocontenida, con captura y marcado manual.
+● Las entradas (HU10) y el alta inicial (HU21) se eligen de un registro de Intelisis; lote y
+caducidad no se teclean. Los pedidos y sus cancelaciones vienen de Intelisis (HU22,
+HU11). La integración con el sistema de Contratos/FONSABI se sustituyó por la de
+Intelisis.
 ● Supuestos por confirmar con el asesor externo
 ● El stock mínimo es de 3 meses de abasto y el máximo de 6 meses, calculados sobre el
 CPM de cada clave.
@@ -576,8 +686,11 @@ autoincremental
 numero_pedido VARCHAR(30) Obligatorio, único Número de pedido con
 el que se identifica en
 Almacén.
-estatus VARCHAR Obligatorio: ACTIVO o Se marca CANCELADO
-CANCELADO manualmente (HU11).
+estatus VARCHAR Obligatorio: ACTIVO o Pasa a CANCELADO
+CANCELADO cuando Intelisis lo cancela
+(HU11); también se guardan
+el contrato, la entrega y el
+estatus de Intelisis.
 fecha DATE Obligatorio Fecha del pedido.
 Reglas del modelo
 • Un lote solo puede seleccionarse en una solicitud si no existe otro lote de la misma clave
@@ -642,17 +755,36 @@ que Almacén la despacha.
 
 Clase: Pedido · Backend (Spring Boot) · entidad Historias: HU10, HU11
 Responsabilidades Colaboradores
-• Guardar el número y el estatus (activo o cancelado) • Lote
-del pedido contra el que se reciben lotes. • El estatus
-se marca manualmente en esta iteración; no
-depende de ningún sistema externo.
-Clase: ServicioRecepcion · Backend (Spring Boot) · Historias: HU10, HU11
+• Guardar el pedido leído de Intelisis (número, • Lote
+contrato, entrega, estatus) y, por partida, lo
+esperado, lo recibido en HAERO y lo recibido y
+cancelado en Intelisis. • Lo actualiza la
+sincronización; lo recibido en HAERO no se toca.
+Clase: ServicioRecepcion · Backend (Spring Boot) · Historias: HU10, HU11, HU21
 servicio
 Responsabilidades Colaboradores
-• Validar que los campos obligatorios de una entrada • Lote • Existencia • Pedido
-estén completos. • Rechazar la recepción si el
-pedido asociado está cancelado. • Crear el lote y su
-existencia inicial en la ubicación indicada.
+• Buscar en el servidor el registro de Intelisis que • Lote • Existencia • Pedido
+eligió Almacén y rechazar la entrada si no existe o • ServicioRegistrosIntelisis
+está bloqueado (pedido o partida cancelados, ya • CodigoBarras
+recibido). • Asociar el código nuevo a su clave. •
+Crear el lote con la foto de Intelisis y su existencia en
+cada ubicación indicada.
+Clase: ServicioRegistrosIntelisis · Backend (Spring Historias: HU10, HU21
+Boot) · servicio
+Responsabilidades Colaboradores
+• Armar, por clave, los registros de Intelisis que se • Copia de consulta de Intelisis
+pueden elegir: compras, donaciones y traspasos • Lote • Medicamento
+recientes (entrada) o la existencia del 25301 (alta
+inicial), en cajas y piezas. • Marcar el motivo de
+bloqueo de cada uno.
+Clase: ServicioSincronizacionIntelisis · Backend Historias: HU22, HU23, HU24
+(Spring Boot) · servicio
+Responsabilidades Colaboradores
+• Leer de Intelisis (solo SELECT) catálogo, pedidos, • Conexión de solo lectura a Intelisis
+entradas y existencia cada 15 minutos y copiarlos a • Medicamento • Pedido • Aviso
+las tablas de consulta en una transacción corta. •
+Actualizar catálogo y pedidos de HAERO y generar los
+avisos de cambios, sin tocar lo que registró Almacén.
 Clase: ServicioDespacho · Backend (Spring Boot) · Historias: HU12, HU13, HU14, HU15
 servicio
 Responsabilidades Colaboradores
@@ -694,8 +826,10 @@ Son prototipos sencillos, sin diseño gráfico final, para validar con la encarg
 se ve y qué se puede hacer en cada pantalla antes de programar. Los nombres y cantidades
 son datos de ejemplo.
 Registrar entrada
-El mismo formulario sirve para una entrada normal y para mostrar el bloqueo cuando el pedido
-fue cancelado por el nivel central (HU10, HU11).
+Tres pasos: escanear la caja, elegir el registro de Intelisis y poner ubicación y cajas. Los
+registros bloqueados (por ejemplo de un pedido cancelado en Intelisis) se muestran con su
+motivo y no se pueden elegir (HU10, HU11). La misma captura sirve para el alta inicial en
+Inventario, eligiendo de la existencia de Intelisis (HU21).
 Ilustración X. Registrar entrada de medicamento.
 
 Diseño final:
@@ -738,9 +872,16 @@ prototipo aparte en esta etapa.
 | HU10      | Pedido, Lote, Existencia,  | Registrar entrada  |
 ServicioRecepcion, Pantallas de
 Almacén
-| HU11  | Pedido, ServicioRecepcion  | Registrar entrada (pedido  |
+| HU11  | Pedido, ServicioSincronizacionIntelisis  | Pedidos cancelados; Registrar  |
 | ----- | -------------------------- | -------------------------- |
-cancelado)
+entrada (registro bloqueado)
+HU21  Lote, Existencia, ServicioRecepcion,  Inventario (alta inicial)
+ServicioRegistrosIntelisis
+HU22  Pedido, ServicioSincronizacionIntelisis  Pedidos
+HU23  Medicamento, CodigoBarras,  Catálogo de medicamentos
+ServicioSincronizacionIntelisis
+HU24  Aviso, ServicioIntelisis,  Intelisis: avisos y comparación; Inicio
+ServicioSincronizacionIntelisis  de Almacén y Supervisión
 HU12  Existencia, Lote, Pantallas de  Existencias por ubicación
 Almacén
 HU13  Solicitud, Medicamento, Pantallas de  Generar solicitud (pantalla de
@@ -784,17 +925,8 @@ recepción.
 |                                 |     |     | con partidas ·  | cantidades   |
 |                                 |     |     | 404             | esperadas y  |
 recibidas.
-POST  /api/almacen/pedidos  { numeroPedido,  201: pedido ·  Registra el
-|     |     | fecha, proveedor,     | 400: "Ya    | pedido   |
-| --- | --- | --------------------- | ----------- | -------- |
-|     |     | partidas:[{clave,     | existe un   | (HU22).  |
-|     |     | cantidadEsperada}] }  | pedido con  |          |
-ese número"
-PATCH  /api/almacen/pedidos/{id}/cancelar  { motivo }  200: pedido  Cancela con
-|     |     |     | CANCELADO      | motivo, fecha  |
-| --- | --- | --- | -------------- | -------------- |
-|     |     |     | · 400: motivo  | y usuario      |
-|     |     |     | vacío          | (HU11).        |
+Nota (integración con Intelisis): se quitaron el registro de pedidos (POST /api/almacen/pedidos) y la cancelación
+(PATCH /api/almacen/pedidos/{id}/cancelar). Los pedidos y sus cancelaciones se leen de Intelisis (HU22, HU11).
 Módulo de Recepción — /api/almacen (rol: despachador)
 | Método  | Endpoint  | Body / Params  | Retorna  | Descripción  |
 | ------- | --------- | -------------- | -------- | ------------ |
@@ -804,26 +936,24 @@ GET  /api/almacen/codigos-bar —  200: { clave,  Resuelve lo que
 |     |               |     | proveedor } · 404:  | (HU10 CA2).      |
 código no
 registrado
-POST  /api/almacen/codigos-bar { codigo, clave,  201 · 400: código  Asocia un código
-|     | ras  | proveedor }  | ya asociado  | nuevo una sola  |
-| --- | ---- | ------------ | ------------ | --------------- |
-vez (HU10 CA3).
-POST  /api/almacen/entradas  { pedidoId, clave,  201: lote y  Registra la
-|     |     | proveedor,         | existencias · 400:  | entrada en una  |
-| --- | --- | ------------------ | ------------------- | --------------- |
-|     |     | numeroLote,        | pedido              | transacción     |
-|     |     | caducidad,         | cancelado, clave    | (HU10, HU11).   |
-|     |     | ubicaciones:[{ubic | fuera del pedido    |                 |
-|     |     | acion, cajas}] }   | o campo faltante    |                 |
-
-POST  /api/almacen/carga-inicial archivo (multipart)  200: renglones  Revisa el archivo
-|     | /validar  |     | válidos y      | sin guardar (HU21  |     |
-| --- | --------- | --- | -------------- | ------------------ | --- |
-|     |           |     | renglones con  | CA2).              |     |
-error
-POST  /api/almacen/carga-inicial { idValidacion }  201: resumen de  Importa lo
-|     | /confirmar  |     | lo importado  | validado (HU21).  |     |
-| --- | ----------- | --- | ------------- | ----------------- | --- |
+GET  /api/almacen/registros-intelisis  ?clave=&tipo=ENTRADA|ALTA_INICIAL  200: registros de Intelisis (lote,
+caducidad, cajas y piezas, proveedor, pedido, contrato y motivo de bloqueo)  Lo que se puede elegir al recibir
+(HU10) o al dar de alta (HU21).
+POST  /api/almacen/entradas  { codigo, clave, origen, idIntelisis, lote, ubicaciones:[{ubicacion, cajas}],
+observaciones }  201: lote, existencias y cajas de Intelisis contra contadas · 400: sin registro en Intelisis, pedido o
+partida cancelados, código de otra clave o campo faltante · 409: registro ya recibido  Registra la entrada o el alta
+inicial en una transacción, asocia el código nuevo y guarda la foto de Intelisis (HU10, HU11, HU21).
+Nota: se quitaron "asociar código" por separado (POST /api/almacen/codigos-barras) y la carga por archivo
+(POST /api/almacen/carga-inicial): el código solo se asocia al recibir o dar de alta, y ya no se sube un Excel.
+Módulo de Integración con Intelisis — /api/almacen/intelisis (consulta: Almacén y Supervisión; acciones: Almacén)
+GET  /api/almacen/intelisis/estado  —  200: disponibilidad y última sincronización  Estado de la copia de consulta.
+GET  /api/almacen/intelisis/comparacion  —  200: por clave, cajas en HAERO y en Intelisis  Comparación (HU24 CA4).
+GET  /api/almacen/intelisis/avisos  ?pendientes=true|false  200: avisos  Avisos por revisar e informativos (HU24).
+GET  /api/almacen/intelisis/avisos/resumen  —  200: { REVISAR, INFO }  Contador para el Inicio (HU24 CA5).
+POST  /api/almacen/intelisis/avisos/{id}/revisado  —  200 · 404: ya revisado  Marca un aviso (HU24 CA3).
+POST  /api/almacen/intelisis/avisos/informativos/revisados  —  200  Marca todos los informativos.
+POST  /api/almacen/intelisis/sincronizar  —  202 · 409: ya hay una en curso  Sincronización manual (además de la
+automática cada 15 minutos).
 Módulo de Existencias y despacho (rol: despachador; Farmacia solo en /api/farmacia)
 | Método  Endpoint  |     | Body / Params  |     | Retorna  | Descripción  |
 | ----------------- | --- | -------------- | --- | -------- | ------------ |
@@ -977,19 +1107,21 @@ presentan los componentes más representativos de cada módulo con su ruta, una 
 fragmento clave y la descripción de su responsabilidad.
 3.3.4.1 Backend — Spring Boot
 PedidoController.java — Endpoints de pedidos (HU22, HU11)
-El controlador expone el registro, la consulta y la cancelación de pedidos y delega todo al
+El controlador solo expone la consulta de pedidos (los pedidos y sus cancelaciones vienen de
+Intelisis) y delega todo al service; no contiene lógica de negocio.
 
-service; no contiene lógica de negocio.
-Ruta: (completar, por ejemplo controller/almacen/PedidoController.java)
-📷 Aquí va la foto de: la clase PedidoController.java mostrando los métodos de registrar, listar y
-cancelar pedido.
+Ruta: backend/src/main/java/com/example/backend/almacen/controller/PedidoController.java
+📷 Aquí va la foto de: la clase PedidoController.java mostrando los métodos de listar y obtener
+pedido.
 Ilustración X. PedidoController.java
-RecepcionServiceImpl.java — Recepción con pistola lectora (HU10, HU11)
-Resuelve el código escaneado, valida que el pedido esté ACTIVO y que la clave venga en él, y
-guarda lote, existencia y movimiento ENTRADA en una sola transacción.
-Ruta: (completar)
-📷 Aquí va la foto de: el método que registra la entrada, donde se vean la validación de pedido
-cancelado, la validación de clave del pedido y la anotación @Transactional.
+ServicioRecepcion.java — Recepción con pistola lectora (HU10, HU11, HU21)
+Resuelve el código escaneado, busca otra vez en el servidor el registro de Intelisis elegido,
+rechaza los bloqueados (pedido o partida cancelados, ya recibido), asocia el código nuevo y
+guarda lote con su foto de Intelisis, existencia y movimiento (ENTRADA o CARGA_INICIAL) en
+una sola transacción.
+Ruta: backend/src/main/java/com/example/backend/almacen/service/ServicioRecepcion.java
+📷 Aquí va la foto de: el método registrarEntrada, donde se vean la búsqueda del registro de
+Intelisis, el rechazo de los bloqueados y la anotación @Transactional.
 Ilustración X. RecepcionServiceImpl.java
 DespachoServiceImpl.java — Sugerencia y bloqueo FEFO (HU14, HU15)
 Es la clase más importante de la iteración: ordena los lotes por caducidad, excluye vencidos y
@@ -1027,9 +1159,11 @@ Ruta: (completar)
 solicitudes y despacho.
 Ilustración X. almacen.service.ts
 Componente de recepción — Captura de la pistola lectora
-Mantiene el foco en el campo de escaneo y, al recibir el Enter que envía la pistola, consulta el
-código y precarga la partida del pedido.
-Ruta: (completar)
+Mantiene el foco en el campo de escaneo y, al recibir el Enter que envía la pistola (o la lectura de
+la cámara), interpreta el código (también GS1 con lote y caducidad), muestra los registros de
+Intelisis de esa clave para elegir uno y deja la ubicación de la caja anterior puesta para la siguiente.
+Es el mismo componente para Registrar entrada (HU10) y el alta inicial (HU21).
+Ruta: hraeo-farmacia-frontend/src/app/almacen/recepcion-almacen/captura-intelisis/captura-intelisis.ts
 📷 Aquí va la foto de: el método del componente que recibe la lectura de la pistola (evento
 keyup.enter o similar) y llama al servicio.
 Ilustración X. Componente de recepción
@@ -1105,9 +1239,18 @@ abierta
 PU-14 HU18 Canje de lote MovimientoEspecialServiceImpl HTTP 400 · lote sigue
 con más de 9 DISPONIBLE
 meses de vida
-PU-15 HU21 Archivo con una CargaInicialServiceImpl Renglón marcado
-clave inexistente con error · nada
-importado
+PU-15 HU21 Alta inicial de un ServicioRecepcion Lote creado con
+lote de la existencia movimiento
+de Intelisis CARGA_INICIAL y sin
+tocar pedidos
+PU-16 HU10 Entrada sin registro ServicioRecepcion HTTP 400 · nada
+en Intelisis guardado
+PU-17 HU10 Entrada de un pedido ServicioRecepcion HTTP 400 · nada
+cancelado en Intelisis guardado
+PU-18 HU10 Entrada de compra en ServicioRecepcion Lote con la foto de
+dos ubicaciones Intelisis, código
+asociado, partida
+del pedido sumada
 Tabla X. Pruebas unitarias planeadas de la Iteración 2.
 Ejemplo en formato AAA — PU-07
 PU-07 despachar() rechaza un lote fuera de orden FEFO
@@ -1154,28 +1297,18 @@ aceptación y se ejecutan al cierre de la iteración con los módulos integrados
 Evaluación se llena en ese momento. La numeración continúa la de la Iteración 1.
 | ID        | HU    | Caso de prueba           | Resultado esperado       |
 | --------- | ----- | ------------------------ | ------------------------ |
-| PA-I2-01  | HU22  | Registrar un pedido con  | El pedido aparece        |
-|           |       | dos partidas             | ACTIVO con sus partidas  |
-y cantidad recibida en
-cero.
-| PA-I2-02  | HU10  | Recibir una partida      | Clave y proveedor se         |
-| --------- | ----- | ------------------------ | ---------------------------- |
-|           |       | escaneando una caja con  | llenan solos; al confirmar,  |
-|           |       | la pistola               | la existencia y la partida   |
-del pedido se actualizan.
-| PA-I2-03  | HU10  | Escanear un código  | La segunda lectura del  |
-| --------- | ----- | ------------------- | ----------------------- |
-|           |       | nuevo y asociarlo   | mismo código ya se      |
-reconoce.
-
-| PA-I2-04  | HU11  | Cancelar un pedido e  | El pedido no aparece       |
-| --------- | ----- | --------------------- | -------------------------- |
-|           |       | intentar recibirlo    | para recibir y el intento  |
-directo muestra el aviso.
-PA-I2-05  HU21  Importar un archivo de 20  Se muestran los 2 errores
-|     |     | renglones con 2 errores  | y no se importa nada  |
-| --- | --- | ------------------------ | --------------------- |
-hasta corregirlos.
+PA-I2-01  HU22  Consultar un pedido de Intelisis con dos partidas  Se ve con su contrato y entrega; cada partida
+muestra lo esperado, lo recibido en HAERO y lo de Intelisis.
+PA-I2-02  HU10  Escanear una caja de una compra reciente y elegir su registro de Intelisis  Lote, caducidad,
+proveedor y pedido se llenan solos; al confirmar ubicación y cajas, la existencia y la partida del pedido se
+actualizan y el lote guarda la foto de Intelisis.
+PA-I2-03  HU10  Escanear un código nuevo, elegir su clave y confirmar la entrada  La segunda lectura del mismo
+código ya se reconoce y la clave queda dada de alta.
+PA-I2-04  HU11  Cancelar un pedido en Intelisis e intentar recibirlo  Aparece en "Pedidos cancelados", se genera
+un aviso por revisar y el intento de recibirlo muestra el motivo y no deja continuar.
+PA-I2-05  HU21  Dar de alta una caja del anaquel con un lote que tiene existencia en Intelisis, y luego intentar
+dar de alta el mismo lote otra vez  El lote entra con movimiento de carga inicial; el segundo intento queda
+bloqueado.
 | PA-I2-06  | HU12  | Consultar un lote          | Se ven dos renglones con    |
 | --------- | ----- | -------------------------- | --------------------------- |
 |           |       | repartido en dos sectores  | su cantidad; el filtro por  |
@@ -1215,6 +1348,14 @@ de caducados.
 PA-I2-15 HU20 Registrar un préstamo de La existencia baja y el
 salida a otra institución movimiento muestra la
 institución.
+PA-I2-16  HU13  Farmacia intenta solicitar una clave que no está dada de alta en HAERO  La clave no aparece
+para solicitar y el sistema no permite crear la solicitud.
+PA-I2-17  HU23  Agregar una clave nueva en Intelisis y sincronizar  La clave aparece en el catálogo de HAERO
+como "sin código de barras", con su ficha, y se genera un aviso informativo; en HAERO no se puede editar.
+PA-I2-18  HU24  Cambiar en Intelisis la caducidad de un lote que Almacén tiene en HAERO y sincronizar  Se
+genera un aviso por revisar en el Inicio de Almacén y Supervisión; la caducidad de HAERO no cambia.
+PA-I2-19  HU24  Comparar una clave con 20 cajas en HAERO y 50 en Intelisis  Aparece en "Con diferencia" con
++30 "más en Intelisis" para Almacén y Supervisión.
 Tabla X. Pruebas de aceptación planeadas de la Iteración 2.
 Ejemplo en el formato del reporte — PA-I2-10
 PRUEBA DE ACEPTACIÓN PA-I2-10 · Historia de usuario: HU15
@@ -1251,23 +1392,25 @@ Ciclo completo: pedido → recepción → Las cantidades cuadran en cada paso co
 solicitud → despacho → CPM → alerta usuarios de roles distintos.
 3.3.7.2 Entregable al cierre de la Iteración 2
 Módulo de Almacén de Medicamentos funcional, integrado con la autenticación de la Iteración 1
-y demostrable ante la encargada de Almacén y el asesor externo: registro y cancelación de
-pedidos, recepción con pistola lectora, carga inicial del inventario, existencias por ubicación,
-atención de solicitudes con bloqueo FEFO, CPM y alertas automáticas, canjes, caducados,
-préstamos y transferencias.
+y demostrable ante la encargada de Almacén y el asesor externo: catálogo y pedidos leídos de
+Intelisis con sus cancelaciones, recepción con pistola lectora eligiendo el registro de Intelisis, alta
+inicial del inventario contra la existencia de Intelisis, existencias por ubicación, atención de
+solicitudes con bloqueo FEFO, CPM y alertas automáticas, canjes, caducados, préstamos y
+transferencias, y avisos y comparación HAERO contra Intelisis.
 Puntos por confirmar con el asesor externo
-1. Qué trae el código de barras. Confirmar si los códigos de las cajas solo identifican el
-producto (clave y proveedor) o si algunos traen también lote y caducidad (GS1). Si los traen, el
-sistema puede llenarlos solos al escanear.
-2. De dónde se precargan lote y caducidad. Confirmar si vienen en la remisión o factura del
-pedido, o si el despachador los captura una vez por lote.
+1. Qué trae el código de barras. Resuelto: algunas cajas traen un código GS1 (DataMatrix) con
+GTIN, lote, caducidad y número de serie; el sistema los lee y elige solo el lote.
+2. De dónde se precargan lote y caducidad. Resuelto: vienen del registro de Intelisis (entrada
+de compra, donación o traspaso, o existencia para el alta inicial).
 3. Parámetros de stock. Se proponen 3 y 6 meses de abasto sobre el CPM; confirmar si
 aplican igual a todas las claves.
-4. Ventana del CPM. Se proponen los últimos 6 meses cerrados; confirmar, y si la carga
-inicial debe traer el CPM histórico del Excel.
+4. Ventana del CPM. Se proponen los últimos 6 meses cerrados; confirmar. Ya no hay CPM
+histórico del Excel; queda por decidir si se muestra el consumo de Intelisis como referencia.
 5. Detalle de las ubicaciones (sector, anaquel, nivel), para no sobrecargar la captura.
-6. Integración con Contratos/FONSABI. El registro automático de pedidos y el bloqueo
-automático de cancelados quedan fuera de esta iteración; confirmar en cuál se abordan.
+6. Integración. Se sustituyó la de Contratos/FONSABI por la de Intelisis (solo lectura). Quedan
+por confirmar: dónde se registra la orden de suministro ("HRAEO…"); qué hace Almacén con
+una caja que llega antes de que la capturen en Intelisis; y qué pasa con cajas que están en el
+anaquel pero Intelisis tiene en cero.
 7. Plazo para canje. Se usa 9 meses antes de la caducidad; confirmar si es fijo o varía por
 proveedor o contrato.
 8. Duración y velocidad de la iteración. Confirmar cuántas semanas tiene la iteración y si
@@ -1286,9 +1429,9 @@ historia
 | ----- | --------------- | ------------ | ----- | --- | --------------- |
 |       | medicamento en  | DE ALMACÉN   |       |     |                 |
 Almacén
-| HU11  | Marcar un pedido  | ENCARGADA  | Media  | 2   | Fabián Jiménez  |
-| ----- | ----------------- | ---------- | ------ | --- | --------------- |
-como cancelado
+| HU11  | Consulta de pedidos  | ENCARGADA  | Media  | 2   | Fabián Jiménez  |
+| ----- | -------------------- | ---------- | ------ | --- | --------------- |
+y partidas cancelados
 HU12  Consulta y control  DESPACHADOR  Alta  3  Fabián Jiménez
 |     | de existencias por  | DE ALMACÉN  |     |     |     |
 | --- | ------------------- | ----------- | --- | --- | --- |
@@ -1331,11 +1474,15 @@ caducados
 transferencias
 con otras
 instituciones
-| Total de la  |     |     |     | 45  |     |
+| HU21  | Alta inicial del inventario (propuesta)  | ENCARGADA DE ALMACÉN  | Alta  | 3  | Fabián Jiménez  |
+| HU22  | Consulta de pedidos de Intelisis (propuesta)  | ENCARGADA DE ALMACÉN  | Alta  | 3  | Fabián Jiménez  |
+| HU23  | Catálogo de medicamentos desde Intelisis (propuesta)  | ENCARGADA DE ALMACÉN  | Alta  | 3  | Rubi Morales  |
+| HU24  | Avisos de cambios y comparación con Intelisis (propuesta)  | ENCARGADA DE ALMACÉN / SUPERVISIÓN  | Alta  | 5  | Rubi Morales  |
+| Total de la  |     |     |     | 59  |     |
 | ------------ | --- | --- | --- | --- | --- |
 iteración
-Carga por residente en esta iteración: Fabián Jiménez, 45 puntos; Rubi Morales, 0 puntos (Rubi
-concentra su carga en la Iteración 3, de Farmacia).
+Carga por residente en esta iteración: Fabián Jiménez, 51 puntos; Rubi Morales, 8 puntos (integración con
+Intelisis, HU23 y HU24; el resto de su carga está en la Iteración 3, de Farmacia).
 2. Actores de esta iteración
 | Actor  |     | Rol en esta iteración  |     | Historias relacionadas  |     |
 | ------ | --- | ---------------------- | --- | ----------------------- | --- |
@@ -1345,7 +1492,7 @@ Despachador de Almacén  Personal que recibe, ubica y  HU10, HU11, HU12, HU14,
 almacén (incluye a Lauro para las
 entradas).
 Encargada de Almacén  Responsable del área; da  HU11, HU16, HU17, HU18,
-|     |     | seguimiento a rotación, alertas de  |     | HU19, HU20  |     |
+|     |     | seguimiento a rotación, alertas de  |     | HU19, HU20, HU21, HU22, HU23, HU24  |     |
 | --- | --- | ----------------------------------- | --- | ----------- | --- |
 stock, canjes, caducados y
 préstamos/transferencias.
@@ -1354,7 +1501,7 @@ préstamos/transferencias.
 medicamento hacia Almacén; no
 participa en la validación ni en el
 despacho.
-| Supervisión  |     | Consulta en solo lectura las alertas  |     | HU17  |     |
+| Supervisión  |     | Consulta en solo lectura las alertas  |     | HU17, HU24  |     |
 | ------------ | --- | ------------------------------------- | --- | ----- | --- |
-de stock mínimo y máximo, sin
+de stock mínimo y máximo, y los avisos y la comparación HAERO contra Intelisis, sin
 registrar movimientos.

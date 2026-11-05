@@ -32,6 +32,12 @@ export interface Medicamento {
   // Dada de alta en HAERO = ya tiene código de barras; solo esas entran al inventario.
   dadoDeAlta: boolean;
   codigosBarras: number;
+  // Seguridad del paciente. altoRiesgo es lo que se muestra: la marca de Farmacia si la hay
+  // (altoRiesgoMarcado) o, si no, lo que dice Intelisis (riesgo = ALTO).
+  altoRiesgo: boolean;
+  altoRiesgoIntelisis: boolean;
+  altoRiesgoMarcado: boolean | null;
+  redFria: boolean;
 }
 
 export interface Existencia {
@@ -282,6 +288,43 @@ export interface Canje {
   ubicacion: string;
 }
 
+// Baja definitiva de caducados (com.example.backend.almacen.service.ServicioBajaDefinitiva).
+export interface RegistrarBajaDefinitiva {
+  loteIds: number[];
+  folioActa: string;
+  empresa: string;
+  fechaRecoleccion: string;
+  observaciones: string;
+}
+
+export interface BajaDefinitiva {
+  id: number;
+  folioActa: string;
+  empresa: string;
+  fechaRecoleccion: string;
+  observaciones: string | null;
+  documento: string;
+  fecha: string;
+  usuario: string;
+  lotes: { loteId: number; clave: string; medicamento: string; numeroLote: string; caducidad: string; cajas: number }[];
+}
+
+// Reporte por lote (com.example.backend.almacen.controller.ReportesAlmacenController.ReporteLote).
+export interface ReporteLote {
+  loteId: number;
+  clave: string;
+  medicamento: string;
+  numeroLote: string;
+  caducidad: string;
+  estatus: string;
+  proveedor: string;
+  cajasLlegaron: number;
+  cajasAFarmacia: number;
+  cajasOtrasSalidas: number;
+  cajasQuedan: number;
+  piezasEnFarmacia: number;
+}
+
 export interface Caducado {
   loteId: number;
   clave: string;
@@ -381,13 +424,17 @@ export interface Rotacion {
   origenCpm: OrigenCpm;
   mesesHistorial: number;
   existenciaActual: number;
+  // Lo que sí se alcanza a usar antes de que caduque (FEFO al ritmo del CPM); el desabasto se mide con esto.
+  existenciaAprovechable: number;
+  cajasEnRiesgoDeMerma: number;
   stockMinimo: number;
   stockMaximo: number;
   estado: EstadoStock;
   meses: ConsumoMes[];
 }
 
-export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO' | 'CADUCIDAD_PROXIMA';
+// MERMA_PROBABLE: el lote caducaría antes de alcanzar a usarse al ritmo del CPM (limite = cajas que sobrarían).
+export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO' | 'CADUCIDAD_PROXIMA' | 'MERMA_PROBABLE';
 
 export interface Alerta {
   id: number;
@@ -584,6 +631,27 @@ export class AlmacenApi {
   }
 
   /** pendientes=true: vencidos que siguen en el inventario; false: el apartado de caducados. */
+  // ---------- Baja definitiva de caducados (acta en PDF) ----------
+  listarBajasDefinitivas(): Observable<BajaDefinitiva[]> {
+    return this.http.get<BajaDefinitiva[]>(`${API_BASE_URL}/almacen/caducados/bajas-definitivas`, this.cabeceras());
+  }
+
+  registrarBajaDefinitiva(datos: RegistrarBajaDefinitiva, acta: File): Observable<BajaDefinitiva> {
+    const cuerpo = new FormData();
+    cuerpo.append('datos', new Blob([JSON.stringify(datos)], { type: 'application/json' }));
+    cuerpo.append('documento', acta, acta.name);
+    return this.http.post<BajaDefinitiva>(`${API_BASE_URL}/almacen/caducados/bajas-definitivas`, cuerpo, this.cabeceras());
+  }
+
+  actaBajaDefinitiva(id: number): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/almacen/caducados/bajas-definitivas/${id}/documento`, { ...this.cabeceras(), responseType: 'blob' });
+  }
+
+  /** Reporte por lote: cajas que llegaron, salieron y quedan (incluye caducados). */
+  reporteLotes(): Observable<ReporteLote[]> {
+    return this.http.get<ReporteLote[]>(`${API_BASE_URL}/almacen/reportes/lotes`, this.cabeceras());
+  }
+
   listarCaducados(pendientes: boolean): Observable<Caducado[]> {
     return this.http.get<Caducado[]>(`${API_BASE_URL}/almacen/caducados`, { ...this.cabeceras(), params: { pendientes } });
   }

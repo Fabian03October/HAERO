@@ -24,6 +24,16 @@ export const FARMACIA_MENU: ItemMenu[] = [
   },
   { etiqueta: 'Baja en Intelisis', routerLink: '/farmacia/baja-intelisis', etiquetaExtra: 'HU31 · HU32' },
   { etiqueta: 'Hospitalización', routerLink: '/farmacia/hospitalizacion' },
+  { etiqueta: 'Quimioterapia', routerLink: '/farmacia/quimioterapia' },
+  {
+    etiqueta: 'Quirófano',
+    routerLink: '/farmacia/quirofano',
+    hijos: [
+      { etiqueta: 'Cajas de anestesia', routerLink: '/farmacia/quirofano/cajas' },
+      { etiqueta: 'Catálogo de cajas', routerLink: '/farmacia/quirofano/catalogo' },
+    ],
+  },
   { etiqueta: 'Trazabilidad', routerLink: '/farmacia/trazabilidad', etiquetaExtra: 'HU33' },
+  { etiqueta: 'Alto riesgo y red fría', routerLink: '/farmacia/seguridad' },
   { etiqueta: 'Solicitudes a Almacén', routerLink: '/farmacia/solicitudes', etiquetaExtra: 'HU13' },
 ];

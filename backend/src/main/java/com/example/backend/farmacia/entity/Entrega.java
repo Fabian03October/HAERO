@@ -31,6 +31,11 @@ public class Entrega {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    // Baja por volumen del área (Hospitalización, Quimioterapia, Quirófano) en la que ya va. Solo
+    // lectura: la asigna "terminar" con SQL.
+    @Column(name = "baja_volumen_folio", insertable = false, updatable = false)
+    private Integer bajaVolumenFolio;
+
     @OneToMany(mappedBy = "entrega", cascade = CascadeType.ALL)
     @OrderBy("id")
     private List<PartidaEntrega> partidas = new ArrayList<>();
