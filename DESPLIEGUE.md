@@ -69,6 +69,29 @@ Intelisis se lee en modo de **solo lectura**; HAERO nunca escribe en él.
 
 Desde cualquier equipo que no sea el propio servidor, el frontend llama a `/api` y nginx lo reenvía al backend, así que no hay que configurar nada más.
 
+## 4.1 HTTPS (necesario para el celular)
+
+La cámara del celular o la tableta como lector de códigos solo funciona en una página segura (`https://`). Computadoras y celulares abren **la misma dirección**, por ejemplo `https://haero.hospital.local`.
+
+1. **Conseguir el certificado.** Debe incluir el nombre y la IP fija del servidor.
+   - **Recomendado:** que TICs lo emita con la autoridad de certificados del hospital (si tienen una; las computadoras del dominio ya confían en ella).
+   - **Si no hay:** crear una autoridad propia de HAERO **en el servidor o en un equipo de TICs** (no en la laptop de un desarrollador), por ejemplo con mkcert:
+
+     ```bash
+     export CAROOT=/root/haero-ca            # carpeta protegida; aquí queda la llave de la autoridad
+     mkcert -cert-file haero.pem -key-file haero-key.pem haero.hospital.local 172.16.x.x
+     ```
+
+     El archivo `/root/haero-ca/rootCA.pem` es el que se instala en los equipos (paso 3). La llave `rootCA-key.pem` **no sale de esa carpeta**.
+2. **nginx:** copiar `haero.pem` y `haero-key.pem` a `/etc/nginx/ssl/`, ajustar `server_name` en `despliegue/nginx-haero.conf` y recargar nginx. Quien entre por `http://` se manda solo a `https://`.
+3. **Confiar en el certificado** (solo si no es de la autoridad del hospital), una vez por equipo:
+   - **Windows:** doble clic en `rootCA.pem` (renombrado a `.crt`) → Instalar certificado → Equipo local → "Entidades de certificación raíz de confianza". TICs puede hacerlo para todas por directiva de grupo.
+   - **iPhone:** abrir el archivo (correo o AirDrop) → Ajustes → "Perfil descargado" → Instalar; después Ajustes → General → Información → Ajustes de confianza de certificados → activar la autoridad de HAERO.
+   - **Android:** Ajustes → Seguridad → Cifrado y credenciales → Instalar un certificado → Certificado de CA.
+4. **Backend:** en el `.env`, `CORS_ORIGENES=https://haero.hospital.local` (y la dirección con IP si también se usa). Reiniciar el backend.
+5. **Celulares:** deben estar en la red Wi-Fi del hospital y resolver el nombre `haero.hospital.local`; si el Wi-Fi no usa el DNS del hospital, abrir HAERO con la IP (`https://172.16.x.x`), que también va en el certificado.
+6. **Renovación:** anotar la fecha de vencimiento del certificado y renovarlo antes; al vencer, el navegador bloquea la página.
+
 ## 5. Usuarios
 
 - La migración V25 **desactiva** los usuarios de prueba `almacen`, `farmacia` y `supervision` si siguen con su contraseña de prueba.
