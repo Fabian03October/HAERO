@@ -61,7 +61,7 @@
               <li>
                 <button type="button" class="medicamento" (click)="elegirClave(medicamento.clave)">
                   <span class="medicamento-cabeza">
-                    <strong>{{ medicamento.clave }}</strong>
+                    <strong>{{ medicamento.clave }}</strong> <app-marca-seguridad [clave]="medicamento.clave" />
                     @if (medicamento.dadoDeAlta) { <span class="etiqueta alta">Dada de alta</span> }
                     @if (medicamento.estatus === 'BAJA') { <span class="etiqueta baja">Baja en Intelisis</span> }
                     @if (medicamento.claveCucop) { <span class="etiqueta">CUCOP {{ medicamento.claveCucop }}</span> }

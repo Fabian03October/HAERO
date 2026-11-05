@@ -11,4 +11,8 @@ public interface PartidaEntregaRepository extends JpaRepository<PartidaEntrega, 
     List<PartidaEntrega> findByLoteIdIn(Collection<Long> lotes);
 
     List<PartidaEntrega> findByEntregaRecetaPacienteExpedienteOrderByEntregaFechaDesc(String expediente);
+
+    List<PartidaEntrega> findTop200ByEntregaRecetaPacienteCurpIgnoreCaseOrderByEntregaFechaDesc(String curp);
+
+    List<PartidaEntrega> findTop200ByEntregaRecetaPacienteNombreContainingIgnoreCaseOrderByEntregaFechaDesc(String nombre);
 }

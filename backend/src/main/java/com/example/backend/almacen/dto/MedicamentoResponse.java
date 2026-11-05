@@ -34,4 +34,11 @@ public class MedicamentoResponse {
     // dadas de alta entran al inventario y se pueden despachar.
     private boolean dadoDeAlta;
     private int codigosBarras;
+
+    // Seguridad del paciente. altoRiesgo es lo que se muestra: la marca de Farmacia si la hay
+    // (altoRiesgoMarcado) o, si no, lo que dice Intelisis (riesgo = ALTO).
+    private boolean altoRiesgo;
+    private boolean altoRiesgoIntelisis;
+    private Boolean altoRiesgoMarcado;
+    private boolean redFria;
 }

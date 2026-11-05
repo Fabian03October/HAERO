@@ -15,6 +15,11 @@ public class RotacionResponse {
     private String origenCpm;
     private int mesesHistorial;
     private int existenciaActual;
+    // Lo que sí se alcanza a usar antes de que caduque cada lote al ritmo del CPM (salen
+    // primero los que caducan antes). El desabasto se mide con esto, no con la existencia.
+    private int existenciaAprovechable;
+    // Cajas que caducarían sin usarse (existenciaActual - existenciaAprovechable).
+    private int cajasEnRiesgoDeMerma;
     private double stockMinimo;
     private double stockMaximo;
     // DESABASTO, SOBREABASTO, NORMAL o SIN_CONSUMO.

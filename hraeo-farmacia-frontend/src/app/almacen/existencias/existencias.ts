@@ -1,12 +1,15 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AlmacenApi, MotivoAjuste, Movimiento, mensajeDeError } from '../almacen-api';
+import { AlmacenApi, BajaDefinitiva, MotivoAjuste, Movimiento, mensajeDeError } from '../almacen-api';
 import { RouterLink } from '@angular/router';
 import { InventarioAlmacen } from '../inventario-almacen';
 import { MovimientosEspecialesAlmacen } from '../movimientos-especiales-almacen';
 import { Session } from '../../auth/session';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../solicitudes-almacen';
+import { MarcaSeguridad } from '../../shared/marca-seguridad/marca-seguridad';
+import { RotacionAlmacen } from '../rotacion-almacen';
+import { descargarCsv, hoyIso } from '../../shared/csv';
 
 interface GrupoLote {
   clave: string;
@@ -33,6 +36,9 @@ interface Captura {
   renglon: Renglon;
 }
 
+// Igual que la alerta de caducidad próxima.
+const MESES_PROXIMOS_A_CADUCAR = 9;
+
 const MOTIVOS: { valor: MotivoAjuste; texto: string }[] = [
   { valor: 'ERROR_CONTEO', texto: 'Error de conteo' },
   { valor: 'DANADA', texto: 'Caja dañada' },
@@ -44,7 +50,7 @@ const MOTIVOS: { valor: MotivoAjuste; texto: string }[] = [
 // por ubicación física y se marca con FEFO el que debe salir primero (HU15).
 @Component({
   selector: 'app-existencias',
-  imports: [FormsModule, RouterLink, DatePipe],
+  imports: [MarcaSeguridad, FormsModule, RouterLink, DatePipe],
   templateUrl: './existencias.html',
   styleUrls: ['../recepcion-almacen/recepcion-comun.css', '../despacho/despacho-comun.css', './existencias.css'],
 })
@@ -59,6 +65,7 @@ export class Existencias {
   protected readonly soloLectura = inject(Session).usuarioActual()?.rol === 'SUPERVISION';
 
   private readonly api = inject(AlmacenApi);
+  private readonly rotacion = inject(RotacionAlmacen);
   protected readonly motivos = MOTIVOS;
 
   readonly captura = signal<Captura | null>(null);
@@ -126,8 +133,187 @@ export class Existencias {
 
   readonly hayFiltros = computed(() => !!(this.filtroClave() || this.filtroLote() || this.filtroUbicacion()));
 
+  // ---------- Inventario general: activos y caducados ----------
+  // Los caducados no se borran: son bienes del hospital hasta su baja definitiva (Supervisión).
+  readonly vistaInventario = signal<'ACTIVOS' | 'CADUCADOS'>('ACTIVOS');
+  readonly cajasActivas = computed(() => this.inventario.lotes().filter((l) => !estaVencido(l.caducidad)).reduce((t, l) => t + l.cajas, 0));
+  readonly cajasVencidasPorApartar = computed(() => this.inventario.lotes().filter((l) => estaVencido(l.caducidad)).reduce((t, l) => t + l.cajas, 0));
+  readonly cajasCaducadas = computed(() => this.especiales.cajasCaducadas() + this.cajasVencidasPorApartar());
+  readonly caducados = computed(() => {
+    const clave = this.filtroClave().trim().toLowerCase();
+    const numeroLote = this.filtroLote().trim().toLowerCase();
+    return this.especiales
+      .caducados()
+      .filter(
+        (c) =>
+          (!clave || c.clave.toLowerCase().includes(clave) || c.nombreGenerico.toLowerCase().includes(clave)) &&
+          (!numeroLote || c.numeroLote.toLowerCase().includes(numeroLote)),
+      );
+  });
+  readonly gruposVencidos = computed(() => this.grupos().filter((g) => g.vencido));
+  readonly gruposActivos = computed(() => this.grupos().filter((g) => !g.vencido));
+
+  // ---------- Baja definitiva: la empresa recoge los caducados y se levanta el acta ----------
+  protected readonly hoy = hoyIso();
+  readonly bajasDefinitivas = signal<BajaDefinitiva[]>([]);
+  readonly paraBaja = signal<Set<number>>(new Set());
+  readonly folioActa = signal('');
+  readonly empresaBaja = signal('');
+  readonly fechaRecoleccion = signal(hoyIso());
+  readonly observacionesBaja = signal('');
+  readonly actaBaja = signal<File | null>(null);
+  readonly guardandoBaja = signal(false);
+  readonly cajasParaBaja = computed(() => this.caducados().filter((c) => this.paraBaja().has(c.loteId)).reduce((t, c) => t + c.cajas, 0));
+  readonly faltaParaBaja = computed(() => {
+    const faltan: string[] = [];
+    if (!this.paraBaja().size) faltan.push('elegir los lotes');
+    if (!this.folioActa().trim()) faltan.push('el folio del acta');
+    if (!this.empresaBaja().trim()) faltan.push('la empresa');
+    if (!this.fechaRecoleccion()) faltan.push('la fecha de recolección');
+    if (!this.actaBaja()) faltan.push('el acta en PDF');
+    return faltan;
+  });
+
+  alternarParaBaja(loteId: number, marcado: boolean): void {
+    this.paraBaja.update((actual) => {
+      const nuevo = new Set(actual);
+      if (marcado) nuevo.add(loteId);
+      else nuevo.delete(loteId);
+      return nuevo;
+    });
+  }
+
+  elegirActa(evento: Event): void {
+    const archivo = (evento.target as HTMLInputElement).files?.[0] ?? null;
+    if (archivo && archivo.type !== 'application/pdf') {
+      this.actaBaja.set(null);
+      this.mostrar('El acta debe ser un archivo PDF.', 'error');
+      return;
+    }
+    this.actaBaja.set(archivo);
+  }
+
+  registrarBajaDefinitiva(): void {
+    const acta = this.actaBaja();
+    if (this.faltaParaBaja().length || !acta || this.guardandoBaja()) return;
+    this.guardandoBaja.set(true);
+    this.api
+      .registrarBajaDefinitiva(
+        {
+          loteIds: [...this.paraBaja()],
+          folioActa: this.folioActa().trim(),
+          empresa: this.empresaBaja().trim(),
+          fechaRecoleccion: this.fechaRecoleccion(),
+          observaciones: this.observacionesBaja().trim(),
+        },
+        acta,
+      )
+      .subscribe({
+        next: (baja) => {
+          this.guardandoBaja.set(false);
+          this.paraBaja.set(new Set());
+          this.folioActa.set('');
+          this.empresaBaja.set('');
+          this.observacionesBaja.set('');
+          this.actaBaja.set(null);
+          this.especiales.recargar();
+          this.cargarBajasDefinitivas();
+          this.mostrar(`Baja definitiva registrada (acta ${baja.folioActa}): ${baja.lotes.length} lotes salen del inventario.`, 'success');
+        },
+        error: (e) => {
+          this.guardandoBaja.set(false);
+          this.mostrar(mensajeDeError(e, 'No se pudo registrar la baja definitiva.'), 'error');
+        },
+      });
+  }
+
+  cajasDe(baja: BajaDefinitiva): number {
+    return baja.lotes.reduce((t, l) => t + l.cajas, 0);
+  }
+
+  verActa(id: number): void {
+    this.api.actaBajaDefinitiva(id).subscribe({
+      next: (pdf) => window.open(URL.createObjectURL(pdf), '_blank'),
+      error: (e) => this.mostrar(mensajeDeError(e, 'No se pudo abrir el acta.'), 'error'),
+    });
+  }
+
+  private cargarBajasDefinitivas(): void {
+    this.api.listarBajasDefinitivas().subscribe({ next: (lista) => this.bajasDefinitivas.set(lista), error: () => this.bajasDefinitivas.set([]) });
+  }
+
+  // ---------- Reportes (se abren en Excel) ----------
+  readonly generandoReporte = signal(false);
+
+  /** Lotes vigentes que caducan en los próximos 9 meses, con lo que caducaría sin usarse al ritmo del CPM. */
+  descargarProximosACaducar(): void {
+    const limite = new Date();
+    limite.setMonth(limite.getMonth() + MESES_PROXIMOS_A_CADUCAR);
+    const tope = limite.toISOString().slice(0, 10);
+    const merma = new Map(
+      this.rotacion.alertasActivas().filter((a) => a.tipo === 'MERMA_PROBABLE').map((a) => [`${a.clave}|${a.numeroLote}`, a.limite]),
+    );
+    const porLote = new Map<string, { clave: string; lote: string; caducidad: string; cajas: number; ubicaciones: string[] }>();
+    for (const l of this.inventario.lotes()) {
+      if (estaVencido(l.caducidad) || l.caducidad > tope || l.cajas <= 0) continue;
+      const llave = `${l.clave}|${l.lote}`;
+      const item = porLote.get(llave) ?? { clave: l.clave, lote: l.lote, caducidad: l.caducidad, cajas: 0, ubicaciones: [] };
+      item.cajas += l.cajas;
+      item.ubicaciones.push(`${l.ubicacion} (${l.cajas})`);
+      porLote.set(llave, item);
+    }
+    const hoy = Date.now();
+    const filas = [...porLote.values()]
+      .sort((a, b) => a.caducidad.localeCompare(b.caducidad))
+      .map((i) => [
+        i.clave,
+        this.solicitudes.nombreMedicamento(i.clave),
+        i.lote,
+        i.caducidad,
+        Math.ceil((new Date(i.caducidad).getTime() - hoy) / 86400000),
+        i.cajas,
+        i.ubicaciones.join(' · '),
+        this.rotacion.buscar(i.clave)?.cpm ?? 0,
+        merma.get(`${i.clave}|${i.lote}`) ?? 0,
+      ]);
+    descargarCsv(
+      `proximos-a-caducar-${hoyIso()}.csv`,
+      `Próximos a caducar (${MESES_PROXIMOS_A_CADUCAR} meses) · Almacén · ${hoyIso()}`,
+      ['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Días para caducar', 'Cajas', 'Ubicaciones', 'CPM', 'Cajas que caducarían sin usarse'],
+      filas,
+    );
+  }
+
+  /** Por lote: cuántas cajas llegaron, cuántas salieron a Farmacia y cuántas quedan. */
+  descargarReporteLotes(): void {
+    this.generandoReporte.set(true);
+    this.api.reporteLotes().subscribe({
+      next: (lotes) => {
+        this.generandoReporte.set(false);
+        const estatus: Record<string, string> = {
+          DISPONIBLE: 'Activo', CADUCADO: 'Caducado (apartado)', CANJEADO: 'Canjeado', BAJA_DEFINITIVA: 'Baja definitiva (acta)',
+        };
+        descargarCsv(
+          `existencias-por-lote-${hoyIso()}.csv`,
+          `Existencias por lote · Almacén y Farmacia · ${hoyIso()}`,
+          ['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Estatus', 'Proveedor', 'Cajas que llegaron', 'Cajas a Farmacia', 'Otras salidas (cajas)', 'Cajas en Almacén', 'Piezas en Farmacia'],
+          lotes.map((l) => [
+            l.clave, l.medicamento, l.numeroLote, l.caducidad,
+            estaVencido(l.caducidad) && l.estatus === 'DISPONIBLE' ? 'Vencido (por apartar)' : (estatus[l.estatus] ?? l.estatus),
+            l.proveedor, l.cajasLlegaron, l.cajasAFarmacia, l.cajasOtrasSalidas, l.cajasQuedan, l.piezasEnFarmacia,
+          ]),
+        );
+      },
+      error: (e) => {
+        this.generandoReporte.set(false);
+        this.mostrar(mensajeDeError(e, 'No se pudo generar el reporte.'), 'error');
+      },
+    });
+  }
+
   constructor() {
     this.cargarRecientes();
+    this.cargarBajasDefinitivas();
   }
 
   abrir(accion: Captura['accion'], grupo: GrupoLote, renglon: Renglon): void {

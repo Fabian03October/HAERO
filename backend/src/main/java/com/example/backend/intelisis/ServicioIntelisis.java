@@ -86,10 +86,13 @@ public class ServicioIntelisis {
                     WHERE e.cantidad_cajas > 0 AND l.caducidad >= CAST(GETDATE() AS date)
                     GROUP BY l.medicamento_clave
                 ), hf AS (
-                    SELECT f.medicamento_clave AS clave, SUM(f.piezas) AS piezas,
+                    -- Lo que está dentro de las cajas de quirófano sigue siendo de Farmacia.
+                    SELECT f.medicamento_clave AS clave, SUM(f.piezas + COALESCE(qc.piezas, 0)) AS piezas,
                            COUNT(*) AS lotes, MIN(f.caducidad) AS proxima
                     FROM farmacia_lote f
-                    WHERE f.piezas > 0 AND f.caducidad >= CAST(GETDATE() AS date)
+                    LEFT JOIN (SELECT farmacia_lote_id, SUM(piezas) AS piezas FROM quirofano_caja_pieza GROUP BY farmacia_lote_id) qc
+                           ON qc.farmacia_lote_id = f.id
+                    WHERE f.piezas + COALESCE(qc.piezas, 0) > 0 AND f.caducidad >= CAST(GETDATE() AS date)
                     GROUP BY f.medicamento_clave
                 ), h AS (
                     SELECT COALESCE(ha.clave, hf.clave) AS clave, ha.cajas AS cajas_almacen, hf.piezas AS piezas_farmacia,

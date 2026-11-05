@@ -42,7 +42,7 @@
       <tbody>
         @for (item of visibles(); track item.clave) {
           <tr class="fila-medicamento" tabindex="0" (click)="verDetalle(item)" (keydown.enter)="verDetalle(item)">
-            <td><strong>{{ item.clave }}</strong></td>
+            <td><strong>{{ item.clave }}</strong> <app-marca-seguridad [clave]="item.clave" /></td>
             <td>{{ item.claveCucop ?? '—' }}</td>
             <td class="medicamento">
               <strong>{{ item.nombreGenerico }}</strong>

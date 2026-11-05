@@ -1,0 +1,5 @@
+/* Alto riesgo y red fría: las claves de alto riesgo llevan una franja roja a la izquierda. */
+tr.riesgo td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
+td strong + app-marca-seguridad { display: flex; margin-top: 4px; }
+td.nombre { white-space: normal; min-width: 260px; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }

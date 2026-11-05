@@ -1,7 +1,7 @@
 <header class="screen-heading">
   <p class="eyebrow">Rotación · HU17</p>
   <h1>Alertas de stock</h1>
-  <p>Mínimo = {{ mesesMinimo }} meses de CPM y máximo = {{ mesesMaximo }} meses. Las alertas se generan solas al cruzar esos niveles.</p>
+  <p>Mínimo = {{ mesesMinimo }} meses de CPM y máximo = {{ mesesMaximo }} meses. El desabasto se mide con lo que sí se alcanza a usar antes de que caduque. Las alertas se generan solas al cruzar esos niveles.</p>
 </header>
 
 <!-- Resumen de alertas: cada tarjeta abre su lista debajo; solo una a la vez. -->
@@ -56,6 +56,23 @@
     <span class="alert-desc">Lotes vigentes que conviene despachar primero o mandar a canje.</span>
     <span class="alert-toggle">{{ abierta() === 'caducidad' ? 'Ocultar lista' : 'Ver lista' }}<span class="chevron" aria-hidden="true"></span></span>
   </button>
+
+  <button
+    type="button"
+    class="card alert-card expiry"
+    [class.active]="abierta() === 'merma'"
+    [attr.aria-expanded]="abierta() === 'merma'"
+    aria-controls="lista-alertas"
+    (click)="alternar('merma')"
+  >
+    <span class="alert-top">
+      <span class="eyebrow">Al ritmo del CPM</span>
+      <span class="alert-count">{{ merma().length }}</span>
+    </span>
+    <span class="alert-title">Caducará sin usarse</span>
+    <span class="alert-desc">Lotes que caducan antes de alcanzar a consumirse, aunque en apariencia haya para varios meses.</span>
+    <span class="alert-toggle">{{ abierta() === 'merma' ? 'Ocultar lista' : 'Ver lista' }}<span class="chevron" aria-hidden="true"></span></span>
+  </button>
 </div>
 
 <!-- Avisos de rotación: se calculan con el CPM, el consumo del mes y los lotes por caducar. -->
@@ -90,7 +107,7 @@
     <div class="card-heading">
       <div>
         <p class="eyebrow">{{ avisoAbierto() ? 'Aviso de rotación' : 'Lista de alertas' }}</p>
-        <h2>{{ avisoAbierto()?.titulo ?? (grupo === 'desabasto' ? 'Desabasto' : grupo === 'sobreabasto' ? 'Sobreabasto' : 'Caducidad próxima') }}</h2>
+        <h2>{{ avisoAbierto()?.titulo ?? (grupo === 'desabasto' ? 'Desabasto' : grupo === 'sobreabasto' ? 'Sobreabasto' : grupo === 'merma' ? 'Caducará sin usarse' : 'Caducidad próxima') }}</h2>
       </div>
       <div class="detail-tools">
         <input
@@ -99,6 +116,7 @@
           [value]="filtro()"
           (input)="filtro.set($any($event.target).value)"
           [placeholder]="grupo === 'caducidad' || grupo === 'merma' ? 'Buscar clave, medicamento o lote' : 'Buscar clave o medicamento'"
+
           aria-label="Buscar en la lista"
         />
         <button type="button" class="close-button" (click)="abierta.set(null)" aria-label="Cerrar lista">✕</button>
@@ -163,6 +181,27 @@
           </ul>
         } @else {
           <p class="empty-state">{{ filtro() ? 'Ningún lote coincide con la búsqueda.' : 'Ningún lote vigente está por caducar.' }}</p>
+        }
+      }
+      @case ('merma') {
+        @if (mermaFiltrada().length) {
+          <ul class="alert-list">
+            @for (alerta of mermaFiltrada(); track alerta.clave + alerta.numeroLote) {
+              <li class="expiry">
+                <div class="alert-main">
+                  <strong>{{ alerta.clave }} · {{ medicamento(alerta.clave) || 'Sin nombre en catálogo' }}</strong>
+                  <span>Lote <b>{{ alerta.numeroLote }}</b> · {{ alerta.existencia }} cajas · caduca {{ alerta.caducidad | date: 'dd/MM/yyyy' }} · CPM {{ cpmDe(alerta.clave) }}</span>
+                </div>
+                <div class="alert-since">
+                  <span>sobrarían ~{{ alerta.limite }} cajas</span>
+                  <small>{{ alerta.caducidad ? diasHasta(alerta.caducidad) : '' }}</small>
+                </div>
+              </li>
+            }
+          </ul>
+          <p class="card-help">Salen primero los lotes que caducan antes. Conviene canjearlo, transferirlo o despacharlo antes.</p>
+        } @else {
+          <p class="empty-state">{{ filtro() ? 'Ningún lote coincide con la búsqueda.' : 'Todos los lotes se alcanzan a usar antes de caducar.' }}</p>
         }
       }
       @default {
@@ -230,6 +269,7 @@
           <th>Clave</th>
           <th class="number">CPM</th>
           <th class="number">Existencia</th>
+          <th class="number" title="Lo que se alcanza a usar antes de que caduque">Aprovechable</th>
           <th class="number">Mínimo ({{ mesesMinimo }} m)</th>
           <th class="number">Máximo ({{ mesesMaximo }} m)</th>
           <th>Estatus</th>
@@ -241,12 +281,16 @@
             <td><strong>{{ fila.clave }}</strong><small>{{ fila.medicamento || 'Sin nombre en catálogo' }}</small></td>
             <td class="number">{{ fila.cpm }}</td>
             <td class="number"><strong>{{ fila.existencia }}</strong></td>
+            <td class="number">
+              {{ fila.aprovechable }}
+              @if (fila.enRiesgo) { <small class="merma">{{ fila.enRiesgo }} caducarían</small> }
+            </td>
             <td class="number">{{ fila.cpm ? fila.minimo : '—' }}</td>
             <td class="number">{{ fila.cpm ? fila.maximo : '—' }}</td>
             <td><span [class]="'level ' + fila.estado.toLowerCase()">{{ estadoTexto[fila.estado] }}</span></td>
           </tr>
         } @empty {
-          <tr><td colspan="6" class="empty">Ninguna clave coincide con el filtro o la búsqueda.</td></tr>
+          <tr><td colspan="7" class="empty">Ninguna clave coincide con el filtro o la búsqueda.</td></tr>
         }
       </tbody>
     </table>
@@ -276,7 +320,7 @@
           @for (alerta of rotacion.alertasCerradas(); track alerta.clave + alerta.inicio) {
             <tr>
               <td><strong>{{ alerta.clave }}</strong><small>{{ medicamento(alerta.clave) }}</small></td>
-              <td>{{ alerta.tipo === 'DESABASTO' ? 'Desabasto' : alerta.tipo === 'SOBREABASTO' ? 'Sobreabasto' : 'Caducidad próxima' }}</td>
+              <td>{{ tipoTexto[alerta.tipo] }}{{ alerta.numeroLote ? ' · lote ' + alerta.numeroLote : '' }}</td>
               <td>{{ alerta.inicio | date: 'dd/MM/yyyy HH:mm' }}</td>
               <td>{{ alerta.fin | date: 'dd/MM/yyyy HH:mm' }}</td>
             </tr>

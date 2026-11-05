@@ -4,12 +4,20 @@ import { SolicitudesAlmacen, mesActual } from './solicitudes-almacen';
 
 // Meses de abasto que definen el stock mínimo y máximo (HU17 CA1). El backend
 // usa los mismos valores para calcular stockMinimo/stockMaximo.
-export const MESES_STOCK_MINIMO = 3;
+// Supervisión pidió 4 meses de mínimo (antes 3) para que dé tiempo de pedir.
+export const MESES_STOCK_MINIMO = 4;
 export const MESES_STOCK_MAXIMO = 6;
 const MESES_VENTANA_CPM = 6;
 
 export type EstadoStock = 'DESABASTO' | 'SOBREABASTO' | 'NORMAL' | 'SIN_CONSUMO';
-export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO' | 'CADUCIDAD_PROXIMA';
+export type TipoAlerta = 'DESABASTO' | 'SOBREABASTO' | 'CADUCIDAD_PROXIMA' | 'MERMA_PROBABLE';
+
+export const TIPO_ALERTA_TEXTO: Record<TipoAlerta, string> = {
+  DESABASTO: 'Riesgo de desabasto',
+  SOBREABASTO: 'Riesgo de sobreabasto',
+  CADUCIDAD_PROXIMA: 'Caducidad próxima',
+  MERMA_PROBABLE: 'Caducará sin usarse',
+};
 
 export const ESTADO_STOCK_TEXTO: Record<EstadoStock, string> = {
   DESABASTO: 'Riesgo de desabasto',
@@ -34,6 +42,9 @@ export interface RotacionClave {
   consumoMesActual: number;
   cajasExcluidas: number;
   existencia: number;
+  // Lo que se alcanza a usar antes de caducar; enRiesgo = cajas que caducarían sin usarse.
+  aprovechable: number;
+  enRiesgo: number;
   minimo: number;
   maximo: number;
   mesesAbasto: number | null;
@@ -110,9 +121,12 @@ export class RotacionAlmacen {
         consumoMesActual: this.sumar(aFarmacia.filter((salida) => salida.fecha.startsWith(actual))),
         cajasExcluidas: this.sumar(deLaClave.filter((salida) => salida.tipo !== 'FARMACIA' && ventana.includes(salida.fecha.slice(0, 7)))),
         existencia: item.existenciaActual,
+        aprovechable: item.existenciaAprovechable ?? item.existenciaActual,
+        enRiesgo: item.cajasEnRiesgoDeMerma ?? 0,
         minimo: item.stockMinimo,
         maximo: item.stockMaximo,
-        mesesAbasto: item.cpm ? Math.round((item.existenciaActual / item.cpm) * 10) / 10 : null,
+        // Meses reales de abasto: sin contar lo que caducaría antes de usarse.
+        mesesAbasto: item.cpm ? Math.round(((item.existenciaAprovechable ?? item.existenciaActual) / item.cpm) * 10) / 10 : null,
         estado: item.estado,
       };
     });

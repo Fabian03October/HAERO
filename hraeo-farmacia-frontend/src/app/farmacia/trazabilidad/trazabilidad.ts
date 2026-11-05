@@ -8,7 +8,8 @@ import { mensajeDeError } from '../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../farmacia-nav';
 import { FarmaciaApi, Trazabilidad as TrazabilidadApi } from '../farmacia-api';
 
-type Modo = 'LOTE' | 'EXPEDIENTE';
+// PACIENTE = por nombre o CURP (Supervisión: saber a quién llegó cada medicamento).
+type Modo = 'LOTE' | 'EXPEDIENTE' | 'PACIENTE';
 
 // Paso del recorrido de un lote, del pedido al paciente.
 interface PasoRecorrido {
@@ -70,14 +71,21 @@ export class Trazabilidad {
   buscar(): void {
     const texto = this.busqueda().trim();
     if (!texto) {
-      this.aviso.set(this.modo() === 'LOTE' ? 'Escribe o escanea el lote.' : 'Escribe o escanea el expediente.');
+      this.aviso.set(
+        this.modo() === 'LOTE' ? 'Escribe o escanea el lote.' : this.modo() === 'EXPEDIENTE' ? 'Escribe o escanea el expediente.' : 'Escribe el nombre o la CURP del paciente.',
+      );
       return;
     }
     // Con la pistola: si el código es GS1 se busca por su lote.
     const gs1 = this.modo() === 'LOTE' ? leerGs1(texto) : null;
     if (gs1?.lote) this.busqueda.set(gs1.lote);
     const valor = this.busqueda().trim();
-    const consulta = this.modo() === 'LOTE' ? this.api.trazabilidadPorLote(valor) : this.api.trazabilidadPorExpediente(valor);
+    const consulta =
+      this.modo() === 'LOTE'
+        ? this.api.trazabilidadPorLote(valor)
+        : this.modo() === 'EXPEDIENTE'
+          ? this.api.trazabilidadPorExpediente(valor)
+          : this.api.trazabilidadPorPaciente(valor);
     this.buscando.set(true);
     this.aviso.set('');
     consulta.subscribe({

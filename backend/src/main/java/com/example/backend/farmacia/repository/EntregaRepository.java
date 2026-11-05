@@ -13,4 +13,8 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
     List<Entrega> findByFechaBetweenOrderByFechaAsc(LocalDateTime desde, LocalDateTime hasta);
 
     List<Entrega> findTop20ByRecetaPacienteExpedienteOrderByFechaDesc(String expediente);
+
+    List<Entrega> findTop20ByRecetaPacienteCurpIgnoreCaseOrderByFechaDesc(String curp);
+
+    List<Entrega> findTop20ByRecetaPacienteNombreContainingIgnoreCaseOrderByFechaDesc(String nombre);
 }

@@ -21,7 +21,11 @@ public class TrazabilidadController {
     public ResponseEntity<TrazabilidadResponse> consultar(@RequestParam(required = false) String lote,
                                                           @RequestParam(required = false) String clave,
                                                           @RequestParam(required = false) String expediente,
+                                                          @RequestParam(required = false) String paciente,
                                                           Authentication authentication) {
+        if (paciente != null && !paciente.isBlank()) {
+            return ResponseEntity.ok(servicio.porPaciente(paciente, authentication.getName()));
+        }
         if (expediente != null && !expediente.isBlank()) {
             return ResponseEntity.ok(servicio.porExpediente(expediente, authentication.getName()));
         }

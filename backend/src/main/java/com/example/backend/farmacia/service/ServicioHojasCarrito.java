@@ -379,7 +379,14 @@ public class ServicioHojasCarrito {
         Map<Integer, Long> recetaDelIngreso = new HashMap<>();
         for (Map<String, Object> h : hojas) {
             String folio = (String) h.get("receta_folio");
+            // Las hojas de Quimioterapia y Quirófano no son de una cama: no tienen dosis del día que revisar.
+            if (folio == null || !folio.startsWith(ServicioCarrito.PREFIJO_FOLIO)) {
+                continue;
+            }
             recetaDelIngreso.put(Integer.valueOf(folio.substring(folio.lastIndexOf('-') + 1)), ((Number) h.get("receta")).longValue());
+        }
+        if (recetaDelIngreso.isEmpty()) {
+            return;
         }
         Map<Long, Map<String, Integer>> dosis = new HashMap<>();
         // La indicación más reciente de cada clave manda (mismo criterio que el carrito).
@@ -437,7 +444,8 @@ public class ServicioHojasCarrito {
                     prefijoFolio + String.format("%06d", folio) + " " + diaHoja.format(OBSERVACIONES), partidas, piezas,
                     precios.isEmpty() ? null : total, (String) h.get("nombre_completo"), !precios.isEmpty(),
                     // La receta del carrito es "HOSP-AAAAMMDD-ingreso".
-                    h.get("receta_folio") instanceof String f ? Integer.valueOf(f.substring(f.lastIndexOf('-') + 1)) : null));
+                    h.get("receta_folio") instanceof String f && f.startsWith(ServicioCarrito.PREFIJO_FOLIO)
+                            ? Integer.valueOf(f.substring(f.lastIndexOf('-') + 1)) : null));
         }
         return respuesta;
     }

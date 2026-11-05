@@ -68,6 +68,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/farmacia/recepciones").hasAnyRole("FARMACIA", "SUPERVISION", "ALMACEN")
                         // Hospitalización: datos clínicos de internados; solo la usa Farmacia.
                         .requestMatchers("/api/hospitalizacion/**").hasRole("FARMACIA")
+                        // Solicitudes de Oncología (diagnóstico y nota del médico): solo Farmacia.
+                        .requestMatchers("/api/farmacia/quimioterapia/intelisis/**").hasRole("FARMACIA")
                         .requestMatchers(HttpMethod.GET, "/api/farmacia/**").hasAnyRole("FARMACIA", "SUPERVISION")
                         .requestMatchers("/api/farmacia/**").hasRole("FARMACIA")
                         .anyRequest().authenticated()

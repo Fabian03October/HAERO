@@ -1,0 +1,377 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Quirófano · Cajas de anestesia</p>
+            <h1>Armar, entregar y recibir cajas</h1>
+            <p class="hero-text">Escanea el código de la caja: HAERO desglosa lo que debe traer. Se arma escaneando cada medicamento (o eligiéndolo si el frasco no trae código), se entrega con el vale del turno y, al regresar, lo utilizado con cada paciente se justifica con la indicación médica. Todo queda con tu usuario.</p>
+          </div>
+        </header>
+
+        @if (mensaje()) {
+          <div class="banner" [class.error]="tipoMensaje() === 'error'" [class.warn]="tipoMensaje() === 'warn'" [class.info]="tipoMensaje() === 'info'">{{ mensaje() }}</div>
+        }
+
+        <!-- Baja por volumen del día, igual que en Hospitalización: una por día para capturar en Intelisis. -->
+        <section class="card baja-dia">
+          <div>
+            <p class="eyebrow">Baja en Intelisis · Quirófano</p>
+            @if (bajaDia(); as b) {
+              <strong>{{ b.entregasPendientes ? b.pacientesPendientes + ' paciente(s) con lo utilizado hoy sin pasar a la baja' : 'Todo lo de hoy ya está en la baja' }}</strong>
+              <small>{{ b.folioDelDia ? 'Baja del día V-' + b.folioDelDia + ' · ' + (b.ultimaBaja | date: 'HH:mm') + ' · ' + b.ultimaBajaPor : 'Aún no hay baja del día' }}</small>
+            } @else {
+              <strong>Lo utilizado en las cajas se da de baja por volumen</strong>
+            }
+          </div>
+          <div class="acciones">
+            <button class="btn" type="button" [disabled]="terminando() || !bajaDia()?.entregasPendientes" (click)="terminarDia()">{{ terminando() ? 'Generando…' : 'Terminar el día y generar la baja' }}</button>
+            @if (bajaDia()?.folioDelDia) {
+              <button class="btn secondary" type="button" (click)="imprimirBaja(bajaDia()!.folioDelDia)">Imprimir baja</button>
+              <button class="link" type="button" (click)="imprimirHojasPacientes()">Hojas por paciente</button>
+            }
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Paso 1</p>
+              <h2>Escanea la caja</h2>
+            </div>
+          </div>
+          <div class="scanner">
+            <input [(ngModel)]="codigoCaja" (keyup.enter)="escanearCaja()" placeholder="Código de la caja y Enter" autocomplete="off" />
+            <button type="button" title="Buscar caja" [disabled]="ocupado()" (click)="escanearCaja()">▣</button>
+            <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraCaja.set(true)">📷</button>
+          </div>
+          @if (camaraCaja()) {
+            <app-escaner-camara (leido)="cajaDesdeCamara($event)" (cerrar)="camaraCaja.set(false)" />
+          }
+
+          @if (caja(); as c) {
+            <div class="estado-caja">
+              <div class="codigo-caja">{{ c.codigo }}</div>
+              <strong>{{ c.nombre }}</strong>
+              <span class="sub">{{ c.servicio }}</span>
+              <span class="estado" [class.ok]="c.estado === 'COMPLETA'" [class.aviso]="c.estado === 'INCOMPLETA'">
+                {{ c.estado === 'ENTREGADA' ? 'En quirófano con ' + c.valeAbierto?.medico : c.estado === 'COMPLETA' ? 'Completa en Farmacia' : 'Incompleta · faltan ' + c.piezasFaltantes + ' piezas' }}
+              </span>
+              @if (c.valeAbierto) {
+                <button class="link" type="button" (click)="imprimirVale(c.valeAbierto.id)">🖨 Imprimir vale</button>
+              } @else {
+                <button class="link" type="button" (click)="imprimirVale()">🖨 Vale en blanco</button>
+              }
+            </div>
+            @if (riesgo().length) {
+              <div class="banner" [class.error]="riesgoVencido()" [class.warn]="!riesgoVencido()">
+                {{ riesgoVencido() ? 'La caja trae lotes vencidos: sácalos y repón antes de entregarla.' : 'La caja trae lotes que caducan en ' + mesesCambio + ' meses o menos: conviene regresarlos al estante y meter otros.' }}
+                ({{ riesgo().length }} {{ riesgo().length === 1 ? 'lote' : 'lotes' }})
+              </div>
+            }
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Clave</th><th>Medicamento</th><th class="number">Debe traer</th><th class="number">Trae</th><th>Lotes en la caja</th><th>Estado</th></tr></thead>
+                <tbody>
+                  @for (r of renglones(); track r.clave) {
+                    <tr [class.falta]="r.falta > 0" [class.completo]="r.falta === 0">
+                      <td><strong>{{ r.clave }}</strong> <app-marca-seguridad [clave]="r.clave" /></td>
+                      <td class="nombre">{{ r.medicamento }}</td>
+                      <td class="number">{{ r.cantidad }}</td>
+                      <td class="number">{{ r.tiene }}</td>
+                      <td class="lotes">
+                        @for (l of r.lotes; track l.lote) {
+                          <span [class.lote-vencido]="alerta(l.caducidad) === 'VENCIDO'" [class.lote-pronto]="alerta(l.caducidad) === 'PRONTO'">
+                            {{ l.lote }} · {{ l.caducidad | date: 'MM/yyyy' }} ({{ l.piezas }}){{ alerta(l.caducidad) === 'VENCIDO' ? ' · vencido' : alerta(l.caducidad) === 'PRONTO' ? ' · cambiar pronto' : '' }}
+                          </span>
+                        } @empty { — }
+                      </td>
+                      <td>
+                        @if (r.aparte) {
+                          <span class="estado">Red fría · {{ c.estado === 'ENTREGADA' ? 'salió aparte' : 'sale al entregar' }}</span>
+                        } @else if (r.falta) { <span class="estado aviso">Faltan {{ r.falta }}</span> } @else { <span class="estado ok">Completo</span> }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="empty-box">Escanea el código pegado en la caja. Si todavía no existe, dala de alta en el Catálogo de cajas.</p>
+          }
+        </section>
+
+        @if (caja(); as c) {
+          <div class="two-columns">
+            <!-- Armar o reponer -->
+            @if (c.estado !== 'ENTREGADA') {
+              <section class="card">
+                <div class="card-heading">
+                  <div>
+                    <p class="eyebrow">Paso 2</p>
+                    <h2>{{ c.estado === 'COMPLETA' ? 'Caja completa' : 'Armar o reponer' }}</h2>
+                  </div>
+                </div>
+                @if (c.estado === 'INCOMPLETA') {
+                  <div class="scanner">
+                    <input #campoMedicamento [(ngModel)]="codigoMedicamento" (keyup.enter)="escanearMedicamento()" placeholder="Escanea el medicamento y Enter" autocomplete="off" />
+                    <button type="button" title="Agregar" (click)="escanearMedicamento()">▣</button>
+                    <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraMedicamento.set(true)">📷</button>
+                  </div>
+                  <button class="link" type="button" (click)="sinCodigo()">El frasco no trae código de barras</button>
+                  @if (camaraMedicamento()) {
+                    <app-escaner-camara (leido)="medicamentoDesdeCamara($event)" (cerrar)="camaraMedicamento.set(false)" />
+                  }
+                  @if (porMeter(); as p) {
+                    <div class="field">
+                      <label for="clave-caja">Medicamento del listado</label>
+                      <select id="clave-caja" [ngModel]="p.clave" (ngModelChange)="cambiarPorMeter({ clave: $event })">
+                        <option value="">Elige el medicamento</option>
+                        @for (r of renglones(); track r.clave) {
+                          @if (r.falta > 0) {
+                            <option [value]="r.clave">{{ r.clave }} · {{ r.medicamento }} (faltan {{ r.falta }})</option>
+                          }
+                        }
+                      </select>
+                      @if (p.clave) { <app-marca-seguridad [clave]="p.clave" /> }
+                    </div>
+                    <div class="en-linea">
+                      <div class="field">
+                        <label for="lote-caja">Lote</label>
+                        @if (p.loteDelCodigo) {
+                          <input id="lote-caja" [ngModel]="p.lote" readonly />
+                        } @else {
+                          <select id="lote-caja" [ngModel]="p.lote" (ngModelChange)="cambiarPorMeter({ lote: $event })" [disabled]="!p.clave">
+                            <option value="">El que sale primero (FEFO)</option>
+                            @for (l of lotesDeFarmacia(); track l.id) {
+                              <option [value]="l.lote">{{ l.lote }} · cad. {{ l.caducidad | date: 'dd/MM/yyyy' }} · {{ l.piezas }} pz{{ l.estado === 'FEFO' ? ' · sale primero' : '' }}</option>
+                            }
+                          </select>
+                        }
+                      </div>
+                      <div class="field">
+                        <label for="piezas-caja">Piezas</label>
+                        <input id="piezas-caja" type="number" min="1" [ngModel]="p.piezas" (ngModelChange)="cambiarPorMeter({ piezas: $event === null || $event === '' ? null : +$event })" (keyup.enter)="meter()" />
+                      </div>
+                    </div>
+                    @if (p.clave && !lotesDeFarmacia().length) {
+                      <p class="nota">No hay existencia de {{ p.clave }} en Farmacia.</p>
+                    }
+                    <div class="acciones">
+                      <button class="btn" type="button" [disabled]="ocupado()" (click)="meter()">Meter a la caja</button>
+                      <button class="btn secondary" type="button" (click)="porMeter.set(null)">Cancelar</button>
+                    </div>
+                  }
+                  <p class="nota">Las piezas salen del estante de Farmacia. Los de red fría no se meten a la caja: se entregan aparte al momento de la cirugía. Un lote vencido no entra.</p>
+                } @else {
+                  <p class="empty-box">La caja trae todo su listado. Sigue en el paso 3 para entregarla.</p>
+                }
+
+                @if (hayLotes()) {
+                  <details class="sacar">
+                    <summary>Regresar piezas al estante (lote por caducar, cambio de lote…)</summary>
+                    <div class="en-linea">
+                      <select [ngModel]="sacarClave()" (ngModelChange)="sacarClave.set($event); sacarLote.set('')">
+                        <option value="">Clave</option>
+                        @for (r of renglones(); track r.clave) {
+                          @if (r.lotes.length) { <option [value]="r.clave">{{ r.clave }}</option> }
+                        }
+                      </select>
+                      <select [ngModel]="sacarLote()" (ngModelChange)="sacarLote.set($event)">
+                        <option value="">Lote</option>
+                        @for (l of lotesParaSacar(); track l.lote) {
+                          <option [value]="l.lote">{{ l.lote }} ({{ l.piezas }})</option>
+                        }
+                      </select>
+                      <input class="corta" type="number" min="1" [ngModel]="sacarPiezas()" (ngModelChange)="sacarPiezas.set($event === null || $event === '' ? null : +$event)" placeholder="Piezas" />
+                    </div>
+                    <div class="en-linea">
+                      <input [ngModel]="sacarMotivo()" (ngModelChange)="sacarMotivo.set($event)" placeholder="Motivo" />
+                      <button class="btn secondary" type="button" [disabled]="ocupado()" (click)="sacar()">Regresar</button>
+                    </div>
+                  </details>
+                }
+              </section>
+            }
+
+            <!-- Entregar -->
+            @if (c.estado === 'COMPLETA') {
+              <section class="card">
+                <div class="card-heading">
+                  <div>
+                    <p class="eyebrow">Paso 3 · vale del turno</p>
+                    <h2>Entregar</h2>
+                  </div>
+                </div>
+                <div class="en-linea">
+                  <div class="field">
+                    <label for="turno">Turno</label>
+                    <select id="turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)">
+                      <option value="">Elige el turno</option>
+                      @for (t of turnos; track t.valor) { <option [value]="t.valor">{{ t.etiqueta }}</option> }
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="sala">Servicio o sala</label>
+                    <input id="sala" [ngModel]="sala()" (ngModelChange)="sala.set($event)" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="medico">Médico anestesiólogo que la recibe</label>
+                  <input id="medico" [ngModel]="medico()" (ngModelChange)="escribirMedico($event)" placeholder="Escribe el nombre: se buscan los médicos de Intelisis" autocomplete="off" />
+                  @if (medicosSugeridos().length) {
+                    <ul class="sugerencias">
+                      @for (m of medicosSugeridos(); track m.usuario) {
+                        <li><button type="button" (click)="elegirMedico(m)"><strong>{{ m.nombre }}</strong> · {{ m.especialidad || 'sin especialidad' }}{{ m.cedula ? ' · céd. ' + m.cedula : '' }}</button></li>
+                      }
+                    </ul>
+                  }
+                  @if (medicoUsuario()) {
+                    <small class="sub">Médico de Intelisis ({{ medicoUsuario() }})</small>
+                  } @else if (medico().trim().length >= 3) {
+                    <small class="sub">No elegido de la lista: se guarda el nombre tal como lo escribiste.</small>
+                  }
+                </div>
+                <label class="check">
+                  <input type="checkbox" [checked]="revisado()" (change)="revisado.set($any($event.target).checked)" />
+                  Revisé con el médico el contenido de la caja
+                </label>
+                <div class="card-foot">
+                  <span>Entrega: {{ session.usuarioActual()?.nombreCompleto }}. El vale vale durante la jornada del turno.</span>
+                  <button class="btn" type="button" [disabled]="ocupado()" (click)="entregar()">Entregar caja</button>
+                </div>
+              </section>
+            }
+
+            <!-- Recibir de regreso -->
+            @if (c.estado === 'ENTREGADA' && c.valeAbierto; as v) {
+              <section class="card">
+                <div class="card-heading">
+                  <div>
+                    <p class="eyebrow">Paso 4 · regresa de quirófano</p>
+                    <h2>Recibir la caja</h2>
+                  </div>
+                </div>
+                <p class="sub">{{ turnoEtiqueta(v.turno) }} · {{ v.sala }} · {{ v.medico }} · entregó {{ v.entregadoPor }} el {{ v.entregadoEn | date: 'dd/MM/yyyy HH:mm' }}</p>
+
+                <p class="eyebrow">Utilizado por paciente</p>
+                <div class="en-linea">
+                  <input [ngModel]="usoExpediente()" (ngModelChange)="usoExpediente.set($event); usoNombre.set('')" (keyup.enter)="buscarPaciente()" placeholder="No. expediente" />
+                  <button class="btn secondary" type="button" [disabled]="buscandoPaciente()" (click)="buscarPaciente()">{{ buscandoPaciente() ? 'Buscando…' : 'Buscar' }}</button>
+                </div>
+                @if (usoNombre()) {
+                  <div class="en-linea elegido">
+                    <span><strong>{{ usoNombre() }}</strong> · exp. {{ usoExpediente() }}</span>
+                    <button class="link" type="button" (click)="otroPaciente()">Otro paciente</button>
+                  </div>
+                  <div class="en-linea agregar">
+                    <select [ngModel]="usoClave()" (ngModelChange)="usoClave.set($event)">
+                      <option value="">Medicamento utilizado</option>
+                      @for (r of renglones(); track r.clave) {
+                        @if (r.tiene > 0) { <option [value]="r.clave">{{ r.clave }} · {{ r.medicamento }}</option> }
+                      }
+                    </select>
+                    <input class="corta" type="number" min="1" [ngModel]="usoPiezas()" (ngModelChange)="usoPiezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="agregarUso()" placeholder="Piezas" />
+                    <button class="btn" type="button" (click)="agregarUso()">Agregar</button>
+                  </div>
+                }
+                @if (usos().length) {
+                  <ul class="historial">
+                    @for (u of usos(); track u.id) {
+                      <li><strong>{{ u.clave }} · {{ u.piezas }} pz</strong><span>{{ u.nombre }} · exp. {{ u.expediente }}</span>
+                        <button class="link danger" type="button" (click)="quitarUso(u.id)">Quitar</button></li>
+                    }
+                  </ul>
+                }
+
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>Clave</th><th class="number">Surtido</th><th class="number">Utilizado</th><th class="number">Devolución</th></tr></thead>
+                    <tbody>
+                      @for (r of resumenVale(); track r.clave) {
+                        <tr [class.usado]="r.utilizado > 0" [class.falta]="r.devolucion < 0">
+                          <td><strong>{{ r.clave }}</strong> <app-marca-seguridad [clave]="r.clave" /><small class="sub">{{ r.medicamento }}</small></td>
+                          <td class="number">{{ r.tiene }}</td>
+                          <td class="number">{{ r.utilizado }}</td>
+                          <td class="number">{{ r.devolucion }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <label class="check">
+                  <input type="checkbox" [checked]="devolucionContada()" (change)="devolucionContada.set($any($event.target).checked)" />
+                  Conté lo que regresó y coincide con la columna Devolución
+                </label>
+                @if (usos().length) {
+                  <div class="field">
+                    <label for="justificacion-caja">Justificación</label>
+                    <input id="justificacion-caja" [ngModel]="justificacion()" (ngModelChange)="justificacion.set($event)" placeholder="Ej. se administró durante la cirugía según indicación" />
+                  </div>
+                  <p class="eyebrow">Indicación médica en PDF, una por paciente</p>
+                  @for (p of pacientesUso(); track p.expediente) {
+                    <div class="field">
+                      <label [for]="'pdf-' + p.expediente">{{ p.nombre }} · exp. {{ p.expediente }}{{ indicaciones()[p.expediente] ? ' ✓' : '' }}</label>
+                      <input [id]="'pdf-' + p.expediente" type="file" accept="application/pdf" (change)="elegirArchivo(p.expediente, $event)" />
+                    </div>
+                  }
+                }
+                <div class="card-foot">
+                  <span>
+                    @if (faltanParaRecibir().length) { Falta: {{ faltanParaRecibir().join(', ') }}. } @else { Recibe: {{ session.usuarioActual()?.nombreCompleto }}. }
+                  </span>
+                  <button class="btn" type="button" [disabled]="faltanParaRecibir().length || ocupado()" (click)="recibir()">Recibir caja</button>
+                </div>
+              </section>
+            }
+
+            <section class="card">
+              <div class="card-heading">
+                <div>
+                  <p class="eyebrow">Responsables</p>
+                  <h2>Vales e historial</h2>
+                </div>
+              </div>
+              @for (v of c.vales; track v.id) {
+                @if (v.recibidoEn) {
+                  <div class="vale">
+                    <strong>{{ v.entregadoEn | date: 'dd/MM/yyyy' }} · {{ turnoEtiqueta(v.turno) }} · {{ v.sala }}</strong>
+                    <small>Médico: {{ v.medico }} · entregó {{ v.entregadoPor }} · recibió {{ v.recibidoPor }}</small>
+                    @for (u of v.usos; track $index) {
+                      <small>{{ u.clave }} · {{ u.piezas }} pz · {{ u.nombre }} (exp. {{ u.expediente }}) · {{ u.folioEntrega }}</small>
+                    } @empty {
+                      <small>Regresó completa.</small>
+                    }
+                    <div class="acciones-vale">
+                      <button class="link" type="button" (click)="imprimirVale(v.id)">🖨 Imprimir vale</button>
+                      <button class="link" type="button" (click)="valePdf(v.id)">PDF</button>
+                      <button class="link" type="button" (click)="valeExcel(v.id)">Excel</button>
+                      @for (exp of v.indicaciones; track exp) {
+                        <button class="link" type="button" (click)="verIndicacion(v.id, exp)">Indicación exp. {{ exp }}</button>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+              @if (c.historial.length) {
+                <ul class="historial">
+                  @for (e of c.historial; track $index) {
+                    <li><strong>{{ e.accion }}</strong><span>{{ e.detalle }}</span><small>{{ e.fecha | date: 'dd/MM/yyyy HH:mm' }} · {{ e.usuario }}</small></li>
+                  }
+                </ul>
+              } @else {
+                <p class="empty-box">Sin movimientos todavía.</p>
+              }
+            </section>
+          </div>
+        }
+      </div>
+    </main>
+  </div>
+</div>

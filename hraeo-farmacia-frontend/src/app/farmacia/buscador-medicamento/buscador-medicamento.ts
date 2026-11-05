@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AlmacenApi, Medicamento } from '../../almacen/almacen-api';
+import { MarcaSeguridad } from '../../shared/marca-seguridad/marca-seguridad';
 
 // Medicamentos que se muestran a la vez en la búsqueda.
 const RESULTADOS = 8;
@@ -9,7 +10,7 @@ const RESULTADOS = 8;
 // HAERO (las demás nunca llegan a Farmacia) y emite la que se elige.
 @Component({
   selector: 'app-buscador-medicamento',
-  imports: [FormsModule],
+  imports: [MarcaSeguridad, FormsModule],
   templateUrl: './buscador-medicamento.html',
   styleUrl: './buscador-medicamento.css',
 })

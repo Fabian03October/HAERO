@@ -43,7 +43,7 @@
                   @for (despacho of despachadas(); track despacho.solicitudId) {
                     <tr class="fila" [class.elegida]="seleccionada()?.solicitudId === despacho.solicitudId" (click)="elegir(despacho)">
                       <td><strong>{{ folio(despacho.solicitudId) }}</strong><small class="sub">{{ despacho.fechaSolicitud | date: 'dd/MM/yyyy HH:mm' }}</small></td>
-                      <td>{{ despacho.clave }}<small class="sub">{{ despacho.medicamento }}</small></td>
+                      <td>{{ despacho.clave }} <app-marca-seguridad [clave]="despacho.clave" /><small class="sub">{{ despacho.medicamento }}</small></td>
                       <td class="number">{{ despacho.cajasPedidas }}</td>
                       <td class="number">{{ despacho.cajasDespachadas }}</td>
                       <td><span class="estado aviso">Por confirmar</span></td>

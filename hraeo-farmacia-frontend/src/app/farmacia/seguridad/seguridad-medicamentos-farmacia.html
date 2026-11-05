@@ -1,0 +1,79 @@
+<div class="panel">
+  <app-topbar
+    [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
+    [rol]="rolEtiqueta[session.usuarioActual()!.rol]"
+  />
+  <div class="shell">
+    <app-sidebar [items]="items" />
+    <main class="main">
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Seguridad del paciente · ISMP</p>
+            <h1>Alto riesgo y red fría</h1>
+            <p class="hero-text">Claves de alto riesgo (electrolitos concentrados, quimioterapia, citotóxicos…) y de red fría. Sus etiquetas aparecen en todas las pantallas donde se ve la clave. Parte de lo que dice Intelisis; aquí Farmacia lo corrige.</p>
+          </div>
+        </header>
+
+        @if (error()) {
+          <div class="banner error">{{ error() }}</div>
+        }
+        @if (aviso()) {
+          <div class="banner info">Guardado · {{ aviso() }}</div>
+        }
+
+        <section class="card">
+          <div class="barra">
+            <div class="filtros" role="tablist" aria-label="Filtro">
+              @for (opcion of filtros(); track opcion.valor) {
+                <button type="button" role="tab" [class.activo]="filtro() === opcion.valor" [attr.aria-selected]="filtro() === opcion.valor" (click)="filtro.set(opcion.valor)">
+                  {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
+                </button>
+              }
+            </div>
+            <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar por clave, nombre o grupo terapéutico" />
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Clave</th>
+                  <th>Medicamento</th>
+                  <th>Intelisis</th>
+                  <th>Alto riesgo</th>
+                  <th>Red fría</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of filtradas(); track m.clave) {
+                  <tr [class.riesgo]="m.altoRiesgo">
+                    <td><strong>{{ m.clave }}</strong><app-marca-seguridad [clave]="m.clave" /></td>
+                    <td class="nombre">{{ m.nombreGenerico }}<small class="sub">{{ m.grupoTerapeutico ?? m.presentacion }}</small></td>
+                    <td>{{ m.riesgo ?? '—' }}</td>
+                    <td>
+                      <select class="celda" [ngModel]="opcionRiesgo(m)" (ngModelChange)="cambiarRiesgo(m, $event)" [disabled]="!puedeEditar() || guardando() === m.clave">
+                        <option value="INTELISIS">Como Intelisis ({{ m.altoRiesgoIntelisis ? 'sí' : 'no' }})</option>
+                        <option value="SI">Sí, alto riesgo</option>
+                        <option value="NO">No</option>
+                      </select>
+                    </td>
+                    <td>
+                      <label class="check">
+                        <input type="checkbox" [checked]="m.redFria" (change)="cambiarRedFria(m, $any($event.target).checked)" [disabled]="!puedeEditar() || guardando() === m.clave" />
+                        Refrigeración
+                      </label>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando el catálogo…' : 'Ninguna clave coincide con el filtro.' }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="nota">"Intelisis" es la columna de riesgo del catálogo de Intelisis. Los nombres con mayúsculas y minúsculas (vinBLAStina, vinCRIStina) se cambian en Intelisis y llegan solos con la sincronización.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>

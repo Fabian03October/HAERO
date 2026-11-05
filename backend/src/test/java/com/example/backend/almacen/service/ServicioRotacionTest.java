@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -173,7 +174,7 @@ class ServicioRotacionTest {
 
         assertThat(respuesta.getOrigenCpm()).isEqualTo("INTELISIS");
         assertThat(respuesta.getCpm()).isEqualTo(10.0); // (12 + 48) / 6 meses
-        assertThat(respuesta.getEstado()).isEqualTo("DESABASTO"); // 25 cajas <= 3 meses de CPM
+        assertThat(respuesta.getEstado()).isEqualTo("DESABASTO"); // 25 cajas <= 4 meses de CPM
     }
 
     @Test
@@ -260,10 +261,10 @@ class ServicioRotacionTest {
     void evaluarAlertas_conExistenciaPorDebajoDelMinimo_abreAlertaDesabasto() {
         sistemaOperandoDesde(LocalDateTime.now().minusMonths(8));
         when(medicamentoRepository.findAll()).thenReturn(List.of(medicamento));
-        // CPM = 60/6 = 10 -> minimo 30, maximo 60
+        // CPM = 60/6 = 10 -> minimo 40, maximo 60
         when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any()))
                 .thenReturn(List.of(salida(60, "0134", LocalDateTime.now().minusMonths(1))));
-        when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 20, LocalDate.now().plusYears(1))); // por debajo de 30
+        when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 20, LocalDate.now().plusYears(1))); // por debajo de 40
         when(alertaRepository.findByFechaFinIsNullOrderByFechaInicioDesc()).thenReturn(List.of());
 
         servicioRotacion.evaluarAlertas();
@@ -273,7 +274,7 @@ class ServicioRotacionTest {
         assertThat(captor.getValue().getTipo()).isEqualTo("DESABASTO");
         assertThat(captor.getValue().getMedicamento().getClave()).isEqualTo("0134");
         assertThat(captor.getValue().getExistenciaAlInicio()).isEqualTo(20);
-        assertThat(captor.getValue().getLimiteAlInicio()).isEqualTo(30.0);
+        assertThat(captor.getValue().getLimiteAlInicio()).isEqualTo(40.0); // 4 meses de CPM
     }
 
     @Test
@@ -298,7 +299,7 @@ class ServicioRotacionTest {
         when(medicamentoRepository.findAll()).thenReturn(List.of(medicamento));
         when(movimientoRepository.findByFechaBetweenOrderByFechaDesc(any(), any()))
                 .thenReturn(List.of(salida(60, "0134", LocalDateTime.now().minusMonths(1))));
-        when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 45, LocalDate.now().plusYears(1))); // entre 30 y 60
+        when(existenciaRepository.findAllConLote()).thenReturn(existenciaVigente("0134", 45, LocalDate.now().plusYears(1))); // entre 40 y 60
 
         Alerta alertaAbierta = new Alerta();
         alertaAbierta.setMedicamento(medicamento);
@@ -405,5 +406,41 @@ class ServicioRotacionTest {
 
         assertThat(alertaAbierta.getFechaFin()).isNotNull();
         verify(alertaRepository).save(alertaAbierta);
+    }
+
+    // ---------- Merma probable: caduca antes de alcanzar a usarse ----------
+
+    @Test
+    void sobrantesPorLote_alcanzaParaMesesPeroCaducaAntes_avisaLoQueSobraria() {
+        // El ejemplo de Supervisión: 10 cajas, CPM 3, pero el lote caduca en un mes.
+        LocalDate hoy = LocalDate.of(2026, 1, 1);
+        Lote lote = lote(1L, "L-1", hoy.plusDays(30));
+
+        Map<Lote, Integer> sobrantes = ServicioRotacion.sobrantesPorLote(List.of(new ServicioRotacion.LoteCajas(lote, 10)), 3, hoy);
+
+        assertThat(sobrantes).containsEntry(lote, 7);
+    }
+
+    @Test
+    void sobrantesPorLote_salePrimeroElQueCaducaAntes() {
+        // CPM 10: el lote A (20 cajas, 3 meses) se usa completo en 2 meses; el B (30 cajas, 4 meses)
+        // empieza a usarse en el mes 2 y solo le quedan 2 meses: sobran ~10.
+        LocalDate hoy = LocalDate.of(2026, 1, 1);
+        Lote a = lote(1L, "A", hoy.plusDays(91));
+        Lote b = lote(2L, "B", hoy.plusDays(122));
+
+        Map<Lote, Integer> sobrantes = ServicioRotacion.sobrantesPorLote(
+                List.of(new ServicioRotacion.LoteCajas(b, 30), new ServicioRotacion.LoteCajas(a, 20)), 10, hoy);
+
+        assertThat(sobrantes).doesNotContainKey(a);
+        assertThat(sobrantes.get(b)).isBetween(9, 11);
+    }
+
+    @Test
+    void sobrantesPorLote_sinConsumo_noAvisa() {
+        LocalDate hoy = LocalDate.of(2026, 1, 1);
+        Lote lote = lote(1L, "L-1", hoy.plusDays(30));
+
+        assertThat(ServicioRotacion.sobrantesPorLote(List.of(new ServicioRotacion.LoteCajas(lote, 10)), 0, hoy)).isEmpty();
     }
 }

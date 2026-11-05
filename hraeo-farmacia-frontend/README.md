@@ -1,59 +1,29 @@
-# HraeoFarmaciaFrontend
+# HAERO · Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.24.
+Aplicación web del sistema HAERO, hecha en Angular 21 con TypeScript. Las instrucciones completas del proyecto (backend, base de datos e integración con Intelisis) están en el [README principal](../README.md).
 
-## Development server
+## Comandos
 
-To start a local development server, run:
+| Comando | Para qué |
+|---|---|
+| `npm install` | Instala las dependencias (la primera vez) |
+| `npm start` | Servidor de desarrollo en http://localhost:4200 |
+| `npm run start:red` | Igual, pero accesible desde otros equipos de la red |
+| `npm run start:ambos` | HTTP en el puerto 4200 y HTTPS en el 4201 (para usar la cámara del celular) |
+| `npx ng build` | Compila la aplicación para producción en `dist/` |
+| `npx ng test --watch=false` | Corre las pruebas unitarias (Vitest) |
 
-```bash
-ng serve
-```
+El frontend se comunica con el backend por la API REST en `/api`. Desde la misma computadora llama directo a `http://localhost:8080/api`; desde otro equipo, el servidor de desarrollo reenvía `/api` al backend (`proxy.conf.json`).
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Organización de `src/app`
 
-## Code scaffolding
+| Carpeta | Qué contiene |
+|---|---|
+| `auth/` | Inicio de sesión, cambio de contraseña y políticas de uso |
+| `admin/` | Administración de usuarios (rol Administrador) |
+| `almacen/` | Recepción, inventario, existencias, despacho, rotación, alertas, movimientos especiales y avisos de Intelisis |
+| `farmacia/` | Solicitudes de medicamento a Almacén |
+| `supervision/` | Consultas y reportes en solo lectura |
+| `shared/` | Componentes reutilizables: menú lateral, barra superior, escáner con cámara, avisos y lectura de códigos GS1 |
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Cada pantalla tiene su propia carpeta con su componente (`.ts`), su plantilla (`.html`) y sus estilos (`.css`).

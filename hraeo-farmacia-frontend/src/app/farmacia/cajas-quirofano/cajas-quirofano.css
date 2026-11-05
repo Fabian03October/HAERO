@@ -1,0 +1,59 @@
+/* Cajas de anestesia de quirófano (catálogo y operación). */
+td.nombre { white-space: normal; min-width: 220px; }
+.agregar { margin-top: 8px; }
+.lista-cajas { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lista-cajas li { display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; background: #faf8f4; }
+.lista-cajas small { color: #6f7271; font-size: 12px; }
+.lista-cajas .link { justify-self: start; padding-left: 0; }
+.codigo-caja { justify-self: start; padding: 4px 10px; border: 1px dashed #a57f2c; border-radius: 6px; background: #fff; font-family: ui-monospace, Consolas, monospace; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; }
+
+.estado-caja { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.estado-caja .codigo-caja { margin: 0; }
+tr.falta td { background: #fff8ec; }
+tr.completo td:first-child { box-shadow: inset 4px 0 0 #1c7c3c; }
+tr.usado td { background: #fdecea; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.historial { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.historial li { display: grid; gap: 2px; padding: 10px 12px; border-left: 3px solid #e4ddd3; font-size: 12px; }
+.historial strong { color: #611232; }
+.historial small { color: #8c8a86; }
+.historial .link { justify-self: start; padding-left: 0; }
+td.lotes { white-space: normal; font-size: 11px; color: #6f7271; }
+td.lotes span { display: block; }
+.lote-vencido { color: #b3261e; font-weight: 700; }
+.sugerencias { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }
+.sugerencias button { width: 100%; padding: 7px 10px; border: 1px solid #e4ddd3; border-radius: 8px; background: #fff; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.sugerencias button:hover { border-color: #611232; }
+small.aparte { display: block; color: #25627b; font-size: 11px; font-weight: 700; }
+.lote-pronto { color: #9a651c; font-weight: 700; }
+.sacar { margin-top: 16px; font-size: 12px; }
+.sacar summary { cursor: pointer; color: #611232; font-weight: 600; }
+.sacar .en-linea { margin-top: 8px; }
+.corta { max-width: 90px; }
+.vale { display: grid; gap: 2px; margin-bottom: 10px; padding: 10px 12px; border-radius: 10px; background: #faf8f4; font-size: 12px; }
+.vale small { color: #6f7271; }
+.vale .link { justify-self: start; padding-left: 0; }
+.acciones-vale { display: flex; flex-wrap: wrap; gap: 12px; }
+.vale-listo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.acciones-vale .link { padding-left: 0; }
+.baja-dia { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.baja-dia > div:first-child { display: grid; gap: 2px; }
+.baja-dia small { color: #6f7271; font-size: 12px; }
+.baja-dia .acciones { align-items: center; }
+
+/* Reescribir el nombre o cambiar el medicamento de un renglón del listado */
+.reescribir { display: grid; gap: 6px; }
+.reescribir input { width: 100%; padding: 7px 9px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; font-size: 13px; box-sizing: border-box; }
+.reescribir .en-linea { align-items: center; }
+td.acciones-renglon { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; white-space: nowrap; }
+td.acciones-renglon .link { padding-left: 0; }
+
+/* Dar de baja y reactivar una caja */
+.baja-caja { display: grid; gap: 6px; margin-top: 6px; padding: 10px 12px; border: 1px solid #f1c9c4; border-radius: 10px; background: #fff; }
+.baja-caja strong { color: #b3261e; font-size: 13px; }
+.baja-caja input { padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; font-size: 13px; }
+.baja-caja .en-linea { align-items: center; }
+.btn.danger { background: #b3261e; border-color: #b3261e; }
+.cajas-de-baja { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e4ddd3; }
+.cajas-de-baja > .link { justify-self: start; padding-left: 0; }
+.lista-cajas li.de-baja { opacity: 0.85; background: #f3f1ed; }

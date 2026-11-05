@@ -42,7 +42,10 @@ import java.util.stream.Collectors;
 public class ServicioRotacion {
 
     private static final int MESES_VENTANA_CPM = 6;
-    private static final int MESES_STOCK_MINIMO = 3;
+    // Supervisión pidió 4 meses (antes 3) para que dé tiempo de hacer el pedido.
+    private static final int MESES_STOCK_MINIMO = 4;
+    private static final double DIAS_POR_MES = 30.4375;
+    static final String MERMA_PROBABLE = "MERMA_PROBABLE";
     private static final int MESES_STOCK_MAXIMO = 6;
     // Mismo umbral que el frontend usa para ofrecer el canje (HU18): si a un
     // lote vigente le quedan menos de 9 meses, ademas de aparecer en la
@@ -99,7 +102,12 @@ public class ServicioRotacion {
                             Map<String, Integer> existenciaVigentePorClave,
                             Map<Long, Integer> existenciaPorLote,
                             // HU38: consumo de Intelisis por clave y mes: {cajas, piezas}.
-                            Map<String, Map<YearMonth, double[]>> consumoIntelisis) {
+                            Map<String, Map<YearMonth, double[]>> consumoIntelisis,
+                            // Lotes vigentes con existencia por clave, para la merma probable.
+                            Map<String, List<LoteCajas>> lotesVigentesPorClave) {
+    }
+
+    record LoteCajas(Lote lote, int cajas) {
     }
 
     private Contexto contexto() {
@@ -128,7 +136,42 @@ public class ServicioRotacion {
                     .put(YearMonth.parse(rs.getString(2)), new double[]{rs.getDouble(3), rs.getDouble(4)});
         }, ventana.get(0).format(FORMATO_MES), ventana.get(ventana.size() - 1).format(FORMATO_MES));
 
-        return new Contexto(ventana, mesesHistorial(ventana), salidas, existenciaVigente, existenciaPorLote, consumo);
+        Map<Lote, Integer> cajasPorLote = new java.util.LinkedHashMap<>();
+        existencias.stream()
+                .filter(e -> !e.getLote().getCaducidad().isBefore(hoy) && e.getCantidadCajas() > 0)
+                .forEach(e -> cajasPorLote.merge(e.getLote(), e.getCantidadCajas(), Integer::sum));
+        Map<String, List<LoteCajas>> lotesVigentes = new java.util.HashMap<>();
+        cajasPorLote.forEach((lote, cajas) -> lotesVigentes
+                .computeIfAbsent(lote.getMedicamento().getClave(), k -> new ArrayList<>()).add(new LoteCajas(lote, cajas)));
+
+        return new Contexto(ventana, mesesHistorial(ventana), salidas, existenciaVigente, existenciaPorLote, consumo, lotesVigentes);
+    }
+
+    /**
+     * Cajas de cada lote que caducarían sin usarse si se consume al ritmo del CPM y salen primero
+     * los que caducan antes (FEFO). Ej.: 10 cajas, CPM 3, el lote caduca en 1 mes: se usan ~3 y
+     * sobran ~7, aunque "en apariencia" alcancen para 3 meses. Solo los lotes con sobrante.
+     */
+    static Map<Lote, Integer> sobrantesPorLote(List<LoteCajas> lotes, double cpm, LocalDate hoy) {
+        Map<Lote, Integer> sobrantes = new java.util.LinkedHashMap<>();
+        if (cpm <= 0 || lotes == null) {
+            return sobrantes;
+        }
+        double mesesTranscurridos = 0;
+        List<LoteCajas> ordenados = lotes.stream()
+                .sorted(java.util.Comparator.comparing((LoteCajas l) -> l.lote().getCaducidad()))
+                .toList();
+        for (LoteCajas lote : ordenados) {
+            double mesesParaCaducar = java.time.temporal.ChronoUnit.DAYS.between(hoy, lote.lote().getCaducidad()) / DIAS_POR_MES;
+            double consumible = Math.max(0, (mesesParaCaducar - mesesTranscurridos) * cpm);
+            double usadas = Math.min(lote.cajas(), consumible);
+            mesesTranscurridos += usadas / cpm;
+            int sobran = (int) Math.floor(lote.cajas() - usadas);
+            if (sobran >= 1) {
+                sobrantes.put(lote.lote(), sobran);
+            }
+        }
+        return sobrantes;
     }
 
     /** Los 6 meses calendario ya cerrados (no incluye el mes en curso), del mas antiguo al mas reciente. */
@@ -190,11 +233,15 @@ public class ServicioRotacion {
         int existenciaActual = contexto.existenciaVigentePorClave().getOrDefault(clave, 0);
         double stockMinimo = Math.ceil(cpm * MESES_STOCK_MINIMO);
         double stockMaximo = Math.ceil(cpm * MESES_STOCK_MAXIMO);
+        int enRiesgo = sobrantesPorLote(contexto.lotesVigentesPorClave().get(clave), cpm, LocalDate.now())
+                .values().stream().mapToInt(Integer::intValue).sum();
+        int aprovechable = Math.max(0, existenciaActual - enRiesgo);
 
         String estado;
         if (cpm <= 0) {
             estado = "SIN_CONSUMO";
-        } else if (existenciaActual <= stockMinimo) {
+        } else if (aprovechable <= stockMinimo) {
+            // Lo que va a caducar sin usarse no cuenta para el abasto.
             estado = "DESABASTO";
         } else if (existenciaActual >= stockMaximo) {
             estado = "SOBREABASTO";
@@ -203,7 +250,7 @@ public class ServicioRotacion {
         }
 
         return new RotacionResponse(clave, medicamento.getNombreGenerico(), cpm, origenCpm, mesesHistorial,
-                existenciaActual, stockMinimo, stockMaximo, estado, meses);
+                existenciaActual, aprovechable, enRiesgo, stockMinimo, stockMaximo, estado, meses);
     }
 
     /**
@@ -272,6 +319,10 @@ public class ServicioRotacion {
         Map<Long, List<Alerta>> abiertasDeCaducidad = abiertas.stream()
                 .filter(a -> a.getLote() != null && "CADUCIDAD_PROXIMA".equals(a.getTipo()))
                 .collect(Collectors.groupingBy(a -> a.getLote().getId()));
+        Map<Long, List<Alerta>> abiertasDeMerma = abiertas.stream()
+                .filter(a -> a.getLote() != null && a.getLote().getId() != null && MERMA_PROBABLE.equals(a.getTipo()))
+                .collect(Collectors.groupingBy(a -> a.getLote().getId()));
+        java.util.Set<Long> lotesConMerma = new java.util.HashSet<>();
 
         for (Medicamento medicamento : medicamentoRepository.findAll()) {
             RotacionResponse rotacion = calcular(medicamento, contexto);
@@ -280,6 +331,25 @@ public class ServicioRotacion {
                 continue; // sin historial de consumo no se puede evaluar un umbral confiable
             }
 
+            // Lotes que caducarían antes de alcanzar a usarse al ritmo del CPM.
+            sobrantesPorLote(contexto.lotesVigentesPorClave().get(medicamento.getClave()), rotacion.getCpm(), LocalDate.now())
+                    .forEach((lote, sobran) -> {
+                        if (lote.getId() == null) {
+                            return;
+                        }
+                        lotesConMerma.add(lote.getId());
+                        List<Alerta> deLote = cerrarDuplicadas(abiertasDeMerma.getOrDefault(lote.getId(), List.of()));
+                        if (deLote.isEmpty()) {
+                            Alerta alerta = new Alerta();
+                            alerta.setMedicamento(medicamento);
+                            alerta.setLote(lote);
+                            alerta.setTipo(MERMA_PROBABLE);
+                            alerta.setExistenciaAlInicio(contexto.existenciaPorLote().getOrDefault(lote.getId(), 0));
+                            alerta.setLimiteAlInicio(sobran);
+                            alertaRepository.save(alerta);
+                        }
+                    });
+
             actualizarAlerta(medicamento, "DESABASTO", "DESABASTO".equals(rotacion.getEstado()),
                     rotacion.getExistenciaActual(), rotacion.getStockMinimo(),
                     abiertasDeStock.getOrDefault(medicamento.getClave() + "|DESABASTO", List.of()));
@@ -287,6 +357,14 @@ public class ServicioRotacion {
                     rotacion.getExistenciaActual(), rotacion.getStockMaximo(),
                     abiertasDeStock.getOrDefault(medicamento.getClave() + "|SOBREABASTO", List.of()));
         }
+
+        // Las de merma cuyo lote ya no está en riesgo (se despachó, se canjeó o subió el consumo).
+        abiertasDeMerma.forEach((loteId, lista) -> {
+            if (!lotesConMerma.contains(loteId)) {
+                lista.forEach(a -> a.setFechaFin(LocalDateTime.now()));
+                alertaRepository.saveAll(lista);
+            }
+        });
 
         evaluarAlertasCaducidad(contexto.existenciaPorLote(), abiertasDeCaducidad);
     }

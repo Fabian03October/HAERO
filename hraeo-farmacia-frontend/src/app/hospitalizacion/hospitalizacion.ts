@@ -7,7 +7,8 @@ import { ItemMenu, Sidebar } from '../shared/sidebar/sidebar';
 import { mensajeDeError } from '../almacen/almacen-api';
 import { EscanerCamara } from '../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../shared/gs1';
-import { FARMACIA_MENU } from '../farmacia/farmacia-nav';
+import { FARMACIA_MENU } from '../farmacia/farmacia-nav';
+import { MarcaSeguridad } from '../shared/marca-seguridad/marca-seguridad';
 import {
   AreaHospitalizacion,
   CamaCarrito,
@@ -39,7 +40,7 @@ type FiltroCamas = '' | 'OCUPADA' | 'LIBRE' | 'NOVEDADES';
 // abrir el detalle de una cama queda registrado.
 @Component({
   selector: 'app-hospitalizacion',
-  imports: [FormsModule, Topbar, Sidebar, EscanerCamara],
+  imports: [MarcaSeguridad, FormsModule, Topbar, Sidebar, EscanerCamara],
   templateUrl: './hospitalizacion.html',
   styleUrls: ['../farmacia/panel-farmacia/panel-farmacia.css', '../farmacia/farmacia-comun.css', './hospitalizacion.css'],
 })

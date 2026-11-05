@@ -10,6 +10,7 @@ import { SolicitudesAlmacen, formatoCaducidad } from '../../solicitudes-almacen'
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { DatosGs1, leerGs1 } from '../../../shared/gs1';
 import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 type TipoMensaje = 'success' | 'error' | 'info';
 
@@ -40,7 +41,7 @@ function normalizar(valor: unknown): string {
 // Sin registro en Intelisis no se puede recibir.
 @Component({
   selector: 'app-captura-intelisis',
-  imports: [FormsModule, DecimalPipe, NgTemplateOutlet, EscanerCamara],
+  imports: [MarcaSeguridad, FormsModule, DecimalPipe, NgTemplateOutlet, EscanerCamara],
   templateUrl: './captura-intelisis.html',
   styleUrls: ['../recepcion-comun.css', './captura-intelisis.css'],
 })

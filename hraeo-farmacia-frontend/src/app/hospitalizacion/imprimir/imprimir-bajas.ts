@@ -45,6 +45,13 @@ export class ImprimirBajas {
     window.print();
   }
 
+  // Quimioterapia y Quirófano usan estas mismas hojas (central = QUIMIO o QUIROFANO).
+  nombreArea(area: string): string {
+    if (area === 'QUIMIO') return 'Quimioterapia';
+    if (area === 'QUIROFANO') return 'Quirófano';
+    return `Hospitalización ${area}`;
+  }
+
   // "29 Julio 2026"
   fechaTitulo(valor: string): string {
     const [anio, mes, dia] = valor.slice(0, 10).split('-').map(Number);

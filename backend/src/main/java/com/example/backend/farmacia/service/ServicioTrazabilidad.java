@@ -119,6 +119,22 @@ public class ServicioTrazabilidad {
         return new TrazabilidadResponse("EXPEDIENTE", exp, List.of(), entregas);
     }
 
+    /** Por nombre del paciente (como se guardó al entregar) o por su CURP. */
+    @Transactional
+    public TrazabilidadResponse porPaciente(String paciente, String nombreUsuario) {
+        String texto = ServicioInventarioFarmacia.texto(paciente);
+        if (texto == null || texto.length() < 3) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe al menos 3 letras del nombre o la CURP del paciente");
+        }
+        boolean esCurp = texto.length() == 18 && texto.matches("(?i)[A-Z]{4}\\d{6}[A-Z0-9]{8}");
+        registrarConsulta(nombreUsuario, esCurp ? "CURP" : "NOMBRE", texto);
+        List<PartidaEntrega> partidas = esCurp
+                ? partidaEntregaRepository.findTop200ByEntregaRecetaPacienteCurpIgnoreCaseOrderByEntregaFechaDesc(texto)
+                : partidaEntregaRepository.findTop200ByEntregaRecetaPacienteNombreContainingIgnoreCaseOrderByEntregaFechaDesc(texto);
+        return new TrazabilidadResponse(esCurp ? "CURP" : "NOMBRE", texto, List.of(),
+                partidas.stream().map(ServicioTrazabilidad::aRespuesta).toList());
+    }
+
     private void registrarConsulta(String nombreUsuario, String modo, String valor) {
         Usuario usuario = inventario.usuario(nombreUsuario);
         haero.update("INSERT INTO farmacia_consulta_trazabilidad (usuario_id, modo, valor) VALUES (?, ?, ?)",

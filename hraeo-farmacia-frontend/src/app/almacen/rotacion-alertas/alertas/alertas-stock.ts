@@ -1,10 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { EstadoStock, ESTADO_STOCK_TEXTO, MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen, nombreMes } from '../../rotacion-almacen';
+import { EstadoStock, ESTADO_STOCK_TEXTO, MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen, TIPO_ALERTA_TEXTO, nombreMes } from '../../rotacion-almacen';
 import { SolicitudesAlmacen, mesActual } from '../../solicitudes-almacen';
 
-type GrupoAlerta = 'desabasto' | 'sobreabasto' | 'caducidad';
-type GrupoAviso = 'agotadas' | 'sin-salidas' | 'sin-movimiento' | 'consumo-alto' | 'merma';
+type GrupoAlerta = 'desabasto' | 'sobreabasto' | 'caducidad' | 'merma';
+type GrupoAviso = 'agotadas' | 'sin-salidas' | 'sin-movimiento' | 'consumo-alto';
 
 export interface AvisoRotacion {
   clave: string;
@@ -47,6 +47,9 @@ export class AlertasStock {
   readonly desabasto = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'DESABASTO'));
   readonly sobreabasto = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'SOBREABASTO'));
   readonly porVencer = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'CADUCIDAD_PROXIMA'));
+  // Lotes que caducarían antes de alcanzar a usarse al ritmo del CPM (aunque falten más de 9 meses).
+  readonly merma = computed(() => this.rotacion.alertasActivas().filter((alerta) => alerta.tipo === 'MERMA_PROBABLE'));
+  readonly tipoTexto = TIPO_ALERTA_TEXTO;
 
   // ---------- Avisos de rotación (calculados aquí, informativos) ----------
 
@@ -98,40 +101,8 @@ export class AlertasStock {
       { id: 'sin-salidas', titulo: 'Sin salidas este mes', descripcion: `Claves con consumo habitual que no han salido en ${mesEnCurso}.`, tono: 'info', items: sinSalidas },
       { id: 'sin-movimiento', titulo: 'Sin movimiento', descripcion: `Existencia sin ninguna salida en los últimos ${MESES_SIN_MOVIMIENTO} meses.`, tono: 'high', items: sinMovimiento },
       { id: 'consumo-alto', titulo: 'Consumo alto', descripcion: 'En lo que va del mes ya salió más que su CPM.', tono: 'info', items: consumoAlto },
-      { id: 'merma', titulo: 'Riesgo de merma', descripcion: 'Lotes que, al ritmo de consumo actual, caducarían antes de terminarse.', tono: 'expiry', items: this.riesgoMerma() },
     ];
   });
-
-  /**
-   * Lotes por caducar que no alcanzarían a despacharse: con FEFO salen primero los
-   * lotes que caducan antes, así que a cada lote se le suman las cajas de los lotes
-   * de la misma clave que caducan antes que él y se compara con lo que se consumiría
-   * (CPM × meses que le quedan).
-   */
-  private riesgoMerma(): AvisoRotacion[] {
-    const avisos: AvisoRotacion[] = [];
-    const lotes = this.porVencer().filter((alerta) => alerta.caducidad);
-    const porClave = new Map<string, typeof lotes>();
-    for (const lote of lotes) porClave.set(lote.clave, [...(porClave.get(lote.clave) ?? []), lote]);
-
-    for (const [clave, deLaClave] of porClave) {
-      const cpm = this.rotacion.buscar(clave)?.cpm ?? 0;
-      let acumuladas = 0;
-      for (const lote of [...deLaClave].sort((a, b) => a.caducidad!.localeCompare(b.caducidad!))) {
-        acumuladas += lote.existencia;
-        const meses = Math.max(0, (new Date(lote.caducidad!).getTime() - Date.now()) / (30.4 * 86400000));
-        const sobrarian = Math.min(lote.existencia, Math.round(acumuladas - cpm * meses));
-        if (sobrarian > 0) {
-          avisos.push({
-            clave,
-            detalle: `Lote ${lote.numeroLote} · ${lote.existencia} cajas · caduca ${lote.caducidad!.slice(8, 10)}/${lote.caducidad!.slice(5, 7)}/${lote.caducidad!.slice(0, 4)}`,
-            extra: cpm ? `sobrarían ~${sobrarian} cajas` : 'sin consumo registrado',
-          });
-        }
-      }
-    }
-    return avisos;
-  }
 
   // ---------- Resúmenes: solo una lista abierta a la vez ----------
 
@@ -153,6 +124,11 @@ export class AlertasStock {
   readonly desabastoFiltrado = computed(() => this.desabasto().filter((alerta) => this.coincide(alerta.clave)));
   readonly sobreabastoFiltrado = computed(() => this.sobreabasto().filter((alerta) => this.coincide(alerta.clave)));
   readonly porVencerFiltrado = computed(() => this.porVencer().filter((alerta) => this.coincide(alerta.clave, alerta.numeroLote ?? '')));
+  readonly mermaFiltrada = computed(() => this.merma().filter((alerta) => this.coincide(alerta.clave, alerta.numeroLote ?? '')));
+
+  cpmDe(clave: string): number {
+    return this.rotacion.buscar(clave)?.cpm ?? 0;
+  }
   readonly avisoFiltrado = computed(() => this.avisoAbierto()?.items.filter((aviso) => this.coincide(aviso.clave, aviso.detalle)) ?? []);
 
   // ---------- Tabla de niveles: filtro por estado y búsqueda ----------

@@ -49,7 +49,7 @@
                     <small>{{ medicamento(alerta.clave) || '—' }}</small>
                   </div>
                   <div class="alert-meta">
-                    <span class="alert-type">{{ alerta.tipo === 'DESABASTO' ? 'Riesgo de desabasto' : 'Riesgo de sobreabasto' }}</span>
+                    <span class="alert-type">{{ tipoTexto[alerta.tipo] }}{{ alerta.numeroLote ? ' · lote ' + alerta.numeroLote : '' }}</span>
                     <small>{{ diasDesde(alerta.inicio) }} · existencia {{ alerta.existencia }} / límite {{ alerta.limite }}</small>
                   </div>
                 </li>

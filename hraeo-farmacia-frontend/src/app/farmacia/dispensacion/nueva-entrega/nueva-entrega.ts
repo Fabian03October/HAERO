@@ -1,5 +1,6 @@
-import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
 import { Topbar } from '../../../shared/topbar/topbar';
@@ -10,7 +11,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Medicamento, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
-import { FarmaciaApi, LoteFarmacia, Receta, RecetaIntelisis } from '../../farmacia-api';
+import { EntregaReciente, FarmaciaApi, LoteFarmacia, Receta, RecetaIntelisis } from '../../farmacia-api';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 // Clave indicada en la receta, con lo que se le va entregando (HU28, HU29).
 interface ClaveReceta {
@@ -61,7 +63,7 @@ const MINIMO_NOMBRE = 3;
 // Farmacia no puede consultar los códigos de barras de Almacén.
 @Component({
   selector: 'app-nueva-entrega',
-  imports: [FormsModule, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
+  imports: [MarcaSeguridad, FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
   templateUrl: './nueva-entrega.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './nueva-entrega.css'],
 })
@@ -87,6 +89,8 @@ export class NuevaEntrega {
   // Al buscar por nombre puede haber varios pacientes que se llamen igual.
   readonly coincidencias = signal<Paciente[]>([]);
   readonly folioReceta = signal('');
+  // Médico de la receta de Intelisis elegida (y su adscrito, si es otro).
+  readonly medicoReceta = signal('');
   readonly avisoPaciente = signal('');
 
   readonly modosPaciente: { valor: ModoPaciente; etiqueta: string; placeholder: string }[] = [
@@ -99,6 +103,28 @@ export class NuevaEntrega {
   readonly recetasIntelisis = signal<RecetaIntelisis[]>([]);
   readonly cargandoRecetas = signal(false);
   readonly placeholderPaciente = computed(() => this.modosPaciente.find((modo) => modo.valor === this.modoPaciente())!.placeholder);
+
+  // Lo que el paciente ya recibió en los últimos 30 días: para que no se lleve una dosis dos veces.
+  readonly recientes = signal<EntregaReciente[]>([]);
+  private readonly cargarRecientes = effect(() => {
+    const expediente = this.paciente()?.expediente;
+    if (!expediente) {
+      this.recientes.set([]);
+      return;
+    }
+    untracked(() =>
+      this.api.entregasRecientes(expediente).subscribe({ next: (lista) => this.recientes.set(lista), error: () => this.recientes.set([]) }),
+    );
+  });
+  /** Por clave, la entrega más reciente de OTRA receta (las de la misma receta son su entrega parcial). */
+  readonly yaRecibio = computed(() => {
+    const folio = this.folioReceta().trim().toUpperCase();
+    const porClave = new Map<string, EntregaReciente>();
+    for (const r of this.recientes()) {
+      if (r.folioReceta.toUpperCase() !== folio && !porClave.has(r.clave)) porClave.set(r.clave, r);
+    }
+    return porClave;
+  });
 
   cantidadIndicada = 0;
   readonly claves = signal<ClaveReceta[]>([]);
@@ -321,6 +347,7 @@ export class NuevaEntrega {
     if (!this.paciente()) this.paciente.set(receta.paciente);
     this.recetasIntelisis.set([]);
     this.folioReceta.set(receta.folio);
+    this.medicoReceta.set(receta.medico ? receta.medico + (receta.medicoAdscrito ? ` (adscrito: ${receta.medicoAdscrito})` : '') : '');
     // Si una clave viene en varios renglones, se suma lo indicado.
     const porClave = new Map<string, ClaveReceta>();
     for (const partida of receta.partidas.filter((p) => p.enCatalogo && p.clave)) {
@@ -494,6 +521,7 @@ export class NuevaEntrega {
     this.paciente.set(null);
     this.coincidencias.set([]);
     this.folioReceta.set('');
+    this.medicoReceta.set('');
     this.avisoPaciente.set('');
     this.claves.set([]);
     this.cajas.set([]);

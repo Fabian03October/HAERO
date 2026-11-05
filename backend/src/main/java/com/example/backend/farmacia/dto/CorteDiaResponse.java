@@ -26,4 +26,6 @@ public class CorteDiaResponse {
     private int totalPiezas;
     private int totalPacientes;
     private List<LocalDate> diasPendientes;
+    // Áreas con baja por volumen propia: ya NO están en "consumo" (se capturan con su hoja).
+    private List<ResumenAreaResponse> areas;
 }

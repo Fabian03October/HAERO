@@ -1,0 +1,90 @@
+<div class="barra-impresion no-imprimir">
+  @if (cargando()) {
+    <span>Preparando el vale…</span>
+  } @else if (error()) {
+    <span class="error">{{ error() }}</span>
+  } @else {
+    <span>Vale de la caja {{ caja()?.codigo }}{{ vale() ? ' · salida del ' + fecha(vale()!.entregadoEn) : ' · en blanco' }}</span>
+    <span class="botones">
+      <button type="button" (click)="descargarPdf()">PDF</button>
+      <button type="button" (click)="descargarExcel()">Excel</button>
+      <button type="button" (click)="imprimir()">🖨 Imprimir</button>
+    </span>
+  }
+</div>
+
+@if (caja(); as c) {
+  <section class="hoja">
+    <header class="titulo">
+      <strong>FARMACIA DEL HOSPITAL REGIONAL DE ALTA ESPECIALIDAD DE OAXACA</strong>
+      <span>VALE DE MEDICAMENTOS PARA EL USO EN EL QUIROFANO</span>
+    </header>
+
+    <div class="cabecera">
+      <div><b>Servicio:</b> {{ vale()?.sala || c.servicio }}</div>
+      <div><b>Fecha:</b> {{ vale() ? fecha(vale()!.entregadoEn) : '____________' }}</div>
+      <div class="turnos">
+        <b>Turno:</b>
+        @for (t of turnos; track t.valor) {
+          <span>{{ t.etiqueta }} ( {{ vale()?.turno === t.valor ? 'X' : ' ' }} )</span>
+        }
+      </div>
+    </div>
+
+    <table class="vale">
+      <thead>
+        <tr>
+          <th class="exp">No. EXPEDIENTE</th>
+          <th class="pac">NOMBRE DEL PACIENTE</th>
+          <th>DESCRIPCIÓN DE FÁRMACOS</th>
+          <th class="num">SURTIDO</th>
+          <th class="num">UTILIZADO</th>
+          <th class="num">DEVOLUCIÓN</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of renglones(); track $index) {
+          @for (u of r.usos; track $index; let primero = $first) {
+            <tr>
+              <td>{{ u.expediente }}</td>
+              <td>{{ u.nombre }}</td>
+              @if (primero) {
+                <td class="desc" [attr.rowspan]="r.usos.length">{{ r.descripcion }}</td>
+                <td class="num" [attr.rowspan]="r.usos.length">{{ r.surtido }}</td>
+              }
+              <td class="num">{{ u.piezas }}</td>
+              @if (primero) {
+                <td class="num" [attr.rowspan]="r.usos.length">{{ r.devolucion }}</td>
+              }
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+
+    <p class="nota">NOTA: El presente documento tiene validez durante la jornada laboral de los médicos asignados en el servicio de quirófano.</p>
+
+    <div class="firmas">
+      <div>
+        <span class="rol">MÉDICO ANESTESIÓLOGO</span>
+        <span class="nombre">{{ vale()?.medico }}</span>
+        <span class="linea">NOMBRE Y FIRMA</span>
+      </div>
+      <div>
+        <span class="rol">PERSONAL QUE ENTREGA EN FARMACIA</span>
+        <span class="nombre">{{ vale()?.entregadoPor }}</span>
+        <span class="linea">NOMBRE Y FIRMA</span>
+      </div>
+      <div>
+        <span class="rol">PERSONAL QUE RECIBE LA DEVOLUCIÓN</span>
+        <span class="nombre">{{ vale()?.recibidoPor }}</span>
+        <span class="linea">NOMBRE Y FIRMA</span>
+      </div>
+    </div>
+
+    <footer class="pie">
+      <span>Caja {{ c.codigo }} · {{ c.nombre }}</span>
+      <span>{{ vale() ? 'Vale HAERO V-' + vale()!.id : 'Vale en blanco' }}</span>
+    </footer>
+  </section>
+}
