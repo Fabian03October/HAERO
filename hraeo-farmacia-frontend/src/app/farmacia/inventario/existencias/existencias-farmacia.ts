@@ -84,9 +84,15 @@ export class ExistenciasFarmacia {
     return caducidad >= this.hoy && caducidad <= this.limiteCaducidad;
   }
 
+  private readonly api = inject(FarmaciaApi);
+
   constructor() {
     inject(CajasQuirofano).enCajas().subscribe({ next: (lista) => this.enCajas.set(lista), error: () => this.enCajas.set([]) });
-    inject(FarmaciaApi).existencias().subscribe({
+    this.cargarExistencias();
+  }
+
+  private cargarExistencias(): void {
+    this.api.existencias().subscribe({
       next: (lotes) => {
         this.lotes.set(lotes);
         this.cargando.set(false);
@@ -95,6 +101,34 @@ export class ExistenciasFarmacia {
         this.error.set(mensajeDeError(error, 'No se pudo cargar el inventario de Farmacia.'));
         this.cargando.set(false);
       },
+    });
+  }
+
+  // ---------- Enlazar el código de la caja a una clave que se dio de alta sin código ----------
+  readonly claveEnlazando = signal<string | null>(null);
+  readonly avisoCodigo = signal<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  codigoNuevo = '';
+
+  empezarEnlace(clave: string): void {
+    this.claveEnlazando.set(clave);
+    this.codigoNuevo = '';
+    this.avisoCodigo.set(null);
+    setTimeout(() => document.getElementById('codigo-nuevo')?.focus());
+  }
+
+  enlazarCodigo(): void {
+    const clave = this.claveEnlazando();
+    const crudo = this.codigoNuevo.trim();
+    if (!clave || !crudo) return;
+    const gs1 = leerGs1(crudo);
+    const codigo = gs1?.gtin ?? crudo;
+    this.api.enlazarCodigo(codigo, clave).subscribe({
+      next: () => {
+        this.claveEnlazando.set(null);
+        this.avisoCodigo.set({ tipo: 'ok', texto: `Código ${codigo} enlazado a ${clave}. Ya se puede escanear para surtir.` });
+        this.cargarExistencias();
+      },
+      error: (e) => this.avisoCodigo.set({ tipo: 'error', texto: mensajeDeError(e, 'No se pudo guardar el código.') }),
     });
   }
 
@@ -128,16 +162,20 @@ export class ExistenciasFarmacia {
       if (this.filtro() === 'POR_CADUCAR' && !lote.porCaducar) return false;
       if (this.filtro() === 'VENCIDO' && lote.estado !== 'VENCIDO') return false;
       if (!texto) return true;
-      return `${lote.clave} ${lote.medicamento} ${lote.lote}`.toLowerCase().includes(texto);
+      return `${lote.clave} ${lote.medicamento} ${lote.lote} ${(lote.codigos ?? []).join(' ')}`.toLowerCase().includes(texto);
     });
   });
 
-  // Con la pistola o el teclado: si el código es GS1 se busca por su lote.
+  // Con la pistola o el teclado: si el código es GS1 se busca por su lote; si solo trae el
+  // producto (GTIN o código normal), se busca por el código de barras ligado a la clave.
   buscarEscaneado(): void {
     const gs1 = leerGs1(this.busqueda());
     if (gs1?.lote) {
       this.busqueda.set(gs1.lote);
       this.avisoBusqueda.set(`Código GS1 leído: se busca el lote ${gs1.lote}.`);
+    } else if (gs1?.gtin) {
+      this.busqueda.set(gs1.gtin);
+      this.avisoBusqueda.set(`Código GS1 leído: se busca el código de barras ${gs1.gtin}.`);
     } else {
       this.avisoBusqueda.set('');
     }

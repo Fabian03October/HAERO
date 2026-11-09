@@ -24,6 +24,8 @@ export interface LoteFarmacia {
   estado: EstadoLoteFarmacia;
   porCaducar: boolean;
   loteAlmacenId: number | null;
+  // Códigos de barras de la caja ligados a la clave (del alta inicial); son los que se escanean al surtir.
+  codigos: string[];
 }
 
 // HU25
@@ -321,6 +323,18 @@ export interface RenglonQuimioRequest {
   dosisUnidad: string | null;
   contenidoPorPieza: number | null;
   destinoSobrante: 'MERMA' | 'RESGUARDO' | null;
+  // Escaneo continuo: piezas por lote (deben sumar "piezas"); si viene, manda sobre "lote".
+  lotes: { lote: string | null; piezas: number; codigo: string | null }[] | null;
+  // No se entrega (sin existencia, o no se maneja y el paciente lo compra); lo demás sí.
+  noSurtido: boolean;
+  motivoNoSurtido: string | null;
+}
+
+// A qué clave pertenece el código de barras de una caja.
+export interface CodigoMedicamento {
+  codigo: string;
+  clave: string;
+  nombre: string;
 }
 
 // Solicitud de Oncología Médica leída de Intelisis. folio = el "Folio" de la hoja impresa.
@@ -335,6 +349,17 @@ export interface SolicitudQuimio {
   medico: string | null;
   sesionesSurtidas: number;
   ultimaSesion: string | null;
+  // Medicamentos de la nota: ENTREGADO, PENDIENTE (no se surtió) o POR_SURTIR.
+  medicamentos: { nombre: string; estado: 'ENTREGADO' | 'PENDIENTE' | 'POR_SURTIR' }[];
+  pendientes: number;
+}
+
+// Números del día para los recuadros y las pastillas de filtro.
+export interface ResumenQuimio {
+  porSurtir: number;
+  paraHoy: number;
+  conPendientes: number;
+  surtidasHoy: number;
 }
 
 // Clave del catálogo que puede ser la que escribió el médico (HAERO solo sugiere; Farmacia confirma).
@@ -355,6 +380,12 @@ export interface MedicamentoEnNota {
   dosisCantidad: number | null;
   dosisUnidad: string | null;
   claves: ClaveSugerida[];
+  // Alternativa que solo se da si falta lo indicado ("EN CASO DE DESABASTO DE siNoHayDe DAR…").
+  soloSiNoHay: boolean;
+  siNoHayDe: string | null;
+  // Diluyente o lavado (cloruro de sodio, glucosa…) junto por volumen; veces = bolsas.
+  solucion: boolean;
+  veces: number;
 }
 
 export interface SolicitudQuimioDetalle {
@@ -375,7 +406,7 @@ export interface EstadoQuimio {
   solicitudes: number;
 }
 
-export type FiltroQuimio = 'POR_SURTIR' | 'HOY' | 'SURTIDAS' | 'TODAS';
+export type FiltroQuimio = 'POR_SURTIR' | 'HOY' | 'CON_PENDIENTES' | 'SURTIDAS' | 'TODAS';
 
 // Sesiones ya surtidas de una solicitud (una solicitud puede cubrir varios ciclos).
 export interface SesionesSolicitud {
@@ -394,8 +425,6 @@ export interface RegistrarQuimio {
   justificacionPaciente: string;
   notaMedico: string;
   renglones: RenglonQuimioRequest[];
-  verificadorUsuario: string;
-  verificadorContrasena: string;
   // Si Intelisis no responde: cómo se confirmó al paciente (expediente físico).
   justificacionSinIntelisis: string | null;
 }
@@ -414,7 +443,8 @@ export interface QuimioRegistrada {
   folioEntrega: string;
   fecha: string;
   surtio: string;
-  verifico: string;
+  // Solo en quimios registradas cuando había doble verificación.
+  verifico: string | null;
   renglones: {
     textoMedico: string | null;
     claveIndicada: string;
@@ -431,8 +461,10 @@ export interface QuimioRegistrada {
     destinoSobrante: string | null;
     nombreIndicada: string;
     nombreAlternativa: string | null;
+    noSurtido: boolean;
+    motivoNoSurtido: string | null;
   }[];
-  partidas: { clave: string; medicamento: string; lote: string; caducidad: string; entregada: number }[] | null;
+  partidas: { clave: string; medicamento: string; lote: string; caducidad: string; entregada: number; devuelta: number }[] | null;
 }
 
 // Llamadas a /api/farmacia (Iteración 3). Supervisión solo puede usar las de consulta (GET).
@@ -558,6 +590,16 @@ export class FarmaciaApi {
   // ---------- Seguridad del paciente: alto riesgo y red fría ----------
   /** altoRiesgo null = volver a lo que dice Intelisis. */
   // ---------- Quimioterapia ----------
+  /** Enlaza el código de la caja a una clave que se dio de alta sin código. */
+  enlazarCodigo(codigo: string, clave: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/codigos`, { codigo, clave }, this.cabeceras());
+  }
+
+  /** Clave a la que pertenece un código de barras de caja; error 404 si todavía no se conoce. */
+  codigoMedicamento(codigo: string): Observable<CodigoMedicamento> {
+    return this.http.get<CodigoMedicamento>(`${this.base}/codigos/${encodeURIComponent(codigo)}`, this.cabeceras());
+  }
+
   registrarQuimio(datos: RegistrarQuimio): Observable<QuimioRegistrada> {
     return this.http.post<QuimioRegistrada>(`${this.base}/quimioterapia`, datos, this.cabeceras());
   }
@@ -566,14 +608,32 @@ export class FarmaciaApi {
     return this.http.get<SesionesSolicitud>(`${this.base}/quimioterapia/solicitudes/${encodeURIComponent(folio)}`, this.cabeceras());
   }
 
-  quimiosRecientes(): Observable<QuimioRegistrada[]> {
-    return this.http.get<QuimioRegistrada[]>(`${this.base}/quimioterapia`, this.cabeceras());
+  /** Surtidas: sin filtros, las últimas 30; dia = AAAA-MM-DD; buscar = folio, expediente o nombre. */
+  quimiosRecientes(dia = '', buscar = ''): Observable<QuimioRegistrada[]> {
+    const params: Record<string, string> = { ...(dia ? { dia } : {}), ...(buscar.trim() ? { buscar: buscar.trim() } : {}) };
+    return this.http.get<QuimioRegistrada[]>(`${this.base}/quimioterapia`, { ...this.cabeceras(), params });
   }
 
   /** Solicitudes de Oncología Médica leídas de Intelisis. buscar: folio de la hoja, expediente o nombre. */
-  solicitudesQuimio(filtro: FiltroQuimio, buscar = ''): Observable<SolicitudQuimio[]> {
-    const params: Record<string, string> = { filtro, ...(buscar.trim() ? { buscar: buscar.trim() } : {}) };
+  solicitudesQuimio(filtro: FiltroQuimio, buscar = '', desde = '', hasta = '', medico = ''): Observable<SolicitudQuimio[]> {
+    const params: Record<string, string> = {
+      filtro,
+      ...(buscar.trim() ? { buscar: buscar.trim() } : {}),
+      ...(desde ? { desde } : {}),
+      ...(hasta ? { hasta } : {}),
+      ...(medico ? { medico } : {}),
+    };
     return this.http.get<SolicitudQuimio[]>(`${this.base}/quimioterapia/intelisis`, { ...this.cabeceras(), params });
+  }
+
+  /** Números del día: por surtir, para hoy, con pendientes y surtidas hoy. */
+  resumenQuimio(): Observable<ResumenQuimio> {
+    return this.http.get<ResumenQuimio>(`${this.base}/quimioterapia/resumen`, this.cabeceras());
+  }
+
+  /** Médicos con solicitudes de quimio en los últimos 6 meses. */
+  medicosQuimio(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/quimioterapia/medicos`, this.cabeceras());
   }
 
   solicitudQuimio(folio: string | number): Observable<SolicitudQuimioDetalle> {

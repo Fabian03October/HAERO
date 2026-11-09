@@ -93,6 +93,19 @@ public class ServicioInventarioFarmacia {
      * Liga el código de la caja a su clave la primera vez que Farmacia lo ve, para que desde
      * ahí la caja se reconozca sola. Un código que ya es de otra clave no se reasigna.
      */
+    /**
+     * Enlaza el código de barras de la caja a una clave que ya tiene existencia en Farmacia pero se dio
+     * de alta sin código (desde Existencias). Si el código ya es de otra clave, se avisa.
+     */
+    @Transactional
+    public void enlazarCodigo(String codigo, String clave) {
+        String limpio = texto(codigo);
+        if (limpio == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escanea el código de barras de la caja");
+        }
+        aprenderCodigo(limpio, medicamento(clave));
+    }
+
     public void aprenderCodigo(String codigo, Medicamento medicamento) {
         if (codigo == null) {
             return;
@@ -124,7 +137,11 @@ public class ServicioInventarioFarmacia {
                 .filter(l -> l.getPiezas() > 0)
                 .toList();
         Map<String, Long> fefo = lotesFefo(lotes);
-        return lotes.stream().map(l -> aRespuesta(l, fefo)).toList();
+        Map<String, List<String>> codigos = new HashMap<>();
+        for (Object[] fila : codigoBarrasRepository.clavesYCodigos()) {
+            codigos.computeIfAbsent((String) fila[0], k -> new java.util.ArrayList<>()).add((String) fila[1]);
+        }
+        return lotes.stream().map(l -> aRespuesta(l, fefo, codigos.getOrDefault(l.getMedicamento().getClave(), List.of()))).toList();
     }
 
     /** HU30 CA1: el lote de la clave que debe salir primero, si hay alguno disponible. */
@@ -150,6 +167,10 @@ public class ServicioInventarioFarmacia {
     }
 
     LoteFarmaciaResponse aRespuesta(LoteFarmacia lote, Map<String, Long> fefo) {
+        return aRespuesta(lote, fefo, List.of());
+    }
+
+    LoteFarmaciaResponse aRespuesta(LoteFarmacia lote, Map<String, Long> fefo, List<String> codigos) {
         LocalDate hoy = LocalDate.now();
         Medicamento medicamento = lote.getMedicamento();
         boolean vencido = lote.getCaducidad().isBefore(hoy);
@@ -159,7 +180,7 @@ public class ServicioInventarioFarmacia {
         boolean porCaducar = !vencido && !lote.getCaducidad().isAfter(hoy.plusMonths(MESES_POR_CADUCAR));
         return new LoteFarmaciaResponse(lote.getId(), medicamento.getClave(), medicamento.getNombreGenerico(),
                 piezasPorCaja, lote.getNumeroLote(), lote.getCaducidad(), lote.getPiezas(), cajas, estado, porCaducar,
-                lote.getLoteAlmacen() != null ? lote.getLoteAlmacen().getId() : null);
+                lote.getLoteAlmacen() != null ? lote.getLoteAlmacen().getId() : null, codigos);
     }
 
     // ---------- HU25: alta inicial ----------

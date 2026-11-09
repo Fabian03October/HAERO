@@ -14,6 +14,9 @@
       <p class="error">{{ error() }}</p>
     } @else {
       <p class="hint">{{ estado() === 'iniciando' ? 'Abriendo la cámara…' : 'Centra el código dentro del recuadro, a unos 15-20 cm. Si se ve borroso, aleja un poco la caja.' }}</p>
+      @if (continuo() && estado() === 'leyendo') {
+        <p class="hint"><strong>Lectura continua:</strong> pasa las cajas una por una. Para contar otra caja igual, retírala y vuelve a ponerla. Leídas: {{ lecturas() }}</p>
+      }
     }
 
     <!-- Plan B: la cámara del teléfono enfoca sola y con más resolución. -->
@@ -25,6 +28,6 @@
       <p class="error">{{ avisoFoto() }}</p>
     }
 
-    <button type="button" class="cancel" (click)="cancelar()">Cancelar</button>
+    <button type="button" class="cancel" (click)="cancelar()">{{ continuo() ? 'Listo' : 'Cancelar' }}</button>
   </div>
 </div>

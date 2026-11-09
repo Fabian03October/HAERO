@@ -13,4 +13,8 @@ public interface CodigoBarrasRepository extends JpaRepository<CodigoBarras, Stri
     List<Object[]> contarPorClave();
 
     boolean existsByMedicamentoClave(String clave);
+
+    /** Todos los códigos con su clave: [clave, codigo] (para mostrarlos en las existencias). */
+    @Query("SELECT c.medicamento.clave, c.codigo FROM CodigoBarras c ORDER BY c.codigo")
+    List<Object[]> clavesYCodigos();
 }

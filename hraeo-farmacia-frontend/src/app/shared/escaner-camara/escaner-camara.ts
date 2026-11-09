@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, afterNextRender, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, afterNextRender, input, output, signal, viewChild } from '@angular/core';
 import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
@@ -28,6 +28,11 @@ const FORMATOS = [
 export class EscanerCamara implements OnDestroy {
   readonly leido = output<string>();
   readonly cerrar = output<void>();
+  // Continuo: no se cierra al leer; sigue leyendo caja tras caja hasta que se da "Listo".
+  readonly continuo = input(false);
+  readonly lecturas = signal(0);
+  private ultimaLectura = 0;
+  private ultimoCodigo = '';
 
   private readonly video = viewChild.required<ElementRef<HTMLVideoElement>>('video');
   private controles: IScannerControls | null = null;
@@ -123,9 +128,20 @@ export class EscanerCamara implements OnDestroy {
   }
 
   private emitir(texto: string): void {
-    this.detener();
+    const codigo = texto.trim();
+    if (this.continuo()) {
+      // La cámara sigue abierta: el mismo código pegado frente a la cámara se lee muchas veces por
+      // segundo, así que se ignora hasta que pase un rato (para contar otra caja igual, se retira y se vuelve a poner).
+      const ahora = Date.now();
+      if (ahora - this.ultimaLectura < 800 || (codigo === this.ultimoCodigo && ahora - this.ultimaLectura < 2000)) return;
+      this.ultimaLectura = ahora;
+      this.ultimoCodigo = codigo;
+      this.lecturas.update((n) => n + 1);
+    } else {
+      this.detener();
+    }
     navigator.vibrate?.(80);
-    this.leido.emit(texto.trim());
+    this.leido.emit(codigo);
   }
 
   cancelar(): void {

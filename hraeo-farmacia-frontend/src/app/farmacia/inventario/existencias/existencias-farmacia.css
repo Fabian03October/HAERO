@@ -1,3 +1,13 @@
 /* Existencias de Farmacia: los lotes vencidos se muestran en gris. */
 .aviso { margin: -6px 0 12px; }
 tr.vencido td { color: #8c8a86; }
+
+/* Código de barras de la caja ligado a la clave (el que se escanea al surtir) */
+td.codigos { white-space: nowrap; }
+td.codigos code { display: inline-block; margin: 1px 4px 1px 0; padding: 2px 6px; border-radius: 4px; background: #f3f0ea; color: #2b2b2b; font-size: 12px; letter-spacing: .02em; }
+.sin-codigo { color: #b3261e; font-size: 12px; font-weight: 600; cursor: help; }
+.agregar-codigo { margin-left: 6px; font-size: 12px; }
+.enlazar { display: inline-flex; align-items: center; gap: 6px; }
+.enlazar input { width: 150px; padding: 5px 8px; border: 2px solid #611232; border-radius: 6px; font: inherit; font-size: 12px; }
+.codigo-ok { color: #1c5e30; }
+.codigo-error { color: #b3261e; }
