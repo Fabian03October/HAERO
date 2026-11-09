@@ -56,9 +56,15 @@ export class Sidebar {
       .subscribe(() => this.menu.cerrar());
   }
 
+  // Un grupo contiene la página actual si es una de sus opciones; si no lo es de ningún
+  // grupo, se usa su prefijo de ruta (páginas internas como imprimir). Así una opción
+  // cuya ruta cae bajo el prefijo de otro grupo solo marca el grupo donde está.
   protected contieneRutaActual(item: ItemMenu): boolean {
     const ruta = this.url().split(/[?#]/)[0];
-    return !!item.routerLink && (ruta === item.routerLink || ruta.startsWith(`${item.routerLink}/`));
+    const bajo = (link?: string) => !!link && (ruta === link || ruta.startsWith(`${link}/`));
+    const esDeHijos = (grupo: ItemMenu) => !!grupo.hijos?.some((hijo) => bajo(hijo.routerLink));
+    if (esDeHijos(item)) return true;
+    return bajo(item.routerLink) && !this.items().some((otro) => otro !== item && esDeHijos(otro));
   }
 
   protected estaAbierto(item: ItemMenu): boolean {

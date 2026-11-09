@@ -11,7 +11,7 @@
           <div>
             <p class="eyebrow">Farmacia · Oncología</p>
             <h1>Quimioterapia</h1>
-            <p class="hero-text">Las solicitudes de Oncología Médica se leen de Intelisis: elige una (o escribe el folio de la hoja) y se llenan solos el paciente, el diagnóstico, el médico y la nota. HAERO sugiere la clave de cada medicamento de la nota; tú la confirmas, surtes cada frasco y otra persona verifica antes de entregar.</p>
+            <p class="hero-text">Las solicitudes de Oncología Médica se leen de Intelisis: elige una (o escribe el folio de la hoja) y se llenan solos el paciente, el diagnóstico, el médico y la nota. HAERO sugiere la clave de cada medicamento de la nota; tú la confirmas, escaneas las cajas y registras la entrega.</p>
           </div>
           <div class="lectura">
             @if (estado(); as e) {
@@ -23,93 +23,229 @@
             }
           </div>
         </header>
-
-        @if (mensaje()) {
-          <div class="banner" [class.error]="tipoMensaje() === 'error'" [class.warn]="tipoMensaje() === 'warn'" [class.info]="tipoMensaje() === 'info'">{{ mensaje() }}</div>
-        }
-
-        <!-- Baja por volumen del día, igual que en Hospitalización: una por día para capturar en Intelisis. -->
-        <section class="card baja-dia">
-          <div>
-            <p class="eyebrow">Baja en Intelisis · Quimioterapia</p>
-            @if (bajaDia(); as b) {
-              <strong>{{ b.entregasPendientes ? b.pacientesPendientes + ' paciente(s) surtidos hoy sin pasar a la baja' : 'Todo lo de hoy ya está en la baja' }}</strong>
-              <small>{{ b.folioDelDia ? 'Baja del día V-' + b.folioDelDia + ' · ' + (b.ultimaBaja | date: 'HH:mm') + ' · ' + b.ultimaBajaPor : 'Aún no hay baja del día' }}</small>
-            } @else {
-              <strong>Lo surtido de quimioterapia se da de baja por volumen</strong>
-            }
-          </div>
-          <div class="acciones">
-            <button class="btn" type="button" [disabled]="terminando() || !bajaDia()?.entregasPendientes" (click)="terminarDia()">{{ terminando() ? 'Generando…' : 'Terminar el día y generar la baja' }}</button>
-            @if (bajaDia()?.folioDelDia) {
-              <button class="btn secondary" type="button" (click)="imprimirBaja(bajaDia()!.folioDelDia)">Imprimir baja</button>
-              <button class="link" type="button" (click)="imprimirHojasPacientes()">Hojas por paciente</button>
-            }
-          </div>
-        </section>
+        <!-- Avisos flotantes (arriba a la derecha): verde listo, azul aviso, ámbar revisar, rojo error -->
+        <div class="avisos" aria-live="polite">
+          @for (a of avisos(); track a.id) {
+            <div [class]="'aviso-flotante ' + a.tipo" [attr.role]="a.tipo === 'error' ? 'alert' : 'status'">
+              <span class="aviso-icono" aria-hidden="true">
+                @switch (a.tipo) {
+                  @case ('ok') { <svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"></path></svg> }
+                  @case ('error') { <svg viewBox="0 0 24 24"><path d="M12 7v6"></path><path d="M12 17h.01"></path></svg> }
+                  @case ('warn') { <svg viewBox="0 0 24 24"><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg> }
+                  @default { <svg viewBox="0 0 24 24"><path d="M12 11v6"></path><path d="M12 7h.01"></path></svg> }
+                }
+              </span>
+              <div class="aviso-texto">
+                <strong>{{ a.titulo }}</strong>
+                <span>{{ a.texto }}</span>
+                @if (a.accion) {
+                  <button class="link" type="button" (click)="ejecutarAccion(a)">{{ a.accion.texto }}</button>
+                }
+              </div>
+              <button class="aviso-cerrar" type="button" aria-label="Cerrar aviso" (click)="cerrarAviso(a.id)">×</button>
+            </div>
+          }
+        </div>
 
         <!-- 0. Solicitudes de Oncología leídas de Intelisis -->
         @if (!detalle() && !capturaManual()) {
-          <section class="card">
-            <div class="card-heading">
+          <!-- Números del día: al darles clic se filtra la lista -->
+          <section class="kpis" aria-label="Resumen del día">
+            <button type="button" class="kpi-quimio" [class.activo]="filtro() === 'HOY'" (click)="cambiarFiltro('HOY')">
+              <span class="kpi-titulo">Para hoy</span>
+              <strong>{{ resumen()?.paraHoy ?? '—' }}</strong>
+              <small>solicitudes que se requieren hoy</small>
+            </button>
+            <button type="button" class="kpi-quimio medias" [class.activo]="!!enPausa()" [disabled]="!enPausa()" (click)="continuarPausada()">
+              <span class="kpi-titulo">A medias</span>
+              <strong>{{ enPausa() ? 1 : 0 }}</strong>
+              <small>{{ enPausa() ? 'clic para continuar' : 'nada guardado' }}</small>
+            </button>
+            <button type="button" class="kpi-quimio pendientes" [class.activo]="filtro() === 'CON_PENDIENTES'" (click)="cambiarFiltro('CON_PENDIENTES')">
+              <span class="kpi-titulo">Con pendientes</span>
+              <strong>{{ resumen()?.conPendientes ?? '—' }}</strong>
+              <small>surtidas a las que les falta algo</small>
+            </button>
+            <button type="button" class="kpi-quimio surtidas" [class.activo]="filtro() === 'SURTIDAS'" (click)="cambiarFiltro('SURTIDAS')">
+              <span class="kpi-titulo">Surtidas hoy</span>
+              <strong>{{ resumen()?.surtidasHoy ?? '—' }}</strong>
+              <small>{{ bajaDia()?.entregasPendientes ? bajaDia()!.pacientesPendientes + ' sin pasar a la baja' : 'todas en la baja del día' }}</small>
+            </button>
+          </section>
+
+          @if (enPausa(); as p) {
+            <!-- Solicitud que se dejó a medias -->
+            <div class="a-medias">
               <div>
-                <p class="eyebrow">Solicitudes de procedimiento · Intelisis</p>
-                <h2>Elige la solicitud de Oncología</h2>
+                <strong>Tienes a medias la solicitud {{ p.folio }} · {{ p.paciente?.nombre ?? p.nombreSolicitud }}</strong>
+                <small>{{ p.renglones.length }} medicamento(s) · {{ piezasEscaneadas(p) }} pieza(s) escaneadas · {{ p.guardado | date: 'HH:mm' }}</small>
+              </div>
+              <div class="acciones">
+                <button class="btn" type="button" [disabled]="cargandoDetalle()" (click)="continuarPausada()">Continuar</button>
+                <button class="link danger" type="button" (click)="descartarPausada()">Descartar</button>
               </div>
             </div>
-            <div class="buscar-solicitud">
-              <input [ngModel]="buscarSolicitud()" (ngModelChange)="buscarSolicitud.set($event)" (keyup.enter)="cargarSolicitudes()"
-                     placeholder="Folio de la hoja, expediente o nombre del paciente" autocomplete="off" />
+          }
+
+          <section class="card">
+            <div class="filtros-solicitud">
+              <label class="campo-buscar">
+                <span>Buscar</span>
+                <input [ngModel]="buscarSolicitud()" (ngModelChange)="buscarSolicitud.set($event)" (keyup.enter)="cargarSolicitudes()"
+                       placeholder="Folio de la hoja, expediente o nombre del paciente" autocomplete="off" />
+              </label>
+              <label>
+                <span>Desde</span>
+                <input type="date" [ngModel]="desde()" (ngModelChange)="cambiarFecha('desde', $event)" />
+              </label>
+              <label>
+                <span>Hasta</span>
+                <input type="date" [ngModel]="hasta()" (ngModelChange)="cambiarFecha('hasta', $event)" />
+              </label>
+              <label class="campo-medico">
+                <span>Médico</span>
+                <select [ngModel]="medico()" (ngModelChange)="cambiarMedico($event)">
+                  <option value="">Todos los médicos</option>
+                  @for (m of medicos(); track m) { <option [value]="m">{{ m }}</option> }
+                </select>
+              </label>
               <button class="btn" type="button" [disabled]="cargandoLista() || cargandoDetalle()" (click)="cargarSolicitudes()">{{ cargandoLista() ? 'Buscando…' : 'Buscar' }}</button>
             </div>
-            <div class="filtros">
+
+            <div class="pastillas" role="tablist" aria-label="Estado de la solicitud">
               @for (f of filtros; track f.valor) {
-                <button type="button" [class.activo]="filtro() === f.valor" (click)="cambiarFiltro(f.valor)">{{ f.etiqueta }}</button>
+                <button type="button" role="tab" [attr.aria-selected]="filtro() === f.valor" [class.activo]="filtro() === f.valor" [class.alerta]="f.valor === 'CON_PENDIENTES'" (click)="cambiarFiltro(f.valor)">
+                  {{ f.etiqueta }}
+                  @if (totalFiltro(f.valor) !== null) { <span class="cuenta">{{ totalFiltro(f.valor) }}</span> }
+                </button>
+              }
+              @if (filtrosActivos().length) {
+                <span class="separador"></span>
+                @for (a of filtrosActivos(); track a.etiqueta) {
+                  <span class="filtro-activo">{{ a.etiqueta }} <button type="button" [attr.aria-label]="'Quitar filtro ' + a.etiqueta" (click)="a.quitar()">×</button></span>
+                }
+                <button class="link" type="button" (click)="quitarFiltro('todos')">Quitar filtros</button>
               }
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Folio</th><th>Se requiere</th><th>Paciente</th><th>Solicita</th><th>Médico</th><th>En Farmacia</th><th></th></tr></thead>
-                <tbody>
-                  @for (s of solicitudes(); track s.folio) {
-                    <tr class="fila-solicitud" (click)="abrirSolicitud(s.folio)">
-                      <td><strong>{{ s.folio }}</strong><small class="sub">{{ s.fecha | date: 'dd/MM/yyyy' }}</small></td>
-                      <td>{{ s.fechaRequerida ? (s.fechaRequerida | date: 'dd/MM/yyyy') : '—' }}</td>
-                      <td class="nombre">{{ s.paciente ?? 'Expediente sin paciente en Intelisis' }}<small class="sub">exp. {{ s.expediente ?? '—' }}</small></td>
-                      <td class="nombre">{{ s.servicioSolicita ?? '—' }}</td>
-                      <td class="nombre">{{ s.medico ?? '—' }}</td>
-                      <td>
-                        @if (s.sesionesSurtidas) {
-                          <span class="estado ok">{{ s.sesionesSurtidas }} {{ s.sesionesSurtidas === 1 ? 'sesión' : 'sesiones' }}</span>
-                          <small class="sub">{{ s.ultimaSesion | date: 'dd/MM/yyyy' }}</small>
-                        } @else {
-                          <span class="estado">Por surtir</span>
-                        }
-                      </td>
-                      <td><button class="link" type="button" (click)="$event.stopPropagation(); abrirSolicitud(s.folio)">Abrir</button></td>
-                    </tr>
-                  } @empty {
-                    <tr><td colspan="7" class="empty">{{ cargandoLista() ? 'Cargando…' : 'No hay solicitudes con ese filtro. Si traes la hoja, escribe su folio.' }}</td></tr>
-                  }
-                </tbody>
-              </table>
+
+            <div class="tarjetas-solicitud">
+              @for (s of solicitudes(); track s.folio) {
+                @let medias = enPausa()?.folioIntelisis === '' + s.folio;
+                <article class="tarjeta-solicitud" [class.medias]="medias" [class.pendiente]="s.pendientes > 0" [class.surtida]="s.sesionesSurtidas > 0 && !s.pendientes" (click)="abrirSolicitud(s.folio)">
+                  <div class="ts-folio">
+                    <strong>{{ s.folio }}</strong>
+                    <small>{{ s.fechaRequerida ? (s.fechaRequerida | date: 'dd/MM/yyyy') : (s.fecha | date: 'dd/MM/yyyy') }}{{ s.sesionesSurtidas ? ' · sesión ' + (s.sesionesSurtidas + 1) : '' }}</small>
+                  </div>
+                  <div class="ts-paciente">
+                    <strong>{{ s.paciente ?? 'Expediente sin paciente en Intelisis' }}</strong>
+                    <small>Exp. {{ s.expediente ?? '—' }}{{ s.medico ? ' · ' + s.medico : '' }}</small>
+                  </div>
+                  <div class="ts-medicamentos">
+                    @for (m of s.medicamentos ?? []; track $index) {
+                      <span class="chip-med" [class.entregado]="m.estado === 'ENTREGADO'" [class.falta]="m.estado === 'PENDIENTE'">
+                        {{ m.estado === 'ENTREGADO' ? '✓ ' : m.estado === 'PENDIENTE' ? 'Falta ' : '' }}{{ nombreBonito(m.nombre) }}
+                      </span>
+                    } @empty {
+                      <small class="sub">Sin medicamentos reconocidos en la nota</small>
+                    }
+                  </div>
+                  <div class="ts-estado">
+                    @if (medias) {
+                      <span class="estado medias">A medias</span>
+                    } @else if (s.pendientes) {
+                      <span class="estado mal">Regresa por {{ s.pendientes }}</span>
+                    } @else if (s.sesionesSurtidas) {
+                      <span class="estado ok">Surtida {{ s.ultimaSesion | date: 'dd/MM HH:mm' }}</span>
+                    } @else {
+                      <span class="estado">Por surtir</span>
+                    }
+                  </div>
+                  <button class="btn" type="button" [class.secondary]="!medias" (click)="$event.stopPropagation(); medias ? continuarPausada() : abrirSolicitud(s.folio)">
+                    {{ medias ? 'Continuar' : s.pendientes ? 'Surtir lo que falta' : s.sesionesSurtidas ? 'Ver / nueva sesión' : 'Surtir' }}
+                  </button>
+                </article>
+              } @empty {
+                <p class="empty">{{ cargandoLista() ? 'Cargando…' : 'No hay solicitudes con esos filtros. Si traes la hoja, escribe su folio.' }}</p>
+              }
             </div>
             <p class="nota">
-              El folio es el que trae la hoja impresa ("FolioInterno" en Intelisis). Si Intelisis no responde,
+              {{ solicitudes().length }} solicitud(es). El folio es el que trae la hoja impresa ("FolioInterno" en Intelisis). Si Intelisis no responde,
               <button class="link" type="button" (click)="capturaManual.set(true)">captura la solicitud a mano</button>.
             </p>
           </section>
+
+          <!-- Baja por volumen del día, igual que en Hospitalización: una por día para capturar en Intelisis. -->
+          <section class="card baja-dia">
+            <div>
+              <p class="eyebrow">Baja en Intelisis · Quimioterapia</p>
+              @if (bajaDia(); as b) {
+                <strong>{{ b.entregasPendientes ? b.pacientesPendientes + ' paciente(s) surtidos hoy sin pasar a la baja' : 'Todo lo de hoy ya está en la baja' }}</strong>
+                <small>{{ b.folioDelDia ? 'Baja del día V-' + b.folioDelDia + ' · ' + (b.ultimaBaja | date: 'HH:mm') + ' · ' + b.ultimaBajaPor : 'Aún no hay baja del día' }}</small>
+              } @else {
+                <strong>Lo surtido de quimioterapia se da de baja por volumen</strong>
+              }
+            </div>
+            <div class="acciones">
+              <button class="btn" type="button" [disabled]="terminando() || !bajaDia()?.entregasPendientes" (click)="terminarDia()">
+                {{ terminando() ? 'Generando…' : !bajaDia()?.entregasPendientes ? 'Nada nuevo por pasar a la baja' : bajaDia()?.folioDelDia ? 'Sumar ' + bajaDia()!.pacientesPendientes + ' a la baja del día' : 'Terminar el día y generar la baja' }}
+              </button>
+              @if (bajaDia()?.folioDelDia) {
+                <button class="btn secondary" type="button" (click)="imprimirBaja(bajaDia()!.folioDelDia)">Imprimir baja</button>
+                <button class="link" type="button" (click)="imprimirHojasPacientes()">Hojas por paciente</button>
+              }
+            </div>
+          </section>
         }
 
-        <!-- 1. Solicitud y paciente -->
+        <!-- Pasos: dónde va la solicitud abierta -->
         @if (detalle() || capturaManual()) {
+          <ol class="pasos" aria-label="Pasos">
+            @for (p of pasos(); track p.n) {
+              <li [class.hecho]="p.hecho" [class.actual]="p.actual" [attr.aria-current]="p.actual ? 'step' : null">
+                <span class="paso-numero">{{ p.hecho ? '✓' : p.n }}</span>
+                <span class="paso-texto"><strong>{{ p.titulo }}</strong><small>{{ p.detalle }}</small></span>
+              </li>
+            }
+          </ol>
+        }
+
+        <!-- Surtir: el paciente y la nota del médico en una columna fija a la izquierda; los pasos a la derecha -->
+        @if (detalle() || capturaManual()) {
+        <div class="surtir-layout">
+          <aside class="surtir-paciente" aria-label="Paciente y solicitud">
+            <button class="link" type="button" title="Regresa a la lista; lo que llevas se guarda para continuarlo" (click)="volverALista()">← Ver todas las solicitudes</button>
+            <div class="sp-cabeza">
+              <span class="eyebrow">Solicitud {{ folio() || '—' }} · sesión {{ (sesiones()?.sesiones?.length ?? 0) + 1 }}</span>
+              <strong>{{ paciente()?.nombre ?? nombreSolicitud() ?? 'Paciente por confirmar' }}</strong>
+              <small>Exp. {{ paciente()?.expediente ?? expediente() ?? '—' }}{{ pacienteListo() ? ' · confirmado en Intelisis' : ' · por confirmar' }}</small>
+            </div>
+            @if (detalle(); as d) {
+              <dl>
+                <dt>Diagnóstico</dt><dd>{{ d.diagnostico ?? '—' }}</dd>
+                <dt>Médico</dt><dd>{{ d.solicitud.medico ?? '—' }}</dd>
+                <dt>Se requiere</dt><dd>{{ d.solicitud.fechaRequerida ? (d.solicitud.fechaRequerida | date: 'dd/MM/yyyy') : '—' }}</dd>
+                <dt>Solicita</dt><dd>{{ d.solicitud.servicioSolicita ?? '—' }}</dd>
+              </dl>
+              <div class="sp-nota">
+                <span>Nota del médico</span>
+                <pre class="nota-medico">{{ notaMedico() || 'La solicitud no trae nota.' }}</pre>
+              </div>
+            }
+            @if (pacienteListo() && !corrigiendo()) {
+              <button class="link" type="button" (click)="paso1Abierto.set(!paso1Abierto())">{{ paso1Abierto() ? 'Ocultar datos de la solicitud' : 'Ver solicitud o cambiar paciente' }}</button>
+            }
+          </aside>
+          <div class="surtir-principal">
+
+        <!-- 1. Solicitud y paciente (se esconde cuando el paciente ya está confirmado) -->
+        @if ((detalle() || capturaManual()) && (!pacienteListo() || paso1Abierto() || corrigiendo())) {
         <section class="card">
           <div class="card-heading">
             <div>
               <p class="eyebrow">Paso 1</p>
               <h2>Solicitud de procedimiento y paciente</h2>
             </div>
-            <button class="link" type="button" (click)="cerrarSolicitud()">← Otra solicitud</button>
+            <button class="link" type="button" title="Regresa a la lista; lo que llevas se guarda para continuarlo" (click)="volverALista()">← Ver todas las solicitudes</button>
           </div>
 
           @if (detalle(); as d) {
@@ -229,12 +365,8 @@
               <h2>Indicación del médico</h2>
             </div>
           </div>
-          @if (detalle()) {
-            <div class="field">
-              <label>Lo que escribió el médico en Intelisis</label>
-              <pre class="nota-medico">{{ notaMedico() || 'La solicitud no trae nota.' }}</pre>
-            </div>
-          } @else {
+          <!-- Con Intelisis, la nota del médico se ve en la columna del paciente (izquierda). -->
+          @if (!detalle()) {
             <div class="field">
               <label for="nota-medico">Lo que escribió el médico (tal cual)</label>
               <textarea id="nota-medico" [ngModel]="notaMedico()" (ngModelChange)="notaMedico.set($event)" placeholder="Ej. Paclitaxel 175 mg/m2 IV en 3 h. Carboplatino AUC 5; si no hay, cisplatino 75 mg/m2…"></textarea>
@@ -253,36 +385,141 @@
             </div>
           }
 
+          <!-- Tabla de 1 clic: un renglón por medicamento de la nota; clic en la clave = se agrega. -->
           @if (detalle()?.medicamentos?.length) {
-            <div class="sugerencias">
-              <p class="eyebrow">Medicamentos que HAERO encontró en la nota · elige la clave de cada uno</p>
-              @for (m of detalle()!.medicamentos; track m.farmaco) {
-                <div class="sugerencia">
-                  <div class="sugerencia-texto">
-                    <strong>{{ m.farmaco }}</strong>{{ m.dosisCantidad ? ' · ' + m.dosisCantidad + ' ' + m.dosisUnidad : '' }}
-                    <small>“{{ m.texto }}”</small>
-                  </div>
-                  <div class="claves-sugeridas">
-                    @for (c of m.claves; track c.clave) {
-                      <button type="button" class="clave-sugerida" [class.agregada]="clavesEnLista().includes(c.clave)" [class.sin-piezas]="c.existencia <= 0"
-                              [disabled]="clavesEnLista().includes(c.clave)" (click)="usarSugerencia(m, c)">
-                        <strong>{{ c.clave }}</strong>
-                        <span>{{ c.forma ?? c.nombre }}{{ c.concentracion ? ' · ' + c.concentracion : '' }}</span>
-                        <small>
-                          {{ clavesEnLista().includes(c.clave) ? '✓ En la indicación' : c.existencia > 0 ? c.existencia + ' pz en Farmacia' : 'Sin existencia' }}{{ c.usadaAntes ? ' · ciclo anterior' : '' }}
-                        </small>
-                      </button>
-                    } @empty {
-                      <small class="sub">Sin claves en el catálogo: búscala abajo.</small>
+            <p class="eyebrow titulo-tabla">Medicamentos en la nota · da clic en la clave correcta y se agrega</p>
+            @if (resumenSesiones(); as rs) {
+              <!-- Sesión 2 en adelante: lo que ya se surtió de esta misma solicitud y lo que falta. -->
+              <div class="resumen-sesiones">
+                @if (rs.surtidos.length) { <span><b>✓ Ya entregado:</b> {{ rs.surtidos.join(', ') }}</span> }
+                @if (rs.faltan.length) { <span><b>Falta:</b> {{ rs.faltan.join(', ') }}</span> } @else { <span><b>Ya se entregó todo lo de la nota en sesiones anteriores.</b> Solo se libera lo que el paciente devuelva.</span> }
+              </div>
+            }
+            <div class="table-wrap">
+              <table class="tabla-nota">
+                <thead><tr><th>En la nota</th><th>Clave</th><th class="number">Pz</th></tr></thead>
+                <tbody>
+                  @for (m of medicamentosNota(); track m.farmaco + m.soloSiNoHay; let i = $index) {
+                    @if (m.solucion && !m.soloSiNoHay && (i === 0 || !medicamentosNota()[i - 1].solucion)) {
+                      <!-- Soluciones: diluyente de cada mezcla y lavados, juntas por volumen (Farmacia también las entrega) -->
+                      <tr class="separador-soluciones"><td colspan="3">
+                        <strong>Soluciones (diluyentes y lavados)</strong>
+                        <small>Juntas por tipo y volumen: las piezas son las bolsas que pide la nota. Elige la clave de la presentación correcta.</small>
+                      </td></tr>
                     }
-                  </div>
-                </div>
-              }
-              <p class="nota">Son sugerencias por el nombre: revisa la forma y la concentración contra la nota. Si falta un medicamento, búscalo abajo.</p>
+                    @if (m.soloSiNoHay && (i === 0 || !medicamentosNota()[i - 1].soloSiNoHay)) {
+                      <!-- Alternativas por desabasto: solo se agregan si falta lo indicado -->
+                      <tr class="separador-alternativas"><td colspan="3">
+                        <strong>En caso de desabasto{{ m.siNoHayDe ? " de " + nombreBonito(m.siNoHayDe) : "" }}</strong>
+                        <small>El médico indicó estas alternativas: agrégalas solo si no hay lo indicado (y marca ese como «No se surte» en el paso 3).</small>
+                      </td></tr>
+                    }
+                    @let agregados = renglonesDe(m);
+                    @let pidePiezas = pendientePiezas()?.farmaco === claveNota(m);
+                    @let historial = historialDe(m);
+                    @let bloqueo = bloqueoDe(m);
+                    <tr [class.hecho]="agregados.length" [class.activo]="pidePiezas" [class.ya-surtido]="!!bloqueo && !agregados.length" [class.fila-alternativa]="m.soloSiNoHay && !agregados.length">
+                      <td class="en-nota" [title]="m.texto">
+                        <strong>{{ m.farmaco }}</strong>
+                        @if (m.dosisCantidad) { <span>{{ m.dosisCantidad }} {{ m.dosisUnidad }}{{ m.solucion ? " · " + m.veces + (m.veces === 1 ? " bolsa" : " bolsas") : "" }}</span> }
+                        @for (h of historial.surtido; track $index) {
+                          <small class="historial" [class.ok]="!h.devuelto" [class.pendiente]="h.devuelto">{{ h.devuelto ? '↩ Devuelto' : '✓ Ya entregado' }} en sesión {{ h.sesion }} ({{ h.fecha | date: 'dd/MM' }}): {{ h.clave }} · {{ h.piezas }} pz{{ h.devuelto ? ' · se puede volver a surtir' : '' }}</small>
+                        }
+                        @for (h of historial.noSurtido; track $index) {
+                          <small class="historial pendiente">No se surtió en sesión {{ h.sesion }}{{ h.motivo ? ': ' + h.motivo : '' }}</small>
+                        }
+                      </td>
+                      <td>
+                        @if (bloqueo && !agregados.length) {
+                          <!-- Ya entregado en otra sesión de esta solicitud y sin devolver: no se vuelve a dar. -->
+                          <div class="bloqueado">
+                            <strong>Ya se entregó ({{ bloqueo.piezas }} pz de {{ bloqueo.clave }}, sesión {{ bloqueo.sesion }}).</strong>
+                            <small>Si se recetó mal y el paciente lo regresó, registra la devolución en Ventanilla › Devoluciones con el folio <b>{{ bloqueo.folioEntrega }}</b>; después se libera aquí.</small>
+                          </div>
+                        } @else {
+                        <div class="claves-sugeridas">
+                          @for (c of m.claves; track c.clave) {
+                            @let enLista = claveAgregadaEn(agregados, c.clave);
+                            @let esperando = pidePiezas && pendientePiezas()?.clave === c.clave;
+                            <button type="button" class="clave-sugerida" [class.agregada]="enLista" [class.seleccionada]="esperando" [class.sin-piezas]="c.existencia <= 0"
+                                    [disabled]="enLista" [title]="(agregados.length && !enLista ? 'Cambiar a esta clave: ' : '') + c.nombre + (c.forma ? ' · ' + c.forma : '') + (c.concentracion ? ' · ' + c.concentracion : '')"
+                                    (click)="agregarSugerencia(m, c)">
+                              <strong>{{ enLista ? '✓ ' : '' }}{{ c.clave }}</strong>
+                              <span>{{ c.concentracion ?? c.forma ?? c.nombre }}</span>
+                              <small>{{ c.existencia > 0 ? c.existencia + ' pz' : 'sin exist.' }}{{ c.usadaAntes ? ' · ciclo ant.' : '' }}</small>
+                            </button>
+                          } @empty {
+                            <small class="sub">Sin claves: usa "+ Agregar otro medicamento".</small>
+                          }
+                        </div>
+                        }
+                        @if (claveEsperando(m); as sel) {
+                          <div class="elegida-completa">
+                            <strong>{{ sel.clave }}</strong> {{ sel.nombre }}{{ sel.forma ? ' · ' + sel.forma : '' }}{{ sel.concentracion ? ' · ' + sel.concentracion : '' }}
+                            <small>HAERO no sabe cuánto trae cada pieza de esta clave: escribe las piezas a la derecha y da Enter.</small>
+                          </div>
+                        }
+                      </td>
+                      <td class="number pz-celda">
+                        @if (pidePiezas) {
+                          <div class="pz-captura">
+                            <input id="pz-fila" type="number" min="1" placeholder="Pz" aria-label="Piezas a surtir"
+                                   [ngModel]="piezasFila()" (ngModelChange)="piezasFila.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="confirmarPiezas(m)" />
+                            <button class="btn" type="button" (click)="confirmarPiezas(m)">✓</button>
+                          </div>
+                        } @else if (agregados.length === 1) {
+                          <!-- Piezas calculadas o escritas; se pueden corregir aquí. -->
+                          <input class="pz-editar" type="number" min="1" step="1" aria-label="Corregir piezas" title="Corrige las piezas si hace falta"
+                                 [value]="agregados[0].piezas" (change)="corregirPiezas(agregados[0].id, $any($event.target))" (keyup.enter)="$any($event.target).blur()" />
+                        } @else if (agregados.length) {
+                          <strong title="Varias presentaciones: corrígelas en la tabla de Indicación">{{ sumaPiezas(agregados) }}</strong>
+                        } @else {
+                          <span class="sub">–</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
+            <p class="nota">Pasa el mouse sobre el medicamento para ver el renglón de la nota y sobre la clave para ver su nombre completo. Si HAERO no puede calcular las piezas, te las pide en el renglón (Enter agrega). Cada medicamento lleva una clave: si eliges otra, se cambia; para combinar presentaciones usa "+ Agregar otro medicamento".</p>
           }
 
-          <div class="two-columns">
+          <!-- Lo que ya va en la indicación -->
+          <div class="table-wrap indicacion">
+            <table>
+              <thead><tr><th>Indicación</th><th>Dosis</th><th class="number">Piezas</th><th></th></tr></thead>
+              <tbody>
+                @for (r of renglones(); track r.id) {
+                  <tr>
+                    <td class="nombre" [title]="r.textoMedico">
+                      <strong>{{ r.principal.clave }}</strong> {{ r.principal.nombre }} <app-marca-seguridad [clave]="r.principal.clave" />
+                      @if (r.alternativa) { <span class="alternativa">Si no hay: {{ r.alternativa.clave }} {{ r.alternativa.nombre }}</span> }
+                    </td>
+                    <td>{{ r.dosis }}</td>
+                    <td class="number">
+                      <input class="pz-editar" type="number" min="1" step="1" aria-label="Corregir piezas"
+                             [value]="r.piezas" (change)="corregirPiezas(r.id, $any($event.target))" (keyup.enter)="$any($event.target).blur()" />
+                    </td>
+                    <td><button class="link danger" type="button" (click)="quitarRenglon(r.id)">Quitar</button></td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4" class="empty">Pasa a claves cada medicamento de la nota.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          @if (!formularioAbierto() && detalle()?.medicamentos?.length) {
+            <button class="link agregar-otro" type="button" (click)="formularioAbierto.set(true)">+ Agregar otro medicamento (buscar por nombre o con alternativa)</button>
+          } @else {
+          <div class="formulario-manual">
+            @if (detalle()?.medicamentos?.length) {
+              <div class="en-linea cabeza-form">
+                <strong>Agregar otro medicamento</strong>
+                <button class="link" type="button" (click)="formularioAbierto.set(false)">Cerrar</button>
+              </div>
+            }
             <div>
               <div class="field">
                 <label for="texto-renglon">Renglón de la nota (opcional)</label>
@@ -343,29 +580,8 @@
               </div>
               <p class="nota">Para un medicamento que HAERO no encontró, búscalo por el nombre genérico. Si la nota no es clara, confirma con el médico antes de surtir.</p>
             </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Medicamento</th><th>Dosis</th><th class="number">Piezas</th><th></th></tr></thead>
-                <tbody>
-                  @for (r of renglones(); track r.id) {
-                    <tr>
-                      <td class="nombre">
-                        <strong>{{ r.principal.clave }}</strong> {{ r.principal.nombre }} <app-marca-seguridad [clave]="r.principal.clave" />
-                        @if (r.alternativa) { <span class="alternativa">Si no hay: {{ r.alternativa.clave }} {{ r.alternativa.nombre }}</span> }
-                        @if (r.textoMedico) { <span class="texto-medico">“{{ r.textoMedico }}”</span> }
-                      </td>
-                      <td>{{ r.dosis }}</td>
-                      <td class="number">{{ r.piezas }}</td>
-                      <td><button class="link danger" type="button" (click)="quitarRenglon(r.id)">Quitar</button></td>
-                    </tr>
-                  } @empty {
-                    <tr><td colspan="4" class="empty">Pasa a claves cada medicamento de la nota.</td></tr>
-                  }
-                </tbody>
-              </table>
-            </div>
           </div>
+          }
         </section>
         }
 
@@ -377,130 +593,235 @@
                 <p class="eyebrow">Paso 3</p>
                 <h2>Surtir</h2>
               </div>
+              <span class="estado" [class.ok]="escaneoCompleto()">
+                {{ escaneoCompleto() ? '✓ Todo escaneado' : 'Escanea las cajas' }}
+              </span>
             </div>
-            <div class="scanner">
-              <input [(ngModel)]="codigoFrasco" (keyup.enter)="escanearFrasco()" [placeholder]="renglonActivo() === null ? 'Elige un renglón y escanea el frasco' : 'Escanea el frasco y Enter'" autocomplete="off" />
-              <button type="button" title="Leer código" (click)="escanearFrasco()">▣</button>
-              <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camara.set(true)">📷</button>
+
+            <!-- Escaneo continuo: cualquier caja, en cualquier orden; HAERO sabe de qué medicamento es. -->
+            <div class="escaner-grande" [class.listo]="escaneoCompleto()">
+              <label for="escaner-surtido">Escanea las cajas de todos los medicamentos, en cualquier orden</label>
+              <div class="scanner">
+                <input id="escaner-surtido" [(ngModel)]="codigoFrasco" (keyup.enter)="escanearFrasco()" autocomplete="off"
+                       placeholder="Da clic aquí y pasa las cajas por el lector" />
+                <button type="button" title="Leer lo escrito" (click)="escanearFrasco()">▣</button>
+                <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camara.set(true)">📷</button>
+              </div>
+              @if (ultimoEscaneo(); as u) {
+                <p [class]="'resultado-escaneo ' + u.tipo" role="status">{{ u.texto }}</p>
+              }
+              @if (codigoSinClave()) {
+                <div class="codigo-nuevo">
+                  <span>¿De qué medicamento es esta caja?</span>
+                  @for (r of renglones(); track r.id) {
+                    @if (!r.sinEscaneo && !r.noSurtido && escaneadas(r) < r.piezas) {
+                      <button class="btn secondary" type="button" (click)="elegirRenglonParaCodigo(r)">{{ claveSurtida(r) }}</button>
+                    }
+                  }
+                  <button class="link" type="button" (click)="codigoSinClave.set(null)">Ninguno</button>
+                </div>
+              }
             </div>
             @if (camara()) {
-              <app-escaner-camara (leido)="frascoDesdeCamara($event)" (cerrar)="camara.set(false)" />
+              <app-escaner-camara [continuo]="true" (leido)="frascoDesdeCamara($event)" (cerrar)="camara.set(false)" />
             }
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Se surte</th><th>Lote</th><th class="number">Piezas</th><th></th></tr></thead>
-                <tbody>
-                  @for (r of renglones(); track r.id) {
-                    <tr [class.activo]="renglonActivo() === r.id" [class.listo]="existenciaDe(r) >= r.piezas" [class.falta]="existenciaDe(r) < r.piezas">
-                      <td class="nombre">
-                        @if (r.alternativa) {
-                          <select [ngModel]="r.usar" (ngModelChange)="cambiarRenglon(r.id, { usar: $event })">
-                            <option value="PRINCIPAL">{{ r.principal.clave }} · {{ r.principal.nombre }}</option>
-                            <option value="ALTERNATIVA">{{ r.alternativa.clave }} · {{ r.alternativa.nombre }} (alternativa)</option>
-                          </select>
-                        } @else {
-                          <strong>{{ r.principal.clave }}</strong> {{ r.principal.nombre }}
-                        }
-                        <app-marca-seguridad [clave]="claveSurtida(r)" />
-                        <small class="sub">{{ r.dosis }}</small>
-                        @if (existenciaDe(r) < r.piezas) {
-                          <small class="sin-existencia">En Farmacia solo hay {{ existenciaDe(r) }} piezas{{ r.alternativa && r.usar === 'PRINCIPAL' ? ': surte la alternativa' : '' }}</small>
-                        }
-                        @if (pideMotivoAlternativa(r)) {
-                          <input class="celda motivo" [ngModel]="r.motivoAlternativa" (ngModelChange)="cambiarRenglon(r.id, { motivoAlternativa: $event })"
-                                 placeholder="Sí hay de {{ r.principal.clave }}: ¿por qué la alternativa?" />
-                        }
-                        @if (sobrante(r) !== null) {
-                          @if (sobrante(r)! < 0) {
-                            <small class="sin-existencia">No alcanza: faltan {{ -sobrante(r)! }} {{ r.dosisUnidad }} para {{ r.dosisCantidad }} {{ r.dosisUnidad }}</small>
-                          } @else if (sobrante(r)! > 0) {
-                            <div class="en-linea sobrante">
-                              <small>Sobran {{ sobrante(r) }} {{ r.dosisUnidad }}:</small>
-                              <select class="celda" [ngModel]="r.destinoSobrante" (ngModelChange)="cambiarRenglon(r.id, { destinoSobrante: $event })">
-                                <option [ngValue]="null">¿Qué se hace?</option>
-                                <option value="MERMA">Se desecha (merma)</option>
-                                <option value="RESGUARDO">Se guarda (estabilidad)</option>
-                              </select>
-                            </div>
-                          }
-                        }
-                      </td>
-                      <td>
-                        <select class="celda" [ngModel]="r.lote" (ngModelChange)="cambiarRenglon(r.id, { lote: $event })">
-                          <option value="">El que sale primero (FEFO)</option>
-                          @for (l of lotesDe(r); track l.id) {
-                            <option [value]="l.lote">{{ l.lote }} · cad. {{ l.caducidad | date: 'dd/MM/yyyy' }} · {{ l.piezas }} pz</option>
-                          }
+
+            <div class="surtido-lista">
+              @for (r of renglones(); track r.id) {
+                @let falta = existenciaDe(r) < r.piezas;
+                @let hechas = escaneadas(r);
+                @let completo = !r.sinEscaneo && hechas === r.piezas;
+                <article class="surtido-item" [class.listo]="completo || r.sinEscaneo" [class.falta]="falta && !completo && !r.noSurtido" [class.no-surtida]="r.noSurtido">
+                  <div class="surtido-cabeza">
+                    <div class="surtido-medicamento">
+                      @if (r.alternativa) {
+                        <select class="celda" [ngModel]="r.usar" (ngModelChange)="cambiarRenglon(r.id, { usar: $event })" aria-label="Medicamento que se surte">
+                          <option value="PRINCIPAL">{{ r.principal.clave }} · {{ r.principal.nombre }}</option>
+                          <option value="ALTERNATIVA">{{ r.alternativa.clave }} · {{ r.alternativa.nombre }} (alternativa)</option>
                         </select>
-                      </td>
-                      <td class="number">{{ r.piezas }}</td>
-                      <td><button class="link" type="button" (click)="renglonActivo.set(r.id)">{{ renglonActivo() === r.id ? 'Escaneando' : 'Escanear' }}</button></td>
-                    </tr>
+                      } @else {
+                        <div class="surtido-nombre" [title]="r.principal.nombre">
+                          <strong>{{ r.principal.clave }}</strong> {{ r.principal.nombre }}
+                        </div>
+                      }
+                      <div class="surtido-datos">
+                        <span>Dosis <strong>{{ r.dosis }}</strong></span>
+                        <app-marca-seguridad [clave]="claveSurtida(r)" />
+                      </div>
+                    </div>
+                    @if (r.noSurtido) {
+                      <span class="estado mal">No se surte</span>
+                    } @else if (r.sinEscaneo) {
+                      <span class="contador">Sin escaneo</span>
+                    } @else {
+                      <span class="contador" [class.ok]="completo" [class.mal]="hechas > r.piezas">{{ hechas }} <small>de {{ r.piezas }}</small></span>
+                    }
+                  </div>
+
+                  @if (r.noSurtido) {
+                    <!-- No se entrega este medicamento; lo demás de la indicación sí. -->
+                    <div class="no-surtido">
+                      <span>¿Por qué no se surte?</span>
+                      <div class="segmentado" role="group" aria-label="Motivo de no surtir">
+                        @for (m of motivosNoSurtido; track m) {
+                          <button type="button" [class.elegido]="r.motivoNoSurtido === m" (click)="cambiarRenglon(r.id, { motivoNoSurtido: m })">{{ m }}</button>
+                        }
+                      </div>
+                      <input class="celda" [ngModel]="r.motivoNoSurtido" (ngModelChange)="cambiarRenglon(r.id, { motivoNoSurtido: $event })"
+                             maxlength="200" placeholder="U otro motivo (escríbelo)" aria-label="Motivo de no surtir" />
+                      <button class="link" type="button" (click)="marcarNoSurtido(r, false)">Sí se surte</button>
+                    </div>
+                  } @else {
+                    @if (!r.sinEscaneo) {
+                      <div class="barra" aria-hidden="true">
+                        @for (i of cuadros(r.piezas); track $index) {
+                          <span [class.lleno]="$index < hechas"></span>
+                        }
+                      </div>
+                      @if (lotesEscaneados(r).length) {
+                        <div class="lotes-escaneados">
+                          @for (l of lotesEscaneados(r); track l.lote) {
+                            <span class="lote-chip" [title]="'Caduca ' + (l.caducidad | date: 'dd/MM/yyyy') + (l.fefo ? ' · la caja no trae lote: se tomó el que caduca primero' : '')">
+                              Lote <strong>{{ l.lote }}</strong> × {{ l.piezas }}{{ l.fefo ? ' *' : '' }}
+                              <button type="button" aria-label="Quitar una pieza de este lote" title="Quitar una pieza" (click)="quitarEscaneo(r, l.lote)">−</button>
+                            </span>
+                          }
+                        </div>
+                      }
+                      @if (falta && !completo) {
+                        <p class="aviso mal">
+                          En Farmacia hay {{ existenciaDe(r) }} de {{ r.piezas }} {{ r.piezas === 1 ? 'pieza' : 'piezas' }}.
+                          {{ r.alternativa && r.usar === 'PRINCIPAL' ? 'Surte la alternativa' : 'Pide a Almacén' }} o márcalo como «No se surte» para entregar lo demás.
+                        </p>
+                      }
+                      <button class="link sin-escaneo" type="button" (click)="cambiarSinEscaneo(r, true)">No se puede escanear (caja sin código)</button>
+                    } @else {
+                      <div class="surtido-acciones">
+                        <label class="surtido-lote">
+                          <span>Lote</span>
+                          <select class="celda" [ngModel]="r.lote" (ngModelChange)="cambiarRenglon(r.id, { lote: $event })">
+                            <option value="">Automático: el que caduca primero</option>
+                            @for (l of lotesDe(r); track l.id) {
+                              <option [value]="l.lote">{{ l.lote }} · cad. {{ l.caducidad | date: 'dd/MM/yyyy' }} · {{ l.piezas }} pz</option>
+                            }
+                          </select>
+                        </label>
+                        <button class="link" type="button" (click)="cambiarSinEscaneo(r, false)">Volver a escanear</button>
+                      </div>
+                    }
+  
+                    @if (pideMotivoAlternativa(r)) {
+                      <input class="celda motivo" [ngModel]="r.motivoAlternativa" (ngModelChange)="cambiarRenglon(r.id, { motivoAlternativa: $event })"
+                             placeholder="Sí hay de {{ r.principal.clave }}: ¿por qué se surte la alternativa?" />
+                    }
+                    @if (sobrante(r) !== null) {
+                      @if (sobrante(r)! < 0) {
+                        <p class="aviso mal">No alcanza: faltan {{ -sobrante(r)! }} {{ r.dosisUnidad }} para la dosis de {{ r.dosisCantidad }} {{ r.dosisUnidad }}. Corrige las piezas en el paso 2.</p>
+                      } @else if (sobrante(r)! > 0) {
+                        <div class="aviso sobra">
+                          <span>Sobran <strong>{{ sobrante(r) }} {{ r.dosisUnidad }}</strong> del último frasco. ¿Qué se hace?</span>
+                          <div class="segmentado" role="group" aria-label="Destino del sobrante">
+                            <button type="button" [class.elegido]="r.destinoSobrante === 'MERMA'" (click)="cambiarRenglon(r.id, { destinoSobrante: 'MERMA' })">Se desecha (merma)</button>
+                            <button type="button" [class.elegido]="r.destinoSobrante === 'RESGUARDO'" (click)="cambiarRenglon(r.id, { destinoSobrante: 'RESGUARDO' })">Se guarda (estabilidad)</button>
+                          </div>
+                        </div>
+                      }
+                    }
+                    <button class="link no-surtir" type="button" (click)="marcarNoSurtido(r, true)">No se surte este medicamento (no hay o no se maneja)</button>
                   }
-                </tbody>
-              </table>
+                </article>
+              }
             </div>
-            <p class="nota">Si el frasco trae código GS1, escanéalo para tomar su lote; si no, elige el lote en la lista. Si se surte la alternativa, queda registrado. Un lote vencido no se surte. Los de red fría se sacan del refrigerador al final.</p>
+            <ul class="nota recordatorios">
+              <li>Cada caja escaneada cuenta 1 pieza. Si sacas 2 frascos de la misma caja, escanéala 2 veces.</li>
+              <li>Si el código trae lote (GS1) se toma ese lote; si no, el que caduca primero (marcado con *).</li>
+              <li>Un lote vencido no se surte. Los de red fría se sacan del refrigerador al final.</li>
+            </ul>
           </section>
 
-          <!-- 4. Doble verificación -->
-          <section class="card">
-            <div class="card-heading">
-              <div>
-                <p class="eyebrow">Paso 4 · alto riesgo</p>
-                <h2>Doble verificación</h2>
-              </div>
+          <!-- 4. Registrar: barra fija abajo; antes de registrar se confirma con el resumen -->
+          <section class="barra-registrar" aria-label="Registrar la entrega">
+            <div>
+              <strong>{{ faltanParaEntregar().length ? 'Falta: ' + faltanParaEntregar()[0] + (faltanParaEntregar().length > 1 ? ' (y ' + (faltanParaEntregar().length - 1) + ' más)' : '') : 'Todo listo para registrar' }}</strong>
+              <small>Surte: {{ session.usuarioActual()?.nombreCompleto }} · se descuenta del inventario de Farmacia al registrar</small>
             </div>
-            <p class="sub">Surte: {{ session.usuarioActual()?.nombreCompleto }}. Otra persona de Farmacia revisa y confirma con su propio usuario.</p>
-            <div class="en-linea">
-              <div class="field">
-                <label for="verificador">Usuario de quien verifica</label>
-                <input id="verificador" [ngModel]="verificadorUsuario()" (ngModelChange)="verificadorUsuario.set($event)" autocomplete="off" />
-              </div>
-              <div class="field">
-                <label for="verificador-clave">Contraseña</label>
-                <input id="verificador-clave" type="password" [ngModel]="verificadorContrasena()" (ngModelChange)="verificadorContrasena.set($event)" autocomplete="new-password" />
-              </div>
-            </div>
-            <label class="check"><input type="checkbox" [checked]="checks().paciente" (change)="marcar('paciente', $any($event.target).checked)" /> El paciente y el expediente son correctos</label>
-            <label class="check"><input type="checkbox" [checked]="checks().medicamentos" (change)="marcar('medicamentos', $any($event.target).checked)" /> Los medicamentos corresponden a la indicación del médico</label>
-            <label class="check"><input type="checkbox" [checked]="checks().dosis" (change)="marcar('dosis', $any($event.target).checked)" /> Las piezas alcanzan para la dosis indicada</label>
-            <label class="check"><input type="checkbox" [checked]="checks().lotes" (change)="marcar('lotes', $any($event.target).checked)" /> Lotes vigentes y red fría conservada</label>
-            <div class="card-foot">
-              <span>
-                @if (faltanParaEntregar().length) { Falta: {{ faltanParaEntregar().join(', ') }}. } @else { Todo verificado: se descuenta del inventario de Farmacia. }
-              </span>
-              <button class="btn" type="button" [disabled]="faltanParaEntregar().length || guardando()" (click)="registrar()">{{ guardando() ? 'Registrando…' : 'Registrar entrega' }}</button>
-            </div>
+            <button class="btn" type="button" [disabled]="faltanParaEntregar().length || guardando()" (click)="pedirConfirmacion()">{{ guardando() ? 'Registrando…' : 'Registrar entrega' }}</button>
           </section>
         }
+          </div>
+        </div>
+        }
 
-        @if (recientes().length) {
+        @if (confirmando()) {
+          <div class="fondo-dialogo" (click)="confirmando.set(false)">
+            <div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="titulo-confirmar" (click)="$event.stopPropagation()">
+              <h2 id="titulo-confirmar">¿Registrar la entrega?</h2>
+              <p class="sub">{{ paciente()?.nombre }} · exp. {{ paciente()?.expediente }} · solicitud {{ folio() }}</p>
+              <ul>
+                @for (r of renglones(); track r.id) {
+                  <li [class.no-surtido-texto]="r.noSurtido">
+                    <strong>{{ claveSurtida(r) }}</strong> {{ r.usar === 'ALTERNATIVA' && r.alternativa ? r.alternativa.nombre : r.principal.nombre }}
+                    · {{ r.noSurtido ? 'no se surte: ' + r.motivoNoSurtido : r.piezas + ' pz' + (lotesEscaneados(r).length > 1 ? ' (' + lotesEscaneados(r).length + ' lotes)' : '') }}
+                    {{ !r.noSurtido && (sobrante(r) ?? 0) > 0 ? '· sobrante ' + (r.destinoSobrante === 'MERMA' ? 'se desecha' : 'se guarda') : '' }}
+                  </li>
+                }
+              </ul>
+              <p class="sub">Se descuenta del inventario de Farmacia y entra a la baja del día de Quimioterapia.</p>
+              <div class="acciones">
+                <button class="btn secondary" type="button" (click)="confirmando.set(false)">Revisar</button>
+                <button class="btn" type="button" [disabled]="guardando()" (click)="registrar()">Sí, registrar</button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (recientes().length || diaRecientes() || buscarRecientes()) {
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Últimas registradas</p>
+                <p class="eyebrow">{{ diaRecientes() ? 'Del ' + (diaRecientes() | date: 'dd/MM/yyyy') : buscarRecientes() ? 'Búsqueda' : 'Últimas registradas' }}</p>
                 <h2>Quimioterapias surtidas</h2>
               </div>
             </div>
+            <!-- Para encontrar rápido al paciente que regresa por lo que faltó: por día o por folio, expediente o nombre. -->
+            <div class="filtros-recientes">
+              <label>
+                <span>Día</span>
+                <input type="date" [max]="hoyIso()" [ngModel]="diaRecientes()" (ngModelChange)="filtrarRecientesPorDia($event ?? '')" />
+              </label>
+              <button class="link" type="button" (click)="filtrarRecientesPorDia(hoyIso())">Hoy</button>
+              <input class="buscar" [ngModel]="buscarRecientes()" (ngModelChange)="buscarRecientes.set($event)" (keyup.enter)="cargarRecientes()"
+                     placeholder="Folio, expediente o nombre" autocomplete="off" />
+              <button class="btn secondary" type="button" [disabled]="cargandoRecientes()" (click)="cargarRecientes()">{{ cargandoRecientes() ? 'Buscando…' : 'Buscar' }}</button>
+              @if (diaRecientes() || buscarRecientes()) {
+                <button class="link" type="button" (click)="limpiarFiltroRecientes()">Quitar filtros</button>
+              }
+            </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Solicitud</th><th>Paciente</th><th>Medicamentos</th><th>Surtió / verificó</th><th>Entrega</th></tr></thead>
+                <thead><tr><th>Solicitud</th><th>Paciente</th><th>Medicamentos</th><th>Surtió</th><th>Entrega</th><th></th></tr></thead>
                 <tbody>
                   @for (q of recientes(); track q.id) {
-                    <tr>
-                      <td><strong>{{ q.folio }}</strong> · sesión {{ q.sesion }}<small class="sub">{{ q.fecha | date: 'dd/MM/yyyy HH:mm' }}{{ q.sinIntelisis ? ' · sin Intelisis' : '' }}</small></td>
+                    @let pendientes = q.renglones.filter(esNoSurtido).length;
+                    <tr class="fila-solicitud" title="Abrir esta solicitud" (click)="abrirDesdeRecientes(q)">
+                      <td>
+                        <strong>{{ q.folio }}</strong> · sesión {{ q.sesion }}<small class="sub">{{ q.fecha | date: 'dd/MM/yyyy HH:mm' }}{{ q.sinIntelisis ? ' · sin Intelisis' : '' }}</small>
+                        @if (pendientes) { <span class="estado">Quedó pendiente ({{ pendientes }})</span> }
+                      </td>
                       <td class="nombre">{{ q.pacienteNombre }}<small class="sub">exp. {{ q.pacienteExpediente }}{{ q.expedienteCorregido ? ' (corregido; la solicitud decía ' + q.expedienteSolicitud + ')' : '' }}</small></td>
                       <td class="nombre">
                         @for (r of q.renglones; track $index) {
-                          <span class="alternativa-usada">
-                            {{ r.claveSurtida }} {{ r.medicamento }} · {{ r.dosis }} · {{ r.piezas }} pz{{ r.claveSurtida !== r.claveIndicada ? ' (alternativa de ' + r.claveIndicada + (r.motivoAlternativa ? ': ' + r.motivoAlternativa : '') + ')' : '' }}{{ r.sobrante ? ' · sobrante ' + r.sobrante + ' ' + r.dosisUnidad + ' (' + (r.destinoSobrante === 'MERMA' ? 'merma' : 'resguardo') + ')' : '' }}
+                          <span class="alternativa-usada" [class.no-surtido-texto]="r.noSurtido">
+                            {{ r.claveSurtida }} {{ r.medicamento }} · {{ r.dosis }} · {{ r.noSurtido ? 'NO SURTIDO: ' + r.motivoNoSurtido : r.piezas + ' pz' }}{{ r.claveSurtida !== r.claveIndicada ? ' (alternativa de ' + r.claveIndicada + (r.motivoAlternativa ? ': ' + r.motivoAlternativa : '') + ')' : '' }}{{ r.sobrante ? ' · sobrante ' + r.sobrante + ' ' + r.dosisUnidad + ' (' + (r.destinoSobrante === 'MERMA' ? 'merma' : 'resguardo') + ')' : '' }}
                           </span>
                         }
                       </td>
-                      <td>{{ q.surtio }}<small class="sub">{{ q.verifico }}</small></td>
+                      <td>{{ q.surtio }}@if (q.verifico) { <small class="sub">verificó {{ q.verifico }}</small> }</td>
                       <td>{{ q.folioEntrega }}</td>
+                      <td><button class="link" type="button" (click)="$event.stopPropagation(); abrirDesdeRecientes(q)">Abrir</button></td>
                     </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty">{{ cargandoRecientes() ? 'Buscando…' : 'No hay quimioterapias surtidas con ese filtro.' }}</td></tr>
                   }
                 </tbody>
               </table>

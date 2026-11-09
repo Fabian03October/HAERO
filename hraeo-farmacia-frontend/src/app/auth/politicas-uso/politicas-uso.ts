@@ -13,66 +13,86 @@ interface Seccion {
 // Transparencia del hospital. Al cambiarlo, subir VERSION_POLITICAS en politicas.ts.
 const SECCIONES_COMUNES: Seccion[] = [
   {
+    titulo: 'Objeto y alcance',
+    puntos: [
+      'Las presentes políticas regulan el acceso y el uso del sistema HAERO, herramienta institucional del Hospital Regional de Alta Especialidad de Oaxaca para el control del almacenamiento, la distribución y la dispensación de medicamentos.',
+      'Son de observancia obligatoria para todo el personal que cuente con una cuenta de acceso al sistema, independientemente de su área o tipo de contratación.',
+      'La aceptación de estas políticas es requisito indispensable para utilizar el sistema.',
+    ],
+  },
+  {
     titulo: 'Aviso de privacidad',
     puntos: [
-      'El sistema registra tu nombre, usuario, rol, fecha y hora de acceso y cada operación que realizas, con el fin de controlar el manejo de medicamentos del hospital.',
-      'La información de medicamentos, existencias, solicitudes y movimientos es de uso interno. No debes copiarla, compartirla ni usarla para fines distintos a tus funciones.',
-      'Los datos personales se tratan conforme a la normatividad aplicable en materia de protección de datos personales en posesión de sujetos obligados.',
+      'El Hospital Regional de Alta Especialidad de Oaxaca es el responsable del tratamiento de los datos personales que se registran en el sistema.',
+      'Del personal usuario se recaban el nombre, el nombre de usuario, el rol asignado, la fecha y hora de cada acceso y el registro de las operaciones realizadas.',
+      'De los pacientes se tratan únicamente los datos de identificación y clínicos estrictamente necesarios para la dispensación de medicamentos, tales como nombre, número de expediente, diagnóstico y prescripción, obtenidos del sistema institucional del hospital.',
+      'Dichos datos se utilizan exclusivamente para el control, la trazabilidad y la seguridad en el manejo de medicamentos, así como para la atención de auditorías y requerimientos de las autoridades competentes.',
+      'Los datos personales no serán transferidos a terceros, salvo en los supuestos previstos por la ley.',
+      'El tratamiento se realiza conforme a la Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados y demás normatividad aplicable. Los derechos de acceso, rectificación, cancelación y oposición (ARCO) podrán ejercerse ante la Unidad de Transparencia del hospital.',
     ],
   },
   {
-    titulo: 'Uso de tu cuenta',
+    titulo: 'Cuenta de acceso',
     puntos: [
-      'Tu usuario y contraseña son personales e intransferibles. No los compartas ni uses la cuenta de otra persona.',
-      'Todo lo que se haga con tu cuenta queda registrado a tu nombre. Cierra sesión al terminar o si dejas el equipo.',
-      'Si sospechas que alguien conoce tu contraseña, cámbiala y avisa al administrador del sistema.',
+      'La cuenta de acceso (usuario y contraseña) es personal e intransferible. Queda prohibido compartirla o utilizar la cuenta de otra persona.',
+      'Toda operación realizada con una cuenta se atribuye a su titular.',
+      'La persona usuaria deberá cerrar la sesión al concluir su jornada o al retirarse del equipo de cómputo.',
+      'Ante la sospecha de que un tercero conoce su contraseña, la persona usuaria deberá cambiarla de inmediato y notificarlo al administrador del sistema.',
     ],
   },
   {
-    titulo: 'Registro y responsabilidad',
+    titulo: 'Confidencialidad de la información',
     puntos: [
-      'Cada entrada, salida, despacho, cancelación o ajuste queda registrado con tu nombre, la fecha y la hora, y no se puede borrar.',
-      'Eres responsable de que lo que capturas coincida con lo que físicamente recibes, entregas o mueves.',
-      'El incumplimiento de estas políticas puede dar lugar a las responsabilidades administrativas que correspondan conforme a la normatividad del hospital.',
+      'La información contenida en el sistema (medicamentos, existencias, solicitudes, movimientos y datos de pacientes) es de uso exclusivamente institucional.',
+      'Queda prohibido copiarla, divulgarla, extraerla o utilizarla para fines distintos al desempeño de las funciones asignadas.',
+      'La consulta de información de pacientes solo procede cuando sea necesaria para la atención o dispensación correspondiente.',
+    ],
+  },
+  {
+    titulo: 'Registro de operaciones y responsabilidad',
+    puntos: [
+      'Toda entrada, salida, dispensación, cancelación o ajuste queda registrado con el nombre de quien lo realiza, la fecha y la hora. Estos registros no pueden eliminarse.',
+      'La persona usuaria es responsable de que la información capturada corresponda fielmente a lo que físicamente recibe, entrega o traslada.',
+      'El incumplimiento de las presentes políticas podrá dar lugar a las responsabilidades administrativas, civiles o penales que correspondan conforme a la normatividad aplicable.',
     ],
   },
 ];
 
 const RESPONSABILIDADES_POR_ROL: Record<Rol, Seccion> = {
   ALMACEN: {
-    titulo: 'Responsabilidades del personal de Almacén',
+    titulo: 'Obligaciones específicas del personal de Almacén',
     puntos: [
-      'Registrar cada entrada contra su pedido, con el lote, la caducidad, la cantidad y la ubicación reales de la caja.',
-      'Despachar respetando el orden de caducidad (primero lo que caduca antes) y descontar de la ubicación física de donde sale el medicamento.',
-      'Apartar en "caducados" los lotes vencidos y no despacharlos, prestarlos ni transferirlos.',
-      'Registrar canjes, préstamos y transferencias con la institución y los datos del lote, tal como consta en su documento.',
-      'Reportar a la encargada de Almacén cualquier diferencia entre el sistema y lo que hay físicamente.',
+      'Registrar cada entrada con el lote, la caducidad, la cantidad y la ubicación que correspondan físicamente a la mercancía recibida.',
+      'Realizar los despachos conforme al orden de caducidad (primeras caducidades, primeras salidas) y descontarlos de la ubicación física de la que se retira el medicamento.',
+      'Resguardar por separado los lotes caducados y abstenerse de despacharlos, prestarlos o transferirlos.',
+      'Registrar canjes, préstamos y transferencias con la institución y los datos del lote, conforme al documento que los ampara.',
+      'Informar a la persona responsable del Almacén cualquier diferencia entre los registros del sistema y las existencias físicas.',
     ],
   },
   FARMACIA: {
-    titulo: 'Responsabilidades del personal de Farmacia',
+    titulo: 'Obligaciones específicas del personal de Farmacia',
     puntos: [
-      'Solicitar a Almacén solo el medicamento que se necesita, con la clave y la cantidad correctas.',
-      'Verificar que lo recibido de Almacén coincide con lo solicitado y reportar cualquier diferencia.',
-      'Dispensar conforme a la receta y registrar cada salida a tu nombre.',
-      'Resguardar la información de pacientes y recetas; no consultarla ni compartirla sin motivo de tu función.',
+      'Solicitar al Almacén únicamente los medicamentos requeridos, con la clave y la cantidad correctas.',
+      'Verificar que lo recibido del Almacén corresponda a lo solicitado y reportar cualquier diferencia.',
+      'Dispensar los medicamentos conforme a la prescripción médica y registrar cada salida en el sistema.',
+      'Resguardar la información de pacientes y recetas, y abstenerse de consultarla o compartirla sin que medie una razón propia de sus funciones.',
     ],
   },
   SUPERVISION: {
-    titulo: 'Responsabilidades de Supervisión',
+    titulo: 'Obligaciones específicas del personal de Supervisión',
     puntos: [
-      'Usar la información de consumo, existencias y alertas solo para el seguimiento y la toma de decisiones del servicio.',
-      'No compartir reportes ni datos del sistema fuera de las áreas autorizadas.',
-      'Dar aviso a las áreas correspondientes cuando detectes riesgos de desabasto, sobreabasto o diferencias en los registros.',
+      'Utilizar la información de consumos, existencias y alertas exclusivamente para el seguimiento y la toma de decisiones del servicio.',
+      'Abstenerse de compartir reportes o datos del sistema fuera de las áreas autorizadas.',
+      'Notificar a las áreas correspondientes cualquier riesgo de desabasto, sobreabasto o inconsistencia en los registros.',
     ],
   },
   ADMIN: {
-    titulo: 'Responsabilidades del Administrador',
+    titulo: 'Obligaciones específicas del Administrador del sistema',
     puntos: [
-      'Dar de alta solo a personal autorizado y asignarle el rol que corresponde a su función.',
-      'Desactivar sin demora las cuentas del personal que ya no labora en el área.',
-      'Restablecer contraseñas solo a petición de la persona dueña de la cuenta, verificando su identidad.',
-      'No usar las cuentas de otros usuarios para hacer operaciones en su nombre.',
+      'Otorgar cuentas únicamente a personal autorizado, con el rol que corresponda a sus funciones.',
+      'Desactivar sin demora las cuentas del personal que deje de laborar en el área.',
+      'Restablecer contraseñas solo a solicitud de la persona titular de la cuenta, previa verificación de su identidad.',
+      'Abstenerse de utilizar las cuentas de otras personas usuarias para realizar operaciones a su nombre.',
     ],
   },
 };

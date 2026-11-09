@@ -41,14 +41,17 @@ class LectorNotaQuimioTest {
 
     @Test
     void elVehiculoNoEsOtroMedicamento() {
+        // El vehículo no es otro medicamento de la indicación: va aparte, como solución (la bolsa que también se entrega).
         var hallazgos = LectorNotaQuimio.leer("PACLITAXEL  230  MG  EN  500  CC DE  SOL  FIS  P/3 HRS", CATALOGO);
-        assertThat(hallazgos).hasSize(1);
-        assertThat(hallazgos.get(0).farmaco()).isEqualTo("PACLITAXEL");
+        assertThat(hallazgos).extracting(LectorNotaQuimio.Hallazgo::farmaco).containsExactly("PACLITAXEL", "CLORURO SODIO");
         assertThat(hallazgos.get(0).dosisCantidad()).isEqualByComparingTo(new BigDecimal("230"));
         assertThat(hallazgos.get(0).dosisUnidad()).isEqualTo("mg");
+        assertThat(hallazgos.get(1).solucion()).isTrue();
+        assertThat(hallazgos.get(1).dosisCantidad()).isEqualByComparingTo(new BigDecimal("500"));
 
         var dilucion = LectorNotaQuimio.leer("DEXAMETASONA 8 MG EN 100 ML DE SOL. CLORURO DE SODIO AL 0.9% P/ 10 MIN", CATALOGO);
-        assertThat(dilucion).extracting(LectorNotaQuimio.Hallazgo::farmaco).containsExactly("DEXAMETASONA");
+        assertThat(dilucion).extracting(LectorNotaQuimio.Hallazgo::farmaco).containsExactly("DEXAMETASONA", "CLORURO SODIO");
+        assertThat(dilucion.get(1).solucion()).isTrue();
         // Las dos claves de dexametasona del catálogo se ofrecen; Farmacia elige.
         assertThat(dilucion.get(0).claves()).containsExactlyInAnyOrder("010.000.4241.00", "010.000.3432.00");
     }
@@ -72,9 +75,11 @@ class LectorNotaQuimioTest {
     @Test
     void laSolucionDeHidratacionSiCuentaYLaDosisPorMetroCuadradoNo() {
         var hallazgos = LectorNotaQuimio.leer("SOLUCION CLORURO DE SODIO 0.9% 250 ML P/ 20 MIN\nRituximab 375 mg/m2 IV", CATALOGO);
-        assertThat(hallazgos).extracting(LectorNotaQuimio.Hallazgo::farmaco).containsExactly("CLORURO SODIO", "RITUXIMAB");
+        // Las soluciones van al final, juntas por volumen.
+        assertThat(hallazgos).extracting(LectorNotaQuimio.Hallazgo::farmaco).containsExactly("RITUXIMAB", "CLORURO SODIO");
+        assertThat(hallazgos.get(1).dosisCantidad()).isEqualByComparingTo(new BigDecimal("250"));
         // 375 mg/m2 depende de la superficie corporal: no es la dosis a preparar.
-        assertThat(hallazgos.get(1).dosisCantidad()).isNull();
+        assertThat(hallazgos.get(0).dosisCantidad()).isNull();
     }
 
     @Test
@@ -119,5 +124,96 @@ class LectorNotaQuimioTest {
         assertThat(LectorNotaQuimio.contenido("300 mg/50 ml", cantidad)).isEqualTo("mg");
         assertThat(cantidad[0]).isEqualByComparingTo(new BigDecimal("300"));
         assertThat(LectorNotaQuimio.contenido("Cada frasco ámpula o ampolleta", new BigDecimal[1])).isNull();
+    }
+
+    @Test
+    void contenidoPorPiezaDeLaDescripcion() {
+        BigDecimal[] cantidad = new BigDecimal[1];
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Ixekizumab. Solución Inyectable. Cada pluma precargada contiene: "
+                + "Ixekizumab 80 mg Envase con una pluma precargada con 1 ml de solución (80 mg/ml).", cantidad)).isEqualTo("mg");
+        assertThat(cantidad[0]).isEqualByComparingTo(new BigDecimal("80"));
+
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("CITARABINA. SOLUCION INYECTABLE. CADA FRASCO AMPULA CON LIOFILIZADO "
+                + "CONTIENE: CITARABINA 500 MG. ENVASE CON UN FRASCO AMPULA", cantidad)).isEqualTo("mg");
+        assertThat(cantidad[0]).isEqualByComparingTo(new BigDecimal("500"));
+
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Gemcitabina. Cada frasco ámpula contiene: Clorhidrato de gemcitabina "
+                + "equivalente a 1 g de gemcitabina. Envase con un frasco ámpula.", cantidad)).isEqualTo("g");
+        assertThat(cantidad[0]).isEqualByComparingTo(new BigDecimal("1"));
+
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Nistatina. Cada tableta contiene: Nistatina 100 000 UI Envase con 12 Óvulos",
+                cantidad)).isEqualTo("UI");
+        assertThat(cantidad[0]).isEqualByComparingTo(new BigDecimal("100000"));
+
+        // No describen una pieza: por ml, por gramo de crema o por envase.
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Ondansetrón. Cada ml contiene: 2 mg Envase con 3 ampolletas", new BigDecimal[1])).isNull();
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("CLORANFENICOL. CADA G CONTIENE: CLORANFENICOL LEVOGIRO 5 MG, ENVASE CON 5 G.", new BigDecimal[1])).isNull();
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Cada 100 ml contiene: Cloruro de sodio 0.9 g Envase con 100 ml", new BigDecimal[1])).isNull();
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Cada envase contiene: 2 frascos con 100 mg", new BigDecimal[1])).isNull();
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("Dexametasona. Solución oftálmica", new BigDecimal[1])).isNull();
+
+        // Sin "Cada … contiene": una sola dosis antes de ENVASE es la de cada pieza.
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("DENOSUMAB SOLUCION INYECTABLE 60 MG SUBCUTANEO ENVASE CON UNA JERINGA "
+                + "PRELLENADA CON 1 ML", cantidad)).isEqualTo("mg");
+        assertThat(cantidad[0]).isEqualByComparingTo(new BigDecimal("60"));
+        // Por volumen o con dos dosis distintas no se adivina.
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("ONDANSETRON SOLUCION INYECTABLE 8 MG/4 ML ENVASE CON 3 AMPOLLETAS", new BigDecimal[1])).isNull();
+        assertThat(LectorNotaQuimio.contenidoDeDescripcion("AMOXICILINA 500 MG ACIDO CLAVULANICO 125 MG ENVASE CON 12 TABLETAS", new BigDecimal[1])).isNull();
+    }
+
+    @Test
+    void solucionesDiluyentesYLavados() {
+        List<LectorNotaQuimio.Farmaco> catalogo = List.of(
+                new LectorNotaQuimio.Farmaco("NACL", List.of("CLORURO", "SODIO")),
+                new LectorNotaQuimio.Farmaco("DEXA", List.of("DEXAMETASONA")),
+                new LectorNotaQuimio.Farmaco("ONDA", List.of("ONDANSETRON")),
+                new LectorNotaQuimio.Farmaco("GEMC", List.of("GEMCITABINA")));
+        String nota = """
+                Cloruro de sodio 0.9% 100 ml p/ lavar vena 10 minutos
+                Dexametasona 8 mg en 100 ml de sol. De Cloruro de sodio 0.9% P/ 10 MIN
+                Ondansetron 16 mg en 100 ml de sol. Cloruro de sodio al 0.9% p/ 10 min
+                Gemcitabina 1200 mg en 500 ml de solución de cloruro de sodio 0.9% P/ 30 MIN
+                Cloruro de sodio 0.9% 100 ml p/ lavar vena 10 minutos
+                """;
+        List<LectorNotaQuimio.Hallazgo> hallazgos = LectorNotaQuimio.leer(nota, catalogo);
+        assertThat(hallazgos).extracting(LectorNotaQuimio.Hallazgo::farmaco)
+                .containsExactly("DEXAMETASONA", "ONDANSETRON", "GEMCITABINA", "CLORURO SODIO", "CLORURO SODIO");
+        LectorNotaQuimio.Hallazgo cien = hallazgos.get(3);
+        assertThat(cien.solucion()).isTrue();
+        assertThat(cien.dosisCantidad()).isEqualByComparingTo(new BigDecimal("100"));
+        assertThat(cien.veces()).isEqualTo(4); // 2 lavados + 2 diluyentes de 100 ml
+        LectorNotaQuimio.Hallazgo quinientos = hallazgos.get(4);
+        assertThat(quinientos.dosisCantidad()).isEqualByComparingTo(new BigDecimal("500"));
+        assertThat(quinientos.veces()).isEqualTo(1);
+        assertThat(hallazgos.get(2).dosisCantidad()).isEqualByComparingTo(new BigDecimal("1200"));
+    }
+
+    @Test
+    void alternativasPorDesabasto() {
+        List<LectorNotaQuimio.Farmaco> catalogo = List.of(
+                new LectorNotaQuimio.Farmaco("PALO", List.of("PALONOSETRON")),
+                new LectorNotaQuimio.Farmaco("ONDA", List.of("ONDANSETRON")),
+                new LectorNotaQuimio.Farmaco("DEXA", List.of("DEXAMETASONA")),
+                new LectorNotaQuimio.Farmaco("GEMC", List.of("GEMCITABINA")));
+        String nota = """
+                PALONOSETRON 0.25 MG IV 30 MIN ANTES DE LA QT
+                DEXAMETASONA 12 MG IV EN BOLO 30 MIN ANTES DE LA QT
+
+                EN CASO DE DESABASTO DE PALONOSETRON DAR
+                ONDANSETRON 16 MG IV DOSIS UNICA 30 MIN ANTES DE LA QT
+
+                QUIMIOTERAPIA
+                GEMCITABINA 1400 MG IV EN 250 ML
+                """;
+        List<LectorNotaQuimio.Hallazgo> hallazgos = LectorNotaQuimio.leer(nota, catalogo);
+        assertThat(hallazgos).extracting(LectorNotaQuimio.Hallazgo::farmaco)
+                .containsExactly("PALONOSETRON", "DEXAMETASONA", "ONDANSETRON", "GEMCITABINA");
+        assertThat(hallazgos).extracting(LectorNotaQuimio.Hallazgo::soloSiNoHay).containsExactly(false, false, true, false);
+        assertThat(hallazgos.get(2).siNoHayDe()).isEqualTo("PALONOSETRON");
+
+        // En el mismo renglón: lo que va después de "DAR" es la alternativa.
+        List<LectorNotaQuimio.Hallazgo> mismo = LectorNotaQuimio.leer("SI NO HAY PALONOSETRON DAR ONDANSETRON 8 MG", catalogo);
+        assertThat(mismo).extracting(LectorNotaQuimio.Hallazgo::farmaco).containsExactly("ONDANSETRON");
+        assertThat(mismo.get(0).soloSiNoHay()).isTrue();
     }
 }

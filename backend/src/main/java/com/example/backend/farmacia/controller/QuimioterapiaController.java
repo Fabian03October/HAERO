@@ -3,6 +3,7 @@ package com.example.backend.farmacia.controller;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.EstadoQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.QuimioResponse;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.RegistrarQuimioRequest;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.ResumenQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SesionesSolicitud;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimioDetalle;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -28,9 +30,11 @@ public class QuimioterapiaController {
         this.servicio = servicio;
     }
 
+    /** Surtidas: sin filtros, las últimas 30; con dia (AAAA-MM-DD) y/o buscar (folio, expediente o nombre). */
     @GetMapping
-    public ResponseEntity<List<QuimioResponse>> recientes() {
-        return ResponseEntity.ok(servicio.recientes());
+    public ResponseEntity<List<QuimioResponse>> recientes(@RequestParam(required = false) LocalDate dia,
+                                                         @RequestParam(required = false) String buscar) {
+        return ResponseEntity.ok(servicio.recientes(dia, buscar));
     }
 
     // Sesiones ya surtidas de una solicitud (una solicitud puede cubrir varios ciclos).
@@ -39,11 +43,27 @@ public class QuimioterapiaController {
         return ResponseEntity.ok(servicio.sesiones(folio));
     }
 
-    // Solicitudes de Oncología Médica de Intelisis: POR_SURTIR, HOY, SURTIDAS o todas.
+    // Solicitudes de Oncología Médica de Intelisis: POR_SURTIR, HOY, CON_PENDIENTES, SURTIDAS o todas;
+    // con texto, rango de fechas (AAAA-MM-DD) y médico opcionales.
     @GetMapping("/intelisis")
     public ResponseEntity<List<SolicitudQuimio>> solicitudes(@RequestParam(required = false) String filtro,
-                                                             @RequestParam(required = false) String buscar) {
-        return ResponseEntity.ok(servicio.solicitudes(filtro, buscar));
+                                                             @RequestParam(required = false) String buscar,
+                                                             @RequestParam(required = false) LocalDate desde,
+                                                             @RequestParam(required = false) LocalDate hasta,
+                                                             @RequestParam(required = false) String medico) {
+        return ResponseEntity.ok(servicio.solicitudes(filtro, buscar, desde, hasta, medico));
+    }
+
+    // Números del día (recuadros y pastillas de filtro).
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenQuimio> resumen() {
+        return ResponseEntity.ok(servicio.resumen());
+    }
+
+    // Médicos con solicitudes en los últimos 6 meses (filtro).
+    @GetMapping("/medicos")
+    public ResponseEntity<List<String>> medicos() {
+        return ResponseEntity.ok(servicio.medicos());
     }
 
     // Una solicitud con su nota, las claves sugeridas y el ciclo anterior del paciente.

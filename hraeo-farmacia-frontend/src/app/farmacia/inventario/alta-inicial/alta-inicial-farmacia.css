@@ -1,0 +1,5 @@
+
+/* Código de la caja capturado (obligatorio: queda enlazado a la clave) */
+.codigo-capturado { margin: 8px 0 0; color: #1c5e30; font-size: 13px; }
+.codigo-capturado code { padding: 2px 6px; border-radius: 4px; background: #e8f5ea; font-weight: 700; }
+.codigo-falta { margin: 8px 0 0; color: #b3261e; font-size: 13px; font-weight: 600; }

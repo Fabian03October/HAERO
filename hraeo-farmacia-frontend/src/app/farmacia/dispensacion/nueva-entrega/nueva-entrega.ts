@@ -54,7 +54,7 @@ const PATRON_CURP = /^[A-Z][AEIOUX][A-Z]{2}\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}
 // Letras mínimas para buscar por nombre.
 const MINIMO_NOMBRE = 3;
 
-// Farmacia · Nueva entrega (HU28 a HU30).
+// Farmacia · Ventanilla › Entrega con receta (HU28 a HU30).
 // - El paciente se busca en Intelisis en solo lectura (por expediente, nombre o CURP).
 // - Cada caja se escanea: con código GS1 se toma su lote; sin él, el backend asigna el lote
 //   que sale primero (FEFO) y bloquea uno posterior o vencido (HU30).

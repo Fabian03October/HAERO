@@ -92,6 +92,15 @@ export class AltaInicialFarmacia {
   }
 
   agregar(): void {
+    // Si el código quedó escrito sin dar Enter, se toma de una vez.
+    const crudo = this.codigoEscaneado.trim();
+    if (!this.codigo() && crudo) {
+      const gs1 = leerGs1(crudo);
+      this.codigo.set(gs1?.gtin ?? crudo);
+      this.codigoEscaneado = '';
+    }
+    // El código de la caja es obligatorio: queda enlazado a la clave y es el que se escanea para surtir.
+    if (!this.codigo()) return this.mostrarMensaje('Escanea el código de barras de la caja: queda enlazado a la clave para poder surtirla.', 'error');
     const medicamento = this.medicamento();
     const lote = this.lote().trim();
     const piezas = this.piezas();
@@ -102,7 +111,7 @@ export class AltaInicialFarmacia {
     // HU25 CA4: un mismo lote no se da de alta dos veces; si se vuelve a escanear, se suman las piezas.
     const repetida = this.cajas().find((caja) => caja.clave === medicamento.clave && caja.lote === lote);
     if (repetida) {
-      this.cajas.update((lista) => lista.map((caja) => (caja.id === repetida.id ? { ...caja, piezas: caja.piezas + piezas } : caja)));
+      this.cajas.update((lista) => lista.map((caja) => (caja.id === repetida.id ? { ...caja, piezas: caja.piezas + piezas, codigo: caja.codigo ?? this.codigo() } : caja)));
       this.mostrarMensaje(`El lote ${lote} ya estaba en la lista; se sumaron ${piezas} piezas.`, 'info');
     } else {
       this.cajas.update((lista) => [

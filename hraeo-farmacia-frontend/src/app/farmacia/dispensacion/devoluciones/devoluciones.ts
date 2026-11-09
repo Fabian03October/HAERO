@@ -136,7 +136,7 @@ export class Devoluciones {
       next: (receta) =>
         this.aviso.set(
           `La receta ${receta.folio ?? texto} sí existe en Intelisis, pero todavía no se ha entregado en Farmacia, así que no hay nada que devolver. ` +
-            'Primero se registra su entrega en Nueva entrega.',
+            'Primero se registra su entrega en Ventanilla › Entrega con receta.',
         ),
       error: () => this.aviso.set(general),
     });

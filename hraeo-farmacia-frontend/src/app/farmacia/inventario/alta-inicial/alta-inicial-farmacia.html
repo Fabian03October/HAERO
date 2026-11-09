@@ -36,6 +36,12 @@
             @if (camaraAbierta()) {
               <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
             }
+            <!-- El código queda enlazado a la clave: es el que se escanea después para surtir. -->
+            @if (codigo()) {
+              <p class="codigo-capturado">Código de la caja: <code>{{ codigo() }}</code> <button class="link" type="button" (click)="codigo.set('')">Quitar</button></p>
+            } @else {
+              <p class="codigo-falta">Falta escanear el código de barras de la caja.</p>
+            }
 
             <div class="field">
               <label>Clave</label>
@@ -45,7 +51,8 @@
                   <button class="link" type="button" (click)="medicamento.set(null)">Cambiar</button>
                 </div>
               } @else {
-                <app-buscador-medicamento (elegido)="medicamento.set($event)" />
+                <!-- Todo el catálogo de Intelisis: aquí es donde la clave se da de alta (con el código de la caja). -->
+                <app-buscador-medicamento [soloDadasDeAlta]="false" (elegido)="medicamento.set($event)" />
               }
             </div>
 

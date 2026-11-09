@@ -4,6 +4,7 @@ import com.example.backend.farmacia.dto.AltaInicialRequest;
 import com.example.backend.farmacia.dto.AltaInicialResponse;
 import com.example.backend.farmacia.dto.BajaResponse;
 import com.example.backend.farmacia.dto.LoteFarmaciaResponse;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.CodigoMedicamento;
 import com.example.backend.farmacia.dto.RegistrarBajaRequest;
 import com.example.backend.farmacia.service.ServicioInventarioFarmacia;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,21 @@ public class InventarioFarmaciaController {
     @GetMapping("/existencias/fefo")
     public ResponseEntity<LoteFarmaciaResponse> loteFefo(@RequestParam String clave) {
         return servicio.loteFefo(clave).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /** A qué clave pertenece el código de barras de una caja; 404 si todavía no se conoce. */
+    @GetMapping("/codigos/{codigo}")
+    public ResponseEntity<CodigoMedicamento> codigo(@PathVariable String codigo) {
+        return servicio.buscarCodigo(codigo.trim())
+                .map(c -> ResponseEntity.ok(new CodigoMedicamento(c.getCodigo(), c.getMedicamento().getClave(), c.getMedicamento().getNombreGenerico())))
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /** Enlaza el código de la caja a una clave que se dio de alta sin código. Body: { codigo, clave }. */
+    @PostMapping("/codigos")
+    public ResponseEntity<Void> enlazarCodigo(@RequestBody java.util.Map<String, String> datos) {
+        servicio.enlazarCodigo(datos.get("codigo"), datos.get("clave"));
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/alta-inicial")

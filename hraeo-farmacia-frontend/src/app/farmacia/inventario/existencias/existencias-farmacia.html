@@ -35,9 +35,12 @@
                 </button>
               }
             </div>
-            <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscarEscaneado()" placeholder="Buscar por clave, medicamento o lote, o escanear la caja" />
+            <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscarEscaneado()" placeholder="Buscar por clave, medicamento, lote o código de barras, o escanear la caja" />
             <button class="link" type="button" [disabled]="cargando()" (click)="descargarProximosACaducar()">Reporte de próximos a caducar (Excel)</button>
           </div>
+          @if (avisoCodigo(); as a) {
+            <p class="hint aviso" [class.codigo-ok]="a.tipo === 'ok'" [class.codigo-error]="a.tipo === 'error'">{{ a.texto }}</p>
+          }
           @if (avisoBusqueda()) {
             <p class="hint aviso">{{ avisoBusqueda() }}</p>
           }
@@ -48,6 +51,7 @@
                 <tr>
                   <th>Clave</th>
                   <th>Medicamento</th>
+                  <th>Código de barras</th>
                   <th>Lote</th>
                   <th>Caducidad</th>
                   <th class="number">Piezas</th>
@@ -60,6 +64,22 @@
                   <tr [class.vencido]="lote.estado === 'VENCIDO'">
                     <td><strong>{{ lote.clave }}</strong> <app-marca-seguridad [clave]="lote.clave" /></td>
                     <td>{{ lote.medicamento }}</td>
+                    <td class="codigos">
+                      @if (claveEnlazando() === lote.clave) {
+                        <span class="enlazar">
+                          <input id="codigo-nuevo" [(ngModel)]="codigoNuevo" (keyup.enter)="enlazarCodigo()" (keyup.escape)="claveEnlazando.set(null)" placeholder="Escanea la caja" autocomplete="off" />
+                          <button class="link" type="button" (click)="enlazarCodigo()">Guardar</button>
+                          <button class="link" type="button" (click)="claveEnlazando.set(null)">Cancelar</button>
+                        </span>
+                      } @else {
+                        @for (c of lote.codigos; track c) { <code>{{ c }}</code> } @empty {
+                          <span class="sin-codigo">Sin código</span>
+                          @if (session.usuarioActual()?.rol === 'FARMACIA') {
+                          <button class="link agregar-codigo" type="button" title="Escanea la caja para enlazar su código a esta clave" (click)="empezarEnlace(lote.clave)">Agregar código</button>
+                          }
+                        }
+                      }
+                    </td>
                     <td>{{ lote.lote }}</td>
                     <td>
                       {{ fecha(lote.caducidad) }}
@@ -79,9 +99,9 @@
                   </tr>
                 } @empty {
                   @if (lotes().length) {
-                    <tr><td colspan="7" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
+                    <tr><td colspan="8" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
                   } @else {
-                    <tr><td colspan="7" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes (HU25) y la recepción de los despachos de Almacén (HU26).' }}</td></tr>
+                    <tr><td colspan="8" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes (HU25) y la recepción de los despachos de Almacén (HU26).' }}</td></tr>
                   }
                 }
               </tbody>

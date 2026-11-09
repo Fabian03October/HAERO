@@ -10,21 +10,22 @@ import com.example.backend.farmacia.dto.PacienteResponse;
 import com.example.backend.farmacia.dto.PartidaEntregadaResponse;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.ClaveSugerida;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.EstadoQuimio;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.LoteEscaneado;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.MedicamentoEnNota;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.MedicamentoLista;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.QuimioResponse;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.RegistrarQuimioRequest;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.RenglonQuimioRequest;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.RenglonQuimioResponse;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.ResumenQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SesionesSolicitud;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimioDetalle;
 import com.example.backend.farmacia.dto.RegistrarEntregaRequest;
 import com.example.backend.farmacia.entity.Entrega;
-import com.example.backend.repository.UsuarioRepository;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -52,8 +53,8 @@ import java.util.Set;
  * Quimioterapia. Se parte de la solicitud de procedimiento (folio y expediente), que a veces trae
  * el expediente de otro paciente: el paciente se confirma en Intelisis y, si el nombre no coincide,
  * se corrige el expediente o se justifica. El médico escribe los medicamentos como nota (sin clave,
- * a veces "si no hay A, dar B"): Farmacia los pasa a clave y surte. Es de alto riesgo: otra persona
- * de Farmacia verifica con SU usuario y contraseña antes de registrar.
+ * a veces "si no hay A, dar B"): Farmacia los pasa a clave y surte escaneando las cajas. Queda
+ * registrado quién surtió (la doble verificación por otra persona se quitó a petición de Farmacia).
  *
  *  - Una solicitud puede cubrir varias sesiones o ciclos: cada surtido es una sesión (1, 2, 3…) y
  *    todas deben ser del mismo paciente.
@@ -69,13 +70,13 @@ import java.util.Set;
 public class ServicioQuimioterapia {
 
     static final String PREFIJO_FOLIO = "QUIM-";
-    private static final String ROL_FARMACIA = "FARMACIA";
     private static final Set<String> DESTINOS_SOBRANTE = Set.of("MERMA", "RESGUARDO");
 
     // Filtros de la lista de solicitudes de Oncología.
     static final String POR_SURTIR = "POR_SURTIR";
     static final String PARA_HOY = "HOY";
     static final String SURTIDAS = "SURTIDAS";
+    static final String CON_PENDIENTES = "CON_PENDIENTES";
     private static final int MAXIMO_LISTA = 200;
     private static final int MAXIMO_CLAVES_SUGERIDAS = 6;
 
@@ -83,8 +84,6 @@ public class ServicioQuimioterapia {
     private final ServicioEntregas servicioEntregas;
     private final ServicioPacientesIntelisis pacientesIntelisis;
     private final ServicioInventarioFarmacia inventario;
-    private final UsuarioRepository usuarioRepository;
-    private final PasswordEncoder passwordEncoder;
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionQuimio sincronizacion;
 
@@ -92,16 +91,12 @@ public class ServicioQuimioterapia {
                                  ServicioEntregas servicioEntregas,
                                  ServicioPacientesIntelisis pacientesIntelisis,
                                  ServicioInventarioFarmacia inventario,
-                                 UsuarioRepository usuarioRepository,
-                                 PasswordEncoder passwordEncoder,
                                  ConexionIntelisis conexion,
                                  ServicioSincronizacionQuimio sincronizacion) {
         this.haero = haero;
         this.servicioEntregas = servicioEntregas;
         this.pacientesIntelisis = pacientesIntelisis;
         this.inventario = inventario;
-        this.usuarioRepository = usuarioRepository;
-        this.passwordEncoder = passwordEncoder;
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
     }
@@ -114,19 +109,18 @@ public class ServicioQuimioterapia {
      * todas. buscar: folio de la hoja, expediente o parte del nombre.
      */
     public List<SolicitudQuimio> solicitudes(String filtro, String buscar) {
+        return solicitudes(filtro, buscar, null, null, null);
+    }
+
+    /**
+     * Lista de solicitudes con filtros: estado (POR_SURTIR, HOY, CON_PENDIENTES, SURTIDAS o todas),
+     * texto (folio, expediente o nombre), rango de fechas (la requerida o, si no tiene, la de la
+     * solicitud) y médico. Cada una trae los medicamentos de su nota y si ya se entregaron.
+     */
+    public List<SolicitudQuimio> solicitudes(String filtro, String buscar, LocalDate desde, LocalDate hasta, String medico) {
         List<Object> parametros = new ArrayList<>();
-        StringBuilder where = new StringBuilder("WHERE 1 = 1");
+        StringBuilder where = new StringBuilder("WHERE 1 = 1").append(condicionFiltro(filtro, parametros));
         LocalDate hoy = LocalDate.now();
-        if (POR_SURTIR.equals(filtro)) {
-            where.append(" AND x.sesiones = 0 AND (x.fecha_requerida IS NULL OR x.fecha_requerida >= ?)");
-            parametros.add(Timestamp.valueOf(hoy.minusDays(7).atStartOfDay()));
-        } else if (PARA_HOY.equals(filtro)) {
-            where.append(" AND x.fecha_requerida >= ? AND x.fecha_requerida < ?");
-            parametros.add(Timestamp.valueOf(hoy.atStartOfDay()));
-            parametros.add(Timestamp.valueOf(hoy.plusDays(1).atStartOfDay()));
-        } else if (SURTIDAS.equals(filtro)) {
-            where.append(" AND x.sesiones > 0");
-        }
         String texto = ServicioInventarioFarmacia.texto(buscar);
         if (texto != null) {
             where.append(" AND (CAST(x.folio AS VARCHAR(12)) = ? OR x.expediente = ? OR x.paciente LIKE ?)");
@@ -134,14 +128,163 @@ public class ServicioQuimioterapia {
             parametros.add(texto);
             parametros.add("%" + texto.replace("%", "").replace("_", "") + "%");
         }
+        if (desde != null) {
+            where.append(" AND COALESCE(x.fecha_requerida, x.fecha) >= ?");
+            parametros.add(Timestamp.valueOf(desde.atStartOfDay()));
+        }
+        if (hasta != null) {
+            where.append(" AND COALESCE(x.fecha_requerida, x.fecha) < ?");
+            parametros.add(Timestamp.valueOf(hasta.plusDays(1).atStartOfDay()));
+        }
+        String elMedico = ServicioInventarioFarmacia.texto(medico);
+        if (elMedico != null) {
+            where.append(" AND x.medico = ?");
+            parametros.add(elMedico);
+        }
         // Las de hoy y las próximas primero; luego las que ya pasaron, de la más reciente a la más vieja.
         String sql = "SELECT TOP (" + MAXIMO_LISTA + ") x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
-                + "x.servicio_solicita, x.medico, x.sesiones, x.ultima FROM (" + SOLICITUDES_CON_SESIONES + ") x " + where
+                + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.notas FROM (" + SOLICITUDES_CON_SESIONES + ") x " + where
                 + " ORDER BY CASE WHEN x.fecha_requerida >= ? THEN 0 ELSE 1 END, "
                 + "CASE WHEN x.fecha_requerida >= ? THEN x.fecha_requerida END ASC, x.fecha_requerida DESC, x.folio DESC";
         parametros.add(Timestamp.valueOf(hoy.atStartOfDay()));
         parametros.add(Timestamp.valueOf(hoy.atStartOfDay()));
-        return haero.query(sql, (rs, n) -> solicitud(rs), parametros.toArray());
+        Map<Integer, String> notas = new HashMap<>();
+        List<SolicitudQuimio> lista = haero.query(sql, (rs, n) -> {
+            notas.put(rs.getInt(1), rs.getString(11));
+            return solicitud(rs);
+        }, parametros.toArray());
+        return conMedicamentos(lista, notas);
+    }
+
+    /** Condición SQL de cada filtro de estado (alias x = SOLICITUDES_CON_SESIONES). */
+    private static String condicionFiltro(String filtro, List<Object> parametros) {
+        LocalDate hoy = LocalDate.now();
+        if (POR_SURTIR.equals(filtro)) {
+            parametros.add(Timestamp.valueOf(hoy.minusDays(7).atStartOfDay()));
+            return " AND x.sesiones = 0 AND (x.fecha_requerida IS NULL OR x.fecha_requerida >= ?)";
+        }
+        if (PARA_HOY.equals(filtro)) {
+            parametros.add(Timestamp.valueOf(hoy.atStartOfDay()));
+            parametros.add(Timestamp.valueOf(hoy.plusDays(1).atStartOfDay()));
+            return " AND x.fecha_requerida >= ? AND x.fecha_requerida < ?";
+        }
+        if (CON_PENDIENTES.equals(filtro)) {
+            return " AND " + CON_PENDIENTE_SQL;
+        }
+        if (SURTIDAS.equals(filtro)) {
+            return " AND x.sesiones > 0";
+        }
+        return "";
+    }
+
+    // Tiene un medicamento que se marcó "no se surte" y no se ha entregado en ninguna sesión de la solicitud.
+    private static final String CON_PENDIENTE_SQL = """
+            EXISTS (SELECT 1 FROM quimio_preparacion p JOIN quimio_renglon r ON r.preparacion_id = p.id
+                    WHERE p.folio_solicitud = CAST(x.folio AS VARCHAR(30)) AND r.no_surtido = 1
+                      AND NOT EXISTS (SELECT 1 FROM quimio_preparacion p2 JOIN quimio_renglon r2 ON r2.preparacion_id = p2.id
+                                      WHERE p2.folio_solicitud = p.folio_solicitud AND r2.no_surtido = 0
+                                        AND r2.clave_indicada = r.clave_indicada))""";
+
+    /** Los números del día para los recuadros de arriba y las pastillas de filtro. */
+    public ResumenQuimio resumen() {
+        int porSurtir = contar(POR_SURTIR);
+        int paraHoy = contar(PARA_HOY);
+        int conPendientes = contar(CON_PENDIENTES);
+        Integer surtidasHoy = haero.queryForObject("SELECT COUNT(*) FROM quimio_preparacion WHERE fecha >= ?", Integer.class,
+                Timestamp.valueOf(LocalDate.now().atStartOfDay()));
+        return new ResumenQuimio(porSurtir, paraHoy, conPendientes, surtidasHoy == null ? 0 : surtidasHoy);
+    }
+
+    private int contar(String filtro) {
+        List<Object> parametros = new ArrayList<>();
+        String condicion = condicionFiltro(filtro, parametros);
+        Integer total = haero.queryForObject("SELECT COUNT(*) FROM (" + SOLICITUDES_CON_SESIONES + ") x WHERE 1 = 1" + condicion,
+                Integer.class, parametros.toArray());
+        return total == null ? 0 : total;
+    }
+
+    /** Médicos que han pedido quimioterapia en los últimos 6 meses (para el filtro). */
+    public List<String> medicos() {
+        return haero.queryForList("SELECT DISTINCT medico FROM quimio_solicitud WHERE medico IS NOT NULL AND medico <> '' AND fecha >= ? ORDER BY medico",
+                String.class, Timestamp.valueOf(LocalDate.now().minusMonths(6).atStartOfDay()));
+    }
+
+    // ---------- Medicamentos de cada solicitud en la lista ----------
+    // La nota se lee una vez por folio y se guarda en memoria (casi nunca cambia): así la lista sigue rápida.
+    private record NotaLeida(int hash, List<LectorNotaQuimio.Hallazgo> hallazgos) {
+    }
+
+    private final Map<Integer, NotaLeida> notasLeidas = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile List<LectorNotaQuimio.Farmaco> farmacosEnMemoria;
+    private volatile long farmacosLeidosEn;
+
+    private List<LectorNotaQuimio.Farmaco> farmacos() {
+        if (farmacosEnMemoria == null || System.currentTimeMillis() - farmacosLeidosEn > 10 * 60 * 1000) {
+            farmacosEnMemoria = haero.query("SELECT clave, nombre_generico FROM medicamento WHERE estatus IS NULL OR estatus <> 'BAJA'",
+                    (rs, n) -> new LectorNotaQuimio.Farmaco(rs.getString(1), LectorNotaQuimio.palabrasFarmaco(rs.getString(2))));
+            farmacosLeidosEn = System.currentTimeMillis();
+            notasLeidas.clear();
+        }
+        return farmacosEnMemoria;
+    }
+
+    private List<LectorNotaQuimio.Hallazgo> hallazgos(int folio, String nota) {
+        if (nota == null || nota.isBlank()) {
+            return List.of();
+        }
+        List<LectorNotaQuimio.Farmaco> catalogo = farmacos();
+        NotaLeida leida = notasLeidas.get(folio);
+        if (leida == null || leida.hash() != nota.hashCode()) {
+            leida = new NotaLeida(nota.hashCode(), LectorNotaQuimio.leer(nota, catalogo));
+            notasLeidas.put(folio, leida);
+        }
+        return leida.hallazgos();
+    }
+
+    /** A cada solicitud le pone los medicamentos de su nota: ENTREGADO, PENDIENTE (no se surtió) o POR_SURTIR. */
+    private List<SolicitudQuimio> conMedicamentos(List<SolicitudQuimio> lista, Map<Integer, String> notas) {
+        if (lista.isEmpty()) {
+            return lista;
+        }
+        Map<String, Set<String>> entregadas = new HashMap<>();
+        Map<String, Set<String>> noSurtidas = new HashMap<>();
+        List<String> conSesiones = lista.stream().filter(s -> s.sesionesSurtidas() > 0).map(s -> String.valueOf(s.folio())).toList();
+        if (!conSesiones.isEmpty()) {
+            String marcas = String.join(",", java.util.Collections.nCopies(conSesiones.size(), "?"));
+            haero.query("SELECT p.folio_solicitud, r.clave_indicada, r.clave_surtida, r.no_surtido FROM quimio_preparacion p "
+                    + "JOIN quimio_renglon r ON r.preparacion_id = p.id WHERE p.folio_solicitud IN (" + marcas + ")", rs -> {
+                String folio = rs.getString(1);
+                if (rs.getBoolean(4)) {
+                    noSurtidas.computeIfAbsent(folio, k -> new HashSet<>()).add(rs.getString(2));
+                } else {
+                    Set<String> claves = entregadas.computeIfAbsent(folio, k -> new HashSet<>());
+                    claves.add(rs.getString(2));
+                    claves.add(rs.getString(3));
+                }
+            }, conSesiones.toArray());
+        }
+        List<SolicitudQuimio> resultado = new ArrayList<>();
+        for (SolicitudQuimio s : lista) {
+            String folio = String.valueOf(s.folio());
+            Set<String> entregado = entregadas.getOrDefault(folio, Set.of());
+            Set<String> pendiente = noSurtidas.getOrDefault(folio, Set.of());
+            List<MedicamentoLista> medicamentos = new ArrayList<>();
+            int pendientes = 0;
+            for (LectorNotaQuimio.Hallazgo h : hallazgos(s.folio(), notas.get(s.folio()))) {
+                if (h.soloSiNoHay() || h.solucion()) {
+                    continue; // Las alternativas por desabasto y las soluciones no cuentan como medicamento de la lista.
+                }
+                String estado = h.claves().stream().anyMatch(entregado::contains) ? "ENTREGADO"
+                        : h.claves().stream().anyMatch(pendiente::contains) ? "PENDIENTE" : "POR_SURTIR";
+                if ("PENDIENTE".equals(estado)) {
+                    pendientes++;
+                }
+                medicamentos.add(new MedicamentoLista(h.farmaco(), estado));
+            }
+            resultado.add(new SolicitudQuimio(s.folio(), s.fecha(), s.fechaRequerida(), s.estatus(), s.expediente(), s.paciente(),
+                    s.servicioSolicita(), s.medico(), s.sesionesSurtidas(), s.ultimaSesion(), medicamentos, pendientes));
+        }
+        return resultado;
     }
 
     /**
@@ -254,6 +397,10 @@ public class ServicioQuimioterapia {
                 Object[] m = catalogo.get(clave);
                 BigDecimal[] contenido = new BigDecimal[1];
                 String unidad = LectorNotaQuimio.contenido((String) m[2], contenido);
+                if (unidad == null) {
+                    // Muchas claves solo traen la descripción: "Cada pluma precargada contiene: … 80 mg".
+                    unidad = LectorNotaQuimio.contenidoDeDescripcion((String) m[0], contenido);
+                }
                 return new ClaveSugerida(clave, (String) m[0], (String) m[1], (String) m[2], contenido[0], unidad,
                         existencias.getOrDefault(clave, 0), usadasAntes.contains(clave));
             }).sorted(Comparator.comparing((ClaveSugerida c) -> !c.usadaAntes())
@@ -261,7 +408,8 @@ public class ServicioQuimioterapia {
                     .thenComparing(c -> c.concentracion() == null)
                     .thenComparing(ClaveSugerida::clave))
                     .limit(MAXIMO_CLAVES_SUGERIDAS).toList();
-            resultado.add(new MedicamentoEnNota(h.texto(), h.farmaco(), h.dosisCantidad(), h.dosisUnidad(), claves));
+            resultado.add(new MedicamentoEnNota(h.texto(), h.farmaco(), h.dosisCantidad(), h.dosisUnidad(), claves,
+                    h.soloSiNoHay(), h.siNoHayDe(), h.solucion(), h.veces()));
         }
         return resultado;
     }
@@ -282,7 +430,9 @@ public class ServicioQuimioterapia {
     public SesionesSolicitud sesiones(String folio) {
         String limpio = obligatorio(folio, "Escribe el folio de la solicitud");
         List<Long> ids = haero.queryForList("SELECT id FROM quimio_preparacion WHERE folio_solicitud = ? ORDER BY sesion", Long.class, limpio);
-        List<QuimioResponse> sesiones = ids.stream().map(id -> detalle(id, null)).toList();
+        // Con lo entregado y lo devuelto de cada sesión: lo ya surtido no se vuelve a dar en la misma
+        // solicitud, salvo que el paciente lo haya devuelto (Devoluciones, HU34).
+        List<QuimioResponse> sesiones = ids.stream().map(id -> detalle(id, partidasDeSesion(id))).toList();
         QuimioResponse primera = sesiones.isEmpty() ? null : sesiones.get(0);
         return new SesionesSolicitud(limpio, primera == null ? null : primera.pacienteExpediente(),
                 primera == null ? null : primera.pacienteNombre(), sesiones);
@@ -344,10 +494,7 @@ public class ServicioQuimioterapia {
         }
         int sesion = anteriores.sesiones().size() + 1;
 
-        // 3. La segunda persona verifica con su propio usuario.
-        Usuario verifico = verificador(request.verificadorUsuario(), request.verificadorContrasena(), surtio);
-
-        // 4. Lo indicado ya en clave; se surte la principal o la alternativa.
+        // 3. Lo indicado ya en clave; se surte la principal o la alternativa.
         List<RenglonQuimioRequest> renglones = request.renglones() == null ? List.of() : request.renglones();
         if (renglones.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pasa a clave al menos un medicamento de la indicación");
@@ -355,6 +502,8 @@ public class ServicioQuimioterapia {
         Map<String, Integer> piezasPorClave = new LinkedHashMap<>();
         List<CajaEntregaRequest> cajas = new ArrayList<>();
         List<Object[]> filas = new ArrayList<>();
+        Map<String, String> noSurtidas = new LinkedHashMap<>();
+        Set<String> surtidas = new java.util.HashSet<>();
         for (RenglonQuimioRequest renglon : renglones) {
             String indicada = inventario.medicamento(renglon.clave()).getClave();
             String alternativa = ServicioInventarioFarmacia.texto(renglon.alternativa()) == null ? null
@@ -370,9 +519,18 @@ public class ServicioQuimioterapia {
             if (renglon.piezas() == null || renglon.piezas() <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica las piezas a surtir de " + surtida);
             }
+            // No se surte (sin existencia, o no se maneja y el paciente lo compra): queda con su motivo y se entrega lo demás.
+            boolean noSurtido = renglon.noSurtido();
+            String motivoNoSurtido = null;
+            if (noSurtido) {
+                motivoNoSurtido = obligatorio(renglon.motivoNoSurtido(), "Indica por qué no se surte " + surtida);
+                if (motivoNoSurtido.length() > 200) {
+                    motivoNoSurtido = motivoNoSurtido.substring(0, 200);
+                }
+            }
             // Alternativa con existencia de la principal: debe decir por qué.
             String motivoAlternativa = ServicioInventarioFarmacia.texto(renglon.motivoAlternativa());
-            if (renglon.usarAlternativa() && motivoAlternativa == null && existencia(indicada) >= renglon.piezas()) {
+            if (!noSurtido && renglon.usarAlternativa() && motivoAlternativa == null && existencia(indicada) >= renglon.piezas()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hay existencia de " + indicada
                         + ": escribe por qué se surte la alternativa " + alternativa);
             }
@@ -384,7 +542,7 @@ public class ServicioQuimioterapia {
             BigDecimal porPieza = renglon.contenidoPorPieza();
             String unidad = ServicioInventarioFarmacia.texto(renglon.dosisUnidad());
             String destino = renglon.destinoSobrante() == null ? null : renglon.destinoSobrante().trim().toUpperCase(Locale.ROOT);
-            if (cantidad != null && porPieza != null) {
+            if (cantidad != null && porPieza != null && !noSurtido) {
                 if (cantidad.signum() <= 0 || porPieza.signum() <= 0) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La dosis y el contenido por frasco de " + surtida + " deben ser mayores a cero");
                 }
@@ -413,13 +571,60 @@ public class ServicioQuimioterapia {
                 texto = texto.substring(0, 300);
             }
             piezasPorClave.merge(surtida, renglon.piezas(), Integer::sum);
-            CajaEntregaRequest caja = new CajaEntregaRequest();
-            caja.setClave(surtida);
-            caja.setLote(ServicioInventarioFarmacia.texto(renglon.lote()));
-            caja.setPiezas(renglon.piezas());
-            cajas.add(caja);
+            List<LoteEscaneado> escaneados = renglon.lotes() == null ? List.of() : renglon.lotes();
+            if (noSurtido) {
+                noSurtidas.put(surtida, motivoNoSurtido);
+            } else if (escaneados.isEmpty()) {
+                surtidas.add(surtida);
+                CajaEntregaRequest caja = new CajaEntregaRequest();
+                caja.setClave(surtida);
+                caja.setLote(ServicioInventarioFarmacia.texto(renglon.lote()));
+                caja.setPiezas(renglon.piezas());
+                cajas.add(caja);
+            } else {
+                surtidas.add(surtida);
+                // Escaneo continuo: una caja por lote, con las piezas escaneadas de cada uno.
+                int escaneadas = 0;
+                for (LoteEscaneado l : escaneados) {
+                    if (l.piezas() == null || l.piezas() <= 0) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las piezas escaneadas de " + surtida + " deben ser mayores a cero");
+                    }
+                    escaneadas += l.piezas();
+                    // Un código nuevo queda ligado a la clave (como en las demás pantallas de Farmacia).
+                    inventario.aprenderCodigo(ServicioInventarioFarmacia.texto(l.codigo()), inventario.medicamento(surtida));
+                    CajaEntregaRequest caja = new CajaEntregaRequest();
+                    caja.setClave(surtida);
+                    caja.setLote(ServicioInventarioFarmacia.texto(l.lote()));
+                    caja.setPiezas(l.piezas());
+                    cajas.add(caja);
+                }
+                if (escaneadas != renglon.piezas()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "De " + surtida + " se escanearon " + escaneadas
+                            + " piezas y la indicación pide " + renglon.piezas());
+                }
+            }
             filas.add(new Object[]{texto, indicada, alternativa, surtida, dosis, renglon.piezas(), motivoAlternativa,
-                    cantidad, unidad, porPieza, destino});
+                    cantidad, unidad, porPieza, noSurtido ? null : destino, noSurtido, motivoNoSurtido});
+        }
+        // Lo ya entregado en otra sesión de la misma solicitud no se vuelve a dar, salvo que el paciente
+        // lo haya devuelto (se registra en Devoluciones y entonces se libera).
+        Map<String, Integer> sinDevolver = new HashMap<>();
+        for (QuimioResponse previa : anteriores.sesiones()) {
+            for (PartidaEntregadaResponse p : previa.partidas() == null ? List.<PartidaEntregadaResponse>of() : previa.partidas()) {
+                sinDevolver.merge(p.getClave(), p.getEntregada() - p.getDevuelta(), Integer::sum);
+            }
+        }
+        for (String clave : surtidas) {
+            if (sinDevolver.getOrDefault(clave, 0) > 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "La clave " + clave + " ya se entregó en otra sesión de la solicitud "
+                        + folio + " y no se ha devuelto. Si hay que cambiarla, registra primero la devolución");
+            }
+        }
+        for (String clave : noSurtidas.keySet()) {
+            if (surtidas.contains(clave)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La clave " + clave
+                        + " está en dos renglones, uno surtido y otro no: déjala en uno solo");
+            }
         }
 
         RegistrarEntregaRequest entrega = new RegistrarEntregaRequest();
@@ -434,6 +639,11 @@ public class ServicioQuimioterapia {
             ClaveRecetaRequest c = new ClaveRecetaRequest();
             c.setClave(clave);
             c.setPiezasIndicadas(piezas);
+            // Como en ventanilla (HU29): la clave queda "no dispensada" con su motivo en la receta.
+            if (noSurtidas.containsKey(clave)) {
+                c.setNoDispensada(true);
+                c.setMotivo(noSurtidas.get(clave));
+            }
             claves.add(c);
         });
         entrega.setClaves(claves);
@@ -449,20 +659,43 @@ public class ServicioQuimioterapia {
                     paciente_curp, expediente_corregido, justificacion_paciente, sin_intelisis, nota_medico, entrega_id, surtio_id, verifico_id, fecha)
                 OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, Long.class, folio, sesion, expedienteSolicitud, nombreSolicitud, paciente.getExpediente(), paciente.getNombre(),
-                paciente.getCurp(), corregido, justificacion, sinIntelisis, nota, registrada.getId(), surtio.getId(), verifico.getId(),
+                paciente.getCurp(), corregido, justificacion, sinIntelisis, nota, registrada.getId(), surtio.getId(), null,
                 Timestamp.valueOf(LocalDateTime.now()));
         for (Object[] fila : filas) {
             haero.update("""
                     INSERT INTO quimio_renglon (preparacion_id, texto_medico, clave_indicada, clave_alternativa, clave_surtida, dosis, piezas,
-                        motivo_alternativa, dosis_cantidad, dosis_unidad, contenido_por_pieza, destino_sobrante)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, id, fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[6], fila[7], fila[8], fila[9], fila[10]);
+                        motivo_alternativa, dosis_cantidad, dosis_unidad, contenido_por_pieza, destino_sobrante, no_surtido, motivo_no_surtido)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, id, fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[6], fila[7], fila[8], fila[9], fila[10],
+                    fila[11], fila[12]);
         }
         return detalle(id, registrada.getPartidas());
     }
 
-    public List<QuimioResponse> recientes() {
-        List<Long> ids = haero.queryForList("SELECT TOP 30 id FROM quimio_preparacion ORDER BY fecha DESC", Long.class);
+    /**
+     * Quimioterapias surtidas, las más recientes primero. dia: solo las de ese día (todas); buscar: folio
+     * de la solicitud, expediente o nombre del paciente. Sin filtros, las últimas 30.
+     */
+    public List<QuimioResponse> recientes(LocalDate dia, String buscar) {
+        StringBuilder sql = new StringBuilder("SELECT TOP 200 id FROM quimio_preparacion WHERE 1 = 1");
+        List<Object> parametros = new ArrayList<>();
+        if (dia != null) {
+            sql.append(" AND fecha >= ? AND fecha < ?");
+            parametros.add(Timestamp.valueOf(dia.atStartOfDay()));
+            parametros.add(Timestamp.valueOf(dia.plusDays(1).atStartOfDay()));
+        }
+        String texto = ServicioInventarioFarmacia.texto(buscar);
+        if (texto != null) {
+            sql.append(" AND (folio_solicitud = ? OR paciente_expediente = ? OR paciente_nombre LIKE ?)");
+            parametros.add(texto);
+            parametros.add(texto);
+            parametros.add("%" + texto.replace("[", "[[]").replace("%", "[%]").replace("_", "[_]") + "%");
+        }
+        sql.append(" ORDER BY fecha DESC");
+        List<Long> ids = haero.queryForList(sql.toString(), Long.class, parametros.toArray());
+        if (dia == null && texto == null && ids.size() > 30) {
+            ids = ids.subList(0, 30);
+        }
         return ids.stream().map(id -> detalle(id, null)).toList();
     }
 
@@ -473,11 +706,24 @@ public class ServicioQuimioterapia {
         return piezas == null ? 0 : piezas;
     }
 
+    /** Partidas entregadas en una sesión de quimio, con las piezas que el paciente ya devolvió. */
+    private List<PartidaEntregadaResponse> partidasDeSesion(Long preparacionId) {
+        return haero.query("""
+                SELECT p.id, l.medicamento_clave, m.nombre_generico, l.numero_lote, l.caducidad, p.piezas, p.piezas_devueltas
+                FROM quimio_preparacion q
+                JOIN farmacia_entrega_partida p ON p.entrega_id = q.entrega_id
+                JOIN farmacia_lote l ON l.id = p.farmacia_lote_id
+                JOIN medicamento m ON m.clave = l.medicamento_clave
+                WHERE q.id = ? ORDER BY p.id
+                """, (rs, n) -> new PartidaEntregadaResponse(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                rs.getDate(5).toLocalDate(), rs.getInt(6), rs.getInt(7)), preparacionId);
+    }
+
     private QuimioResponse detalle(Long id, List<PartidaEntregadaResponse> partidas) {
         List<RenglonQuimioResponse> renglones = haero.query("""
                 SELECT r.texto_medico, r.clave_indicada, r.clave_alternativa, r.clave_surtida, m.nombre_generico, r.dosis, r.piezas,
                        r.motivo_alternativa, r.dosis_cantidad, r.dosis_unidad, r.contenido_por_pieza, r.destino_sobrante,
-                       mi.nombre_generico, ma.nombre_generico
+                       mi.nombre_generico, ma.nombre_generico, r.no_surtido, r.motivo_no_surtido
                 FROM quimio_renglon r JOIN medicamento m ON m.clave = r.clave_surtida
                 JOIN medicamento mi ON mi.clave = r.clave_indicada
                 LEFT JOIN medicamento ma ON ma.clave = r.clave_alternativa
@@ -489,36 +735,16 @@ public class ServicioQuimioterapia {
                     ? porPieza.multiply(BigDecimal.valueOf(rs.getInt(7))).subtract(cantidad).stripTrailingZeros() : null;
             return new RenglonQuimioResponse(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
                     rs.getString(6), rs.getInt(7), rs.getString(8), cantidad, rs.getString(10), porPieza, sobrante, rs.getString(12),
-                    rs.getString(13), rs.getString(14));
+                    rs.getString(13), rs.getString(14), rs.getBoolean(15), rs.getString(16));
         }, id);
         return haero.query("""
                 SELECT p.id, p.folio_solicitud, p.sesion, p.expediente_solicitud, p.paciente_nombre, p.paciente_expediente, p.expediente_corregido,
                        p.justificacion_paciente, p.sin_intelisis, p.nota_medico, p.entrega_id, p.fecha, us.nombre_completo, uv.nombre_completo
-                FROM quimio_preparacion p JOIN usuario us ON us.id = p.surtio_id JOIN usuario uv ON uv.id = p.verifico_id
+                FROM quimio_preparacion p JOIN usuario us ON us.id = p.surtio_id LEFT JOIN usuario uv ON uv.id = p.verifico_id
                 WHERE p.id = ?
                 """, (rs, n) -> new QuimioResponse(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getString(4), rs.getString(5),
                 rs.getString(6), rs.getBoolean(7), rs.getString(8), rs.getBoolean(9), rs.getString(10), Entrega.folio(rs.getLong(11)),
                 rs.getTimestamp(12).toLocalDateTime(), rs.getString(13), rs.getString(14), renglones, partidas), id).get(0);
-    }
-
-    /** La segunda persona de Farmacia, con su propio usuario y contraseña (no puede ser quien surte). */
-    private Usuario verificador(String nombreUsuario, String contrasena, Usuario surtio) {
-        String usuario = ServicioInventarioFarmacia.texto(nombreUsuario);
-        if (usuario == null || contrasena == null || contrasena.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La segunda persona debe escribir su usuario y contraseña");
-        }
-        Usuario verifico = usuarioRepository.findByNombreUsuario(usuario)
-                .filter(Usuario::isActivo)
-                .filter(u -> u.getBloqueadoHasta() == null || u.getBloqueadoHasta().isBefore(LocalDateTime.now()))
-                .filter(u -> passwordEncoder.matches(contrasena, u.getContrasenaHash()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Usuario o contraseña de quien verifica incorrectos"));
-        if (verifico.getId().equals(surtio.getId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La verificación la hace otra persona, no quien surte");
-        }
-        if (verifico.getRol() == null || !ROL_FARMACIA.equalsIgnoreCase(verifico.getRol().getNombre())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quien verifica debe ser personal de Farmacia");
-        }
-        return verifico;
     }
 
     /** Coinciden si al menos dos palabras (nombre y apellido) están en los dos, sin acentos. */
