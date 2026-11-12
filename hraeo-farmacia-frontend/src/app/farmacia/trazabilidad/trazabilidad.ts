@@ -32,12 +32,12 @@ interface EntregaPaciente {
 
 // Etapas que recorre un lote; se llenan con los movimientos de Almacén y de Farmacia.
 const ETAPAS = [
-  { etapa: 'Pedido y contrato', detalle: 'Pedido de Intelisis con el que se compró (HU22)' },
-  { etapa: 'Entrada a Almacén', detalle: 'Recepción con el registro de Intelisis (HU10)' },
-  { etapa: 'Despacho a Farmacia', detalle: 'Salida de Almacén por una solicitud (HU14)' },
-  { etapa: 'Recepción en Farmacia', detalle: 'Lo que Farmacia confirmó que llegó (HU26)' },
-  { etapa: 'Entregas a pacientes', detalle: 'Dispensaciones de ese lote (HU28)' },
-  { etapa: 'Baja en Intelisis', detalle: 'Día en que se dio de baja por volumen (HU31)' },
+  { etapa: 'Pedido y contrato', detalle: 'Pedido de Intelisis con el que se compró' },
+  { etapa: 'Entrada a Almacén', detalle: 'Recepción con el registro de Intelisis' },
+  { etapa: 'Despacho a Farmacia', detalle: 'Salida de Almacén por una solicitud' },
+  { etapa: 'Recepción en Farmacia', detalle: 'Lo que Farmacia confirmó que llegó' },
+  { etapa: 'Entregas a pacientes', detalle: 'Dispensaciones de ese lote' },
+  { etapa: 'Baja en Intelisis', detalle: 'Día en que se dio de baja por volumen' },
 ];
 
 // Farmacia · Trazabilidad de lote a paciente (HU33): el recorrido de un lote con los movimientos

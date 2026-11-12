@@ -1,7 +1,7 @@
 /* Ocupa el mismo ancho que las demás pantallas para no dejar un hueco a la derecha. */
 .entry-card { width: 100%; }
 
-.scanner-control { display: flex; gap: 8px; }
+.scanner-control { display: flex; gap: 8px; max-width: 720px; }
 .scanner-control input { flex: 1; min-width: 0; }
 
 .scanner-control button {

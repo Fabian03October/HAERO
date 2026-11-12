@@ -25,7 +25,7 @@
         <section class="kpi-grid" aria-label="Indicadores de Farmacia">
           @for (item of indicadores(); track item.titulo) {
             <a [class]="'kpi ' + item.tono" [routerLink]="item.ruta">
-              <span class="kpi-title">{{ item.titulo }}<span class="hu">{{ item.historia }}</span></span>
+              <span class="kpi-title">{{ item.titulo }}</span>
               <strong>{{ numero(item.valor) }}</strong>
               <small>{{ item.detalle }}</small>
             </a>
@@ -36,7 +36,7 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Baja por volumen en Intelisis · HU31</p>
+                <p class="eyebrow">Baja por volumen en Intelisis</p>
                 <h2>Resumen del día</h2>
               </div>
               <a class="card-link" routerLink="/farmacia/baja-intelisis">Ver resumen completo →</a>
@@ -70,7 +70,7 @@
                       </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="6" class="empty">Aún no hay entregas hoy. Aquí aparecerá lo entregado por clave y lote (HU28 y HU31).</td></tr>
+                    <tr><td colspan="6" class="empty">Aún no hay entregas hoy. Aquí aparecerá lo entregado por clave y lote.</td></tr>
                   }
                 </tbody>
               </table>
@@ -83,7 +83,7 @@
                   @case ('DIFERENCIA') { <span class="pill danger">Con diferencia</span> }
                   @default { <span class="pill">Sin verificar</span> }
                 }
-                <span class="hu">HU32</span>
+
               </span>
               <a class="btn" routerLink="/farmacia/baja-intelisis">Abrir resumen del día</a>
             </div>
@@ -92,7 +92,7 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Recepción · HU26</p>
+                <p class="eyebrow">Recepción</p>
                 <h2>Despachos de Almacén por recibir</h2>
               </div>
               <a class="card-link" routerLink="/farmacia/inventario/recepcion">Ver todos →</a>
@@ -110,7 +110,7 @@
                 }
               </ul>
             } @else {
-              <p class="empty-box">No hay despachos por recibir. Aquí aparecerá lo que Almacén despache a Farmacia (HU26).</p>
+              <p class="empty-box">No hay despachos por recibir. Aquí aparecerá lo que Almacén despache a Farmacia.</p>
             }
           </section>
         </div>
@@ -118,7 +118,7 @@
         <section class="card">
           <div class="card-heading">
             <div>
-              <p class="eyebrow">Regla FEFO · HU30</p>
+              <p class="eyebrow">Regla FEFO</p>
               <h2>Próximos a salir en Farmacia</h2>
             </div>
             <a class="card-link" routerLink="/farmacia/inventario/existencias">Ver existencias →</a>
@@ -157,7 +157,7 @@
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="empty">El inventario de Farmacia está vacío. Se llena con el alta inicial (HU25) y la recepción (HU26).</td></tr>
+                  <tr><td colspan="6" class="empty">El inventario de Farmacia está vacío. Se llena con el alta inicial y la recepción.</td></tr>
                 }
               </tbody>
             </table>

@@ -80,12 +80,12 @@
   <div class="list-tools">
     <div class="filter-tabs" role="group" aria-label="Filtrar claves por estado">
       @for (opcion of filtros(); track opcion.valor) {
-        <button type="button" [class.active]="filtroEstado() === opcion.valor" [attr.aria-pressed]="filtroEstado() === opcion.valor" (click)="filtroEstado.set(opcion.valor)">
+        <button type="button" [class.active]="filtroEstado() === opcion.valor" [attr.aria-pressed]="filtroEstado() === opcion.valor" (click)="filtroEstado.set(opcion.valor); pag.reiniciar()">
           {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
         </button>
       }
     </div>
-    <input class="search" type="search" [value]="buscar()" (input)="buscar.set($any($event.target).value)" placeholder="Buscar clave o medicamento" aria-label="Buscar clave o medicamento" />
+    <input class="search" type="search" [value]="buscar()" (input)="buscar.set($any($event.target).value); pag.reiniciar()" placeholder="Buscar clave o medicamento" aria-label="Buscar clave o medicamento" />
   </div>
 
   <div class="table-wrap">
@@ -105,7 +105,7 @@
         @if (cargando()) {
           <tr><td colspan="7" class="empty">Cargando…</td></tr>
         } @else {
-          @for (fila of visibles(); track fila.clave) {
+          @for (fila of pag.visibles(); track fila.clave) {
             <tr>
               <td><strong>{{ fila.clave }}</strong><small class="nombre">{{ fila.nombre || 'Sin nombre' }}</small></td>
               <td><span [class]="'pill ' + fila.estado.toLowerCase()">{{ estadoTexto[fila.estado] }}</span></td>
@@ -140,6 +140,7 @@
       </tbody>
     </table>
   </div>
+  <app-paginador [control]="pag" />
   <p class="card-help">
     HAERO lleva el control: si Intelisis tiene más, falta dar de alta o recibir en HAERO, o hay que ajustar Intelisis. Intelisis guarda
     piezas; se pasan a cajas con las piezas por caja del catálogo (una fracción es una caja abierta). En ambos lados se ignoran los lotes caducados.

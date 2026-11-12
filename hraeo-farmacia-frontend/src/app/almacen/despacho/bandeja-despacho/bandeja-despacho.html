@@ -1,5 +1,5 @@
 <header class="screen-heading">
-  <p class="eyebrow">Despacho · HU14 · HU15</p>
+  <p class="eyebrow">Despacho</p>
   <h1>Bandeja de despacho</h1>
   <p>Valida las solicitudes de Farmacia eligiendo lote y ubicación. Siempre sale primero la caducidad más próxima.</p>
 </header>
@@ -181,7 +181,7 @@
       @if (actual.pedidoId && delPedido().length > 1) {
         <div class="pedido-completo">
           <div>
-            <p class="eyebrow">Pedido {{ folioPedido(actual.pedidoId) }} · HU39</p>
+            <p class="eyebrow">Pedido {{ folioPedido(actual.pedidoId) }}</p>
             <strong>{{ delPedido().length }} claves pendientes en este pedido</strong>
             <small>Despacha todas de una vez, cada una del lote que caduca primero.</small>
           </div>

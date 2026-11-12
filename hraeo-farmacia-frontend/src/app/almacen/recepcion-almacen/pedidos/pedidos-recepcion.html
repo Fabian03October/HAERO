@@ -1,5 +1,5 @@
 <header class="screen-heading">
-  <p class="eyebrow">Recepción · HU22</p>
+  <p class="eyebrow">Recepción</p>
   <h1>Pedidos</h1>
   <p>Los pedidos a proveedor de Intelisis, con su contrato. Se capturan y se cancelan en Intelisis; aquí se consultan y se ve lo que Almacén ya recibió.</p>
 </header>
@@ -89,9 +89,7 @@
       </tbody>
     </table>
   </div>
-  @if (pedidosFiltrados().length > visibles().length) {
-    <button type="button" class="mas-button" (click)="mostrarMas()">Mostrar más ({{ pedidosFiltrados().length - visibles().length }} restantes)</button>
-  }
+  <app-paginador [control]="pag" />
   <p class="card-help">"Recibido en HAERO" son las cajas que Almacén registró aquí al dar entrada. El estado lo decide Intelisis: un pedido cancelado allá ya no se puede recibir.</p>
 </section>
 

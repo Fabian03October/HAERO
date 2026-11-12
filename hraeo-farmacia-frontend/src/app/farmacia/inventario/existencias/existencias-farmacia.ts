@@ -10,6 +10,7 @@ import { FarmaciaApi, LoteFarmacia } from '../../farmacia-api';
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 import { descargarCsv, hoyIso } from '../../../shared/csv';
 import { CajasQuirofano, PiezasEnCaja } from '../../cajas-quirofano/cajas-quirofano';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 // Meses hacia adelante para considerar un lote "próximo a caducar", igual que en Almacén.
 const MESES_ALERTA_CADUCIDAD = 9;
@@ -20,11 +21,14 @@ type Filtro = '' | 'FEFO' | 'POR_CADUCAR' | 'VENCIDO';
 // y la recepción (HU26); el backend calcula el lote que sale primero, los por caducar y los vencidos.
 @Component({
   selector: 'app-existencias-farmacia',
-  imports: [MarcaSeguridad, FormsModule, Topbar, Sidebar],
+  imports: [MarcaSeguridad, FormsModule, Topbar, Sidebar, Paginador],
   templateUrl: './existencias-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './existencias-farmacia.css'],
 })
 export class ExistenciasFarmacia {
+  // Por páginas: el inventario de Farmacia puede tener cientos de lotes.
+  readonly pagLotes = new Paginacion(() => this.lotesFiltrados());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;

@@ -1,5 +1,5 @@
 <header class="screen-heading">
-  <p class="eyebrow">Rotación · HU17</p>
+  <p class="eyebrow">Rotación</p>
   <h1>Alertas de stock</h1>
   <p>Mínimo = {{ mesesMinimo }} meses de CPM y máximo = {{ mesesMaximo }} meses. El desabasto se mide con lo que sí se alcanza a usar antes de que caduque. Las alertas se generan solas al cruzar esos niveles.</p>
 </header>
@@ -276,7 +276,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (fila of niveles(); track fila.clave) {
+        @for (fila of pagNiveles.visibles(); track fila.clave) {
           <tr>
             <td><strong>{{ fila.clave }}</strong><small>{{ fila.medicamento || 'Sin nombre en catálogo' }}</small></td>
             <td class="number">{{ fila.cpm }}</td>
@@ -295,6 +295,7 @@
       </tbody>
     </table>
   </div>
+  <app-paginador [control]="pagNiveles" />
   <p class="card-help">La existencia no incluye lotes vencidos. Una clave sin consumo registrado no genera alertas.</p>
 </section>
 

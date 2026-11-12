@@ -3,6 +3,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { AlmacenApi, ComparacionClave, EstadoComparacion, EstadoIntelisis, mensajeDeError } from '../../almacen-api';
 import { AvisosIntelisis } from './avisos-intelisis';
 import { Session } from '../../../auth/session';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 // Cada cuánto se revisa el avance mientras corre una sincronización.
 const MS_REVISAR_AVANCE = 3000;
@@ -20,7 +21,7 @@ const ESTADO_TEXTO: Record<EstadoComparacion, string> = {
 // en HAERO, así que abre rápido aunque Intelisis no responda.
 @Component({
   selector: 'app-comparacion-intelisis',
-  imports: [DatePipe, DecimalPipe, AvisosIntelisis],
+  imports: [DatePipe, DecimalPipe, AvisosIntelisis, Paginador],
   templateUrl: './comparacion-intelisis.html',
   styleUrls: ['../recepcion-comun.css', '../pedidos/pedidos-recepcion.css', './comparacion-intelisis.css'],
 })
@@ -65,6 +66,8 @@ export class ComparacionIntelisis {
       .filter((fila) => estado === 'TODOS' || (estado === 'DIFERENCIA' ? this.conDiferencia(fila) : fila.estado === estado))
       .filter((fila) => !texto || `${fila.clave} ${fila.nombre ?? ''}`.toLowerCase().includes(texto));
   });
+  // Por páginas: son cientos de claves.
+  readonly pag = new Paginacion(() => this.visibles());
 
   cargar(): void {
     this.cargando.set(true);

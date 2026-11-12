@@ -1,5 +1,5 @@
 <header class="screen-heading">
-  <p class="eyebrow">Recepción · HU21</p>
+  <p class="eyebrow">Recepción</p>
   <h1>Inventario</h1>
   <p>Existencias del almacén en HAERO. Lo que ya está en los anaqueles se da de alta escaneándolo y eligiéndolo de la existencia actual de Intelisis; no se carga ningún Excel.</p>
 </header>
@@ -51,7 +51,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (lote of lotesFiltrados(); track lote.existenciaId) {
+        @for (lote of pagLotes.visibles(); track lote.existenciaId) {
           <tr>
             <td><strong>{{ lote.clave }}</strong></td>
             <td class="description"><span class="clamp" [title]="lote.descripcion ?? ''">{{ lote.descripcion || '—' }}</span></td>
@@ -75,4 +75,5 @@
       </tbody>
     </table>
   </div>
+  <app-paginador [control]="pagLotes" />
 </section>

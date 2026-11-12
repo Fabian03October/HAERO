@@ -28,6 +28,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { FARMACIA_MENU } from '../farmacia-nav';
 import { CajasQuirofano, EstadoBajaArea } from '../cajas-quirofano/cajas-quirofano';
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 
 type ModoBusqueda = 'NOMBRE' | 'CURP';
 type Opcion = 'PRINCIPAL' | 'ALTERNATIVA';
@@ -116,11 +117,16 @@ type ClaveElegida = Pick<Medicamento, 'clave' | 'nombreGenerico'>;
 // Se descuenta como una entrega normal de Farmacia. Intelisis solo se consulta.
 @Component({
   selector: 'app-quimioterapia',
-  imports: [FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, MarcaSeguridad, BuscadorMedicamento],
+  imports: [FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, MarcaSeguridad, BuscadorMedicamento, Paginador],
   templateUrl: './quimioterapia.html',
   styleUrls: ['../panel-farmacia/panel-farmacia.css', '../farmacia-comun.css', './quimioterapia.css'],
 })
 export class Quimioterapia {
+  // Por páginas: quimioterapias surtidas (por día pueden ser muchas).
+  readonly pagRecientes = new Paginacion(() => this.recientes());
+  // Por páginas: la lista de solicitudes puede traer hasta 200.
+  readonly pagSolicitudes = new Paginacion(() => this.solicitudes());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
@@ -491,6 +497,7 @@ export class Quimioterapia {
 
   cargarSolicitudes(): void {
     this.cargandoLista.set(true);
+    this.pagSolicitudes.reiniciar();
     this.cargarResumen();
     this.api.solicitudesQuimio(this.filtro(), this.buscarSolicitud(), this.desde(), this.hasta(), this.medico()).subscribe({
       next: (lista) => {

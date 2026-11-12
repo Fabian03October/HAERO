@@ -4,15 +4,15 @@ import { ItemMenu } from '../shared/sidebar/sidebar';
 // Supervisión consulta, no registra movimientos.
 export const SUPERVISION_MENU: ItemMenu[] = [
   { etiqueta: 'Inicio', routerLink: '/supervision' },
-  { etiqueta: 'Alertas de stock', routerLink: '/supervision/alertas', etiquetaExtra: 'HU17' },
-  { etiqueta: 'CPM por clave', routerLink: '/supervision/cpm', etiquetaExtra: 'HU16' },
+  { etiqueta: 'Alertas de stock', routerLink: '/supervision/alertas' },
+  { etiqueta: 'CPM por clave', routerLink: '/supervision/cpm' },
   {
     etiqueta: 'Consultas',
     routerLink: '/supervision/consultas',
     hijos: [
-      { etiqueta: 'Existencias', routerLink: '/supervision/consultas/existencias', etiquetaExtra: 'HU12' },
-      { etiqueta: 'Salidas registradas', routerLink: '/supervision/consultas/salidas', etiquetaExtra: 'HU14' },
-      { etiqueta: 'Préstamos y transferencias', routerLink: '/supervision/consultas/prestamos', etiquetaExtra: 'HU20' },
+      { etiqueta: 'Existencias', routerLink: '/supervision/consultas/existencias' },
+      { etiqueta: 'Salidas registradas', routerLink: '/supervision/consultas/salidas' },
+      { etiqueta: 'Préstamos y transferencias', routerLink: '/supervision/consultas/prestamos' },
       { etiqueta: 'HAERO contra Intelisis', routerLink: '/supervision/consultas/intelisis' },
     ],
   },
@@ -20,9 +20,9 @@ export const SUPERVISION_MENU: ItemMenu[] = [
     etiqueta: 'Reportes',
     routerLink: '/supervision/reportes',
     hijos: [
-      { etiqueta: 'Mermas por caducidad', routerLink: '/supervision/reportes/mermas', etiquetaExtra: 'HU19' },
-      { etiqueta: 'Trazabilidad de canjes', routerLink: '/supervision/reportes/canjes', etiquetaExtra: 'HU18' },
-      { etiqueta: 'Otras instituciones', routerLink: '/supervision/reportes/instituciones', etiquetaExtra: 'HU20' },
+      { etiqueta: 'Mermas por caducidad', routerLink: '/supervision/reportes/mermas' },
+      { etiqueta: 'Trazabilidad de canjes', routerLink: '/supervision/reportes/canjes' },
+      { etiqueta: 'Otras instituciones', routerLink: '/supervision/reportes/instituciones' },
     ],
   },
 ];

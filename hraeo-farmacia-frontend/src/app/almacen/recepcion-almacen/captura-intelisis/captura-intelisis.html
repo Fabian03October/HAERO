@@ -54,7 +54,6 @@
         @if (listaMedicamentosAbierta()) {
           <p class="card-help">
             {{ buscarClave().trim() ? medicamentosCoinciden().length + ' coinciden' : 'Todos los medicamentos del catálogo (' + medicamentosCoinciden().length + ')' }}
-            · se muestran {{ medicamentosEncontrados().length }}
           </p>
           <ul class="medicamentos">
             @for (medicamento of medicamentosEncontrados(); track medicamento.clave) {
@@ -76,11 +75,7 @@
               <li class="sin-registros">Ningún medicamento del catálogo coincide. Prueba con otra palabra o con la clave.</li>
             }
           </ul>
-          @if (medicamentosEncontrados().length < medicamentosCoinciden().length) {
-            <button type="button" class="link-add" (click)="mostrarMasMedicamentos()">
-              Mostrar más ({{ medicamentosCoinciden().length - medicamentosEncontrados().length }} restantes)
-            </button>
-          }
+          <app-paginador [control]="pagMedicamentos" />
         } @else {
           <p class="card-help">Toca el buscador para ver todos los medicamentos, o escribe para filtrar. Puedes combinar palabras, por ejemplo "paracetamol inyectable".</p>
         }
@@ -123,12 +118,13 @@
             </div>
           </div>
           <ul class="registros">
-            @for (registro of registrosVisibles(); track registro.origen + registro.idIntelisis + registro.lote) {
+            @for (registro of pagRegistros.visibles(); track registro.origen + registro.idIntelisis + registro.lote) {
               <li><ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: registro }" /></li>
             } @empty {
               <li class="sin-registros">{{ buscarRegistro() ? 'Ningún registro coincide con la búsqueda.' : 'No hay registros en este filtro.' }}</li>
             }
           </ul>
+          <app-paginador [control]="pagRegistros" />
         }
       </div>
 

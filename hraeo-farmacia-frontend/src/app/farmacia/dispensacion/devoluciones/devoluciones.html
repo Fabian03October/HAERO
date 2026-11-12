@@ -9,7 +9,7 @@
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">Ventanilla · HU34</p>
+            <p class="eyebrow">Ventanilla</p>
             <h1>Devoluciones</h1>
             <p class="hero-text">Medicamento que regresa un paciente o servicio. Se liga a su entrega y regresa al mismo lote de Farmacia; lo dañado no regresa al inventario y se registra como merma.</p>
           </div>
@@ -94,7 +94,7 @@
                 @if (entrega() && faltantes().length) {
                   Falta: {{ faltantes().join(', ') }}.
                 } @else {
-                  Lo devuelto en buen estado regresa al lote; lo dañado se da de baja como merma (HU35).
+                  Lo devuelto en buen estado regresa al lote; lo dañado se da de baja como merma.
                 }
               </span>
               <button class="btn" type="button" [disabled]="!entrega() || faltantes().length > 0 || guardando()" (click)="registrar()">{{ guardando() ? 'Guardando…' : 'Registrar devolución' }}</button>
@@ -104,7 +104,7 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Resumen del día · HU31</p>
+                <p class="eyebrow">Resumen del día</p>
                 <h2>Devoluciones de hoy</h2>
               </div>
             </div>

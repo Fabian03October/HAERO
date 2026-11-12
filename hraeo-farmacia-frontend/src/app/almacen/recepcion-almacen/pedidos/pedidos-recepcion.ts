@@ -3,21 +3,21 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { DIAS_PEDIDO_VIGENTE, Pedido, PedidosAlmacen } from '../../pedidos-almacen';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 // AHORA: pendientes con entrega reciente o próxima (lo que de verdad se espera). POR_RECIBIR:
 // todo lo que Intelisis tiene pendiente del último año, aunque sea viejo.
 type FiltroPedidos = 'AHORA' | 'POR_RECIBIR' | 'RECIBIDOS' | 'CANCELADOS' | 'TODOS';
 const FILTROS: FiltroPedidos[] = ['AHORA', 'POR_RECIBIR', 'RECIBIDOS', 'CANCELADOS', 'TODOS'];
 
-// Se pintan de a poco: Intelisis trae cientos de pedidos del último año.
-const PEDIDOS_POR_TANDA = 100;
+// Se pinta por páginas: Intelisis trae cientos de pedidos del último año.
 
 // Recepción · Pedidos (HU22), solo consulta. Los pedidos se leen de Intelisis, con
 // su contrato y entrega comprometida; ahí se capturan y se cancelan. HAERO muestra
 // aparte lo que Almacén recibió físicamente contra cada pedido.
 @Component({
   selector: 'app-pedidos-recepcion',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, Paginador],
   host: { '(document:keydown.escape)': 'cerrarDetalle()' },
   templateUrl: './pedidos-recepcion.html',
   styleUrls: ['../recepcion-comun.css', './pedidos-recepcion.css'],
@@ -34,7 +34,6 @@ export class PedidosRecepcion {
   private readonly filtroInicial = inject(ActivatedRoute).snapshot.queryParamMap.get('filtro') as FiltroPedidos | null;
   readonly filtroEstado = signal<FiltroPedidos>(this.filtroInicial && FILTROS.includes(this.filtroInicial) ? this.filtroInicial : 'AHORA');
   readonly busqueda = signal('');
-  readonly limite = signal(PEDIDOS_POR_TANDA);
 
   // Pedido abierto en el detalle.
   readonly detalleId = signal<number | null>(null);
@@ -82,20 +81,17 @@ export class PedidosRecepcion {
     });
   });
 
-  readonly visibles = computed(() => this.pedidosFiltrados().slice(0, this.limite()));
+  readonly pag = new Paginacion(() => this.pedidosFiltrados());
+  readonly visibles = this.pag.visibles;
 
   elegirFiltro(filtro: FiltroPedidos): void {
     this.filtroEstado.set(filtro);
-    this.limite.set(PEDIDOS_POR_TANDA);
+    this.pag.reiniciar();
   }
 
   buscar(texto: string): void {
     this.busqueda.set(texto);
-    this.limite.set(PEDIDOS_POR_TANDA);
-  }
-
-  mostrarMas(): void {
-    this.limite.update((limite) => limite + PEDIDOS_POR_TANDA);
+    this.pag.reiniciar();
   }
 
   private cumpleEstado(pedido: Pedido, filtro: FiltroPedidos): boolean {

@@ -10,9 +10,9 @@ export const FARMACIA_MENU: ItemMenu[] = [
     etiqueta: 'Ventanilla',
     routerLink: '/farmacia/dispensacion',
     hijos: [
-      { etiqueta: 'Entrega con receta', routerLink: '/farmacia/dispensacion/nueva', etiquetaExtra: 'HU28' },
-      { etiqueta: 'Recetas parciales', routerLink: '/farmacia/dispensacion/recetas', etiquetaExtra: 'HU29' },
-      { etiqueta: 'Devoluciones', routerLink: '/farmacia/dispensacion/devoluciones', etiquetaExtra: 'HU34' },
+      { etiqueta: 'Entrega con receta', routerLink: '/farmacia/dispensacion/nueva' },
+      { etiqueta: 'Recetas parciales', routerLink: '/farmacia/dispensacion/recetas' },
+      { etiqueta: 'Devoluciones', routerLink: '/farmacia/dispensacion/devoluciones' },
     ],
   },
   { etiqueta: 'Hospitalización', routerLink: '/farmacia/hospitalizacion' },
@@ -30,20 +30,20 @@ export const FARMACIA_MENU: ItemMenu[] = [
   {
     etiqueta: 'Pedidos a Almacén',
     hijos: [
-      { etiqueta: 'Solicitudes', routerLink: '/farmacia/solicitudes', etiquetaExtra: 'HU13' },
-      { etiqueta: 'Recepción de despachos', routerLink: '/farmacia/inventario/recepcion', etiquetaExtra: 'HU26' },
+      { etiqueta: 'Solicitudes', routerLink: '/farmacia/solicitudes' },
+      { etiqueta: 'Recepción de despachos', routerLink: '/farmacia/inventario/recepcion' },
     ],
   },
   {
     etiqueta: 'Inventario',
     routerLink: '/farmacia/inventario',
     hijos: [
-      { etiqueta: 'Existencias', routerLink: '/farmacia/inventario/existencias', etiquetaExtra: 'HU27' },
-      { etiqueta: 'Caducados y mermas', routerLink: '/farmacia/inventario/bajas', etiquetaExtra: 'HU35' },
-      { etiqueta: 'Alta inicial', routerLink: '/farmacia/inventario/alta-inicial', etiquetaExtra: 'HU25' },
+      { etiqueta: 'Existencias', routerLink: '/farmacia/inventario/existencias' },
+      { etiqueta: 'Caducados y mermas', routerLink: '/farmacia/inventario/bajas' },
+      { etiqueta: 'Alta inicial', routerLink: '/farmacia/inventario/alta-inicial' },
     ],
   },
-  { etiqueta: 'Baja en Intelisis', routerLink: '/farmacia/baja-intelisis', etiquetaExtra: 'HU31 · HU32' },
-  { etiqueta: 'Trazabilidad', routerLink: '/farmacia/trazabilidad', etiquetaExtra: 'HU33' },
+  { etiqueta: 'Baja en Intelisis', routerLink: '/farmacia/baja-intelisis' },
+  { etiqueta: 'Trazabilidad', routerLink: '/farmacia/trazabilidad' },
   { etiqueta: 'Alto riesgo y red fría', routerLink: '/farmacia/seguridad' },
 ];

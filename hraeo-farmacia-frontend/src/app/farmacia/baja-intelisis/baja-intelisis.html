@@ -9,7 +9,7 @@
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">Baja en Intelisis · HU31 · HU32</p>
+            <p class="eyebrow">Baja en Intelisis</p>
             <h1>Resumen del día para Intelisis</h1>
             <p class="hero-text">Todo lo entregado en el día por clave y lote, para dar una sola baja por volumen en Intelisis sin revisar las impresiones una por una. HAERO no escribe en Intelisis: la baja la captura la persona responsable.</p>
           </div>
@@ -72,7 +72,7 @@
                     <td class="number">{{ renglon.pacientes }}</td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="empty">No hay entregas en este día. El resumen se arma con las entregas (HU28) menos las devoluciones (HU34).</td></tr>
+                  <tr><td colspan="6" class="empty">No hay entregas en este día. El resumen se arma con las entregas menos las devoluciones.</td></tr>
                 }
               </tbody>
             </table>
@@ -125,7 +125,7 @@
                 @for (baja of bajas(); track baja.claveIntelisis + baja.lote + baja.motivo) {
                   <tr><td><strong>{{ baja.claveIntelisis }}</strong></td><td>{{ baja.lote }}</td><td class="number">{{ baja.piezas }}</td><td>{{ motivoTexto[baja.motivo] || baja.motivo }}</td></tr>
                 } @empty {
-                  <tr><td colspan="4" class="empty">Sin bajas en este día (HU35).</td></tr>
+                  <tr><td colspan="4" class="empty">Sin bajas en este día.</td></tr>
                 }
               </tbody>
             </table>
@@ -144,7 +144,7 @@
         <section class="card">
           <div class="card-heading">
             <div>
-              <p class="eyebrow">Verificación · HU32</p>
+              <p class="eyebrow">Verificación</p>
               <h2>HAERO contra lo dado de baja en Intelisis</h2>
             </div>
             <button class="btn secondary" type="button" [disabled]="estadoDia() === 'PENDIENTE' || trabajando()" (click)="verificar()">Verificar con Intelisis</button>
