@@ -129,7 +129,7 @@
             </div>
 
             <div class="tarjetas-solicitud">
-              @for (s of solicitudes(); track s.folio) {
+              @for (s of pagSolicitudes.visibles(); track s.folio) {
                 @let medias = enPausa()?.folioIntelisis === '' + s.folio;
                 <article class="tarjeta-solicitud" [class.medias]="medias" [class.pendiente]="s.pendientes > 0" [class.surtida]="s.sesionesSurtidas > 0 && !s.pendientes" (click)="abrirSolicitud(s.folio)">
                   <div class="ts-folio">
@@ -141,7 +141,7 @@
                     <small>Exp. {{ s.expediente ?? '—' }}{{ s.medico ? ' · ' + s.medico : '' }}</small>
                   </div>
                   <div class="ts-medicamentos">
-                    @for (m of s.medicamentos ?? []; track $index) {
+                    @for (m of s.medicamentos || []; track $index) {
                       <span class="chip-med" [class.entregado]="m.estado === 'ENTREGADO'" [class.falta]="m.estado === 'PENDIENTE'">
                         {{ m.estado === 'ENTREGADO' ? '✓ ' : m.estado === 'PENDIENTE' ? 'Falta ' : '' }}{{ nombreBonito(m.nombre) }}
                       </span>
@@ -168,6 +168,7 @@
                 <p class="empty">{{ cargandoLista() ? 'Cargando…' : 'No hay solicitudes con esos filtros. Si traes la hoja, escribe su folio.' }}</p>
               }
             </div>
+            <app-paginador [control]="pagSolicitudes" />
             <p class="nota">
               {{ solicitudes().length }} solicitud(es). El folio es el que trae la hoja impresa ("FolioInterno" en Intelisis). Si Intelisis no responde,
               <button class="link" type="button" (click)="capturaManual.set(true)">captura la solicitud a mano</button>.
@@ -216,8 +217,8 @@
             <button class="link" type="button" title="Regresa a la lista; lo que llevas se guarda para continuarlo" (click)="volverALista()">← Ver todas las solicitudes</button>
             <div class="sp-cabeza">
               <span class="eyebrow">Solicitud {{ folio() || '—' }} · sesión {{ (sesiones()?.sesiones?.length ?? 0) + 1 }}</span>
-              <strong>{{ paciente()?.nombre ?? nombreSolicitud() ?? 'Paciente por confirmar' }}</strong>
-              <small>Exp. {{ paciente()?.expediente ?? expediente() ?? '—' }}{{ pacienteListo() ? ' · confirmado en Intelisis' : ' · por confirmar' }}</small>
+              <strong>{{ paciente()?.nombre || nombreSolicitud() || 'Paciente por confirmar' }}</strong>
+              <small>Exp. {{ paciente()?.expediente || expediente() || '—' }}{{ pacienteListo() ? ' · confirmado en Intelisis' : ' · por confirmar' }}</small>
             </div>
             @if (detalle(); as d) {
               <dl>
@@ -801,7 +802,7 @@
               <table>
                 <thead><tr><th>Solicitud</th><th>Paciente</th><th>Medicamentos</th><th>Surtió</th><th>Entrega</th><th></th></tr></thead>
                 <tbody>
-                  @for (q of recientes(); track q.id) {
+                  @for (q of pagRecientes.visibles(); track q.id) {
                     @let pendientes = q.renglones.filter(esNoSurtido).length;
                     <tr class="fila-solicitud" title="Abrir esta solicitud" (click)="abrirDesdeRecientes(q)">
                       <td>
@@ -826,6 +827,7 @@
                 </tbody>
               </table>
             </div>
+            <app-paginador [control]="pagRecientes" />
           </section>
         }
       </div>

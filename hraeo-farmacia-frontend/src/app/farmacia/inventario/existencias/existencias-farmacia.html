@@ -9,7 +9,7 @@
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">Inventario · HU27</p>
+            <p class="eyebrow">Inventario</p>
             <h1>Existencias de Farmacia</h1>
             <p class="hero-text">Lo que hay en Farmacia por clave, lote y caducidad. Es independiente del inventario de Almacén: lo despachado solo suma aquí cuando Farmacia lo recibe.</p>
           </div>
@@ -23,7 +23,7 @@
           <div class="kpi success"><span class="kpi-title">Piezas disponibles</span><strong>{{ numero(totales().piezas) }}</strong><small>Sin contar los lotes vencidos</small></div>
           <div class="kpi"><span class="kpi-title">Lotes y claves</span><strong>{{ totales().lotes }}</strong><small>{{ totales().claves }} {{ totales().claves === 1 ? 'clave' : 'claves' }}</small></div>
           <div class="kpi warning"><span class="kpi-title">Por caducar</span><strong>{{ totales().porCaducar }}</strong><small>En los próximos {{ mesesAlerta }} meses{{ enCajasPorCaducar() ? ' · +' + enCajasPorCaducar() + ' en cajas' : '' }}</small></div>
-          <div class="kpi danger"><span class="kpi-title">Vencidos</span><strong>{{ totales().vencidos }}</strong><small>No disponibles · dar de baja (HU35)</small></div>
+          <div class="kpi danger"><span class="kpi-title">Vencidos</span><strong>{{ totales().vencidos }}</strong><small>No disponibles · dar de baja</small></div>
         </section>
 
         <section class="card">
@@ -60,7 +60,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (lote of lotesFiltrados(); track lote.clave + lote.lote) {
+                @for (lote of pagLotes.visibles(); track lote.clave + lote.lote) {
                   <tr [class.vencido]="lote.estado === 'VENCIDO'">
                     <td><strong>{{ lote.clave }}</strong> <app-marca-seguridad [clave]="lote.clave" /></td>
                     <td>{{ lote.medicamento }}</td>
@@ -101,12 +101,13 @@
                   @if (lotes().length) {
                     <tr><td colspan="8" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
                   } @else {
-                    <tr><td colspan="8" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes (HU25) y la recepción de los despachos de Almacén (HU26).' }}</td></tr>
+                    <tr><td colspan="8" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes y la recepción de los despachos de Almacén.' }}</td></tr>
                   }
                 }
               </tbody>
             </table>
           </div>
+          <app-paginador [control]="pagLotes" />
           <p class="nota">Las cajas se calculan con las piezas por caja del catálogo; las piezas sueltas no completan una caja.</p>
         </section>
 

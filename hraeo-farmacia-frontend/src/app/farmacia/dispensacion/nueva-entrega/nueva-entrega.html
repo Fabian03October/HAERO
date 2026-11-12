@@ -9,7 +9,7 @@
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">Ventanilla · HU28 · HU29 · HU30</p>
+            <p class="eyebrow">Ventanilla</p>
             <h1>Entrega con receta</h1>
             <p class="hero-text">Registra la entrega de una receta: el paciente, las claves indicadas y cada caja escaneada. Ya no se da una baja en Intelisis por paciente; se da una sola al día con el resumen.</p>
           </div>
@@ -24,7 +24,7 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Paso 1 · HU28</p>
+                <p class="eyebrow">Paso 1</p>
                 <h2>Paciente y receta</h2>
               </div>
             </div>
@@ -149,7 +149,7 @@
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Paso 2 · HU28 · HU30</p>
+                <p class="eyebrow">Paso 2</p>
                 <h2>Escanea las cajas</h2>
               </div>
             </div>
@@ -163,7 +163,7 @@
               <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
             }
 
-            <p class="fefo"><strong>Regla FEFO (HU30):</strong> sale primero el lote de caducidad más próxima; una caja de un lote posterior o vencido se rechaza al guardar.
+            <p class="fefo"><strong>Regla FEFO:</strong> sale primero el lote de caducidad más próxima; una caja de un lote posterior o vencido se rechaza al guardar.
               @for (item of lotesFefo(); track item.clave) {
                 <br />{{ item.clave }}:
                 @if (item.lote) { lote <strong>{{ item.lote.lote }}</strong> (caduca {{ fecha(item.lote.caducidad) }}, {{ item.lote.piezas }} piezas) } @else { sin existencia en Farmacia }
@@ -223,7 +223,7 @@
         <section class="card">
           <div class="card-heading">
             <div>
-              <p class="eyebrow">Paso 3 · HU29</p>
+              <p class="eyebrow">Paso 3</p>
               <h2>Resumen de la receta</h2>
             </div>
             @if (estadoReceta(); as estado) {

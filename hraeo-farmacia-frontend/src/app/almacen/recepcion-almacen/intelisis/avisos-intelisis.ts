@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { AlmacenApi, AvisoIntelisis, mensajeDeError } from '../../almacen-api';
 import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 import { Session } from '../../../auth/session';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 type Vista = 'REVISAR' | 'INFO' | 'REVISADOS';
 
@@ -22,7 +23,7 @@ const TIPO_TEXTO: Record<AvisoIntelisis['tipo'], string> = {
 // lotes por recibir).
 @Component({
   selector: 'app-avisos-intelisis',
-  imports: [DatePipe],
+  imports: [DatePipe, Paginador],
   templateUrl: './avisos-intelisis.html',
   styleUrls: ['../recepcion-comun.css', '../pedidos/pedidos-recepcion.css', './avisos-intelisis.css'],
 })
@@ -49,6 +50,8 @@ export class AvisosIntelisis {
       default: return this.revisados();
     }
   });
+  // Por páginas: puede haber cientos de avisos.
+  readonly pag = new Paginacion(() => this.visibles());
 
   constructor() {
     this.cargar();
@@ -73,6 +76,7 @@ export class AvisosIntelisis {
 
   elegir(vista: Vista): void {
     this.vista.set(vista);
+    this.pag.reiniciar();
     if (vista === 'REVISADOS') {
       this.api.avisosIntelisis(false).subscribe({
         next: (avisos) => this.revisados.set(avisos),

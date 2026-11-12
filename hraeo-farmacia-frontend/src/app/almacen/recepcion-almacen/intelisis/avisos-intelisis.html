@@ -31,7 +31,7 @@
     <p class="card-help">Cargando…</p>
   } @else {
     <ul class="avisos-lista">
-      @for (aviso of visibles(); track aviso.id) {
+      @for (aviso of pag.visibles(); track aviso.id) {
         <li [class.revisar]="aviso.nivel === 'REVISAR'">
           <div class="aviso-texto">
             <span class="aviso-tipo">{{ tipoTexto[aviso.tipo] }}</span>
@@ -52,6 +52,7 @@
         </li>
       }
     </ul>
+    <app-paginador [control]="pag" />
     @if (visibles().length >= 500) {
       <p class="card-help">Se muestran los 500 más recientes.</p>
     }

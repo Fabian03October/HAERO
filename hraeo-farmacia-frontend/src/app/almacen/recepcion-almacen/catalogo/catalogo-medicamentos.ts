@@ -3,9 +3,9 @@ import { FormsModule } from '@angular/forms';
 import { SolicitudesAlmacen } from '../../solicitudes-almacen';
 import { Medicamento } from '../../almacen-api';
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
-// Se pintan de a poco: el catálogo de Intelisis son casi mil claves.
-const FILAS_POR_TANDA = 200;
+// Se pinta por páginas: el catálogo de Intelisis son casi mil claves.
 
 type FiltroAlta = 'TODOS' | 'ALTA' | 'SIN_ALTA';
 
@@ -15,7 +15,7 @@ type FiltroAlta = 'TODOS' | 'ALTA' | 'SIN_ALTA';
 // clave con código está "dada de alta en HAERO" y solo esas entran al inventario.
 @Component({
   selector: 'app-catalogo-medicamentos',
-  imports: [MarcaSeguridad, FormsModule],
+  imports: [MarcaSeguridad, FormsModule, Paginador],
   templateUrl: './catalogo-medicamentos.html',
   styleUrls: ['../recepcion-comun.css', '../pedidos/pedidos-recepcion.css', '../inventario-inicial.css', './catalogo-medicamentos.css'],
   host: { '(document:keydown.escape)': 'cerrarDetalle()' },
@@ -30,7 +30,6 @@ export class CatalogoMedicamentos {
 
   readonly filtro = signal('');
   readonly filtroAlta = signal<FiltroAlta>('TODOS');
-  readonly limite = signal(FILAS_POR_TANDA);
 
   readonly filtrosAlta = computed(() => {
     const lista = this.datos.catalogo();
@@ -53,20 +52,17 @@ export class CatalogoMedicamentos {
       .sort((a, b) => a.clave.localeCompare(b.clave));
   });
 
-  readonly visibles = computed(() => this.medicamentos().slice(0, this.limite()));
+  readonly pag = new Paginacion(() => this.medicamentos());
+  readonly visibles = this.pag.visibles;
 
   filtrar(texto: string): void {
     this.filtro.set(texto);
-    this.limite.set(FILAS_POR_TANDA);
+    this.pag.reiniciar();
   }
 
   elegirAlta(filtro: FiltroAlta): void {
     this.filtroAlta.set(filtro);
-    this.limite.set(FILAS_POR_TANDA);
-  }
-
-  mostrarMas(): void {
-    this.limite.update((limite) => limite + FILAS_POR_TANDA);
+    this.pag.reiniciar();
   }
 
   // ---------- Detalle de un medicamento ----------

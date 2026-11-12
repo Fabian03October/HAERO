@@ -10,6 +10,7 @@ import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../solicitude
 import { MarcaSeguridad } from '../../shared/marca-seguridad/marca-seguridad';
 import { RotacionAlmacen } from '../rotacion-almacen';
 import { descargarCsv, hoyIso } from '../../shared/csv';
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 
 interface GrupoLote {
   clave: string;
@@ -50,11 +51,14 @@ const MOTIVOS: { valor: MotivoAjuste; texto: string }[] = [
 // por ubicación física y se marca con FEFO el que debe salir primero (HU15).
 @Component({
   selector: 'app-existencias',
-  imports: [MarcaSeguridad, FormsModule, RouterLink, DatePipe],
+  imports: [MarcaSeguridad, FormsModule, RouterLink, DatePipe, Paginador],
   templateUrl: './existencias.html',
   styleUrls: ['../recepcion-almacen/recepcion-comun.css', '../despacho/despacho-comun.css', './existencias.css'],
 })
 export class Existencias {
+  // Por páginas: el inventario de Almacén son cientos de lotes.
+  readonly pagActivos = new Paginacion(() => this.gruposActivos());
+
   protected readonly inventario = inject(InventarioAlmacen);
   private readonly solicitudes = inject(SolicitudesAlmacen);
   protected readonly formatoCaducidad = formatoCaducidad;

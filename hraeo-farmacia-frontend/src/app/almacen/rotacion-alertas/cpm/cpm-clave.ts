@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen, RotacionClave, nombreMes } from '../../rotacion-almacen';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 type FiltroCpm = 'TODAS' | 'SISTEMA' | 'INTELISIS' | 'SIN_CONSUMO' | 'ABASTO_BAJO' | 'ABASTO_ALTO' | 'SIN_SALIDAS_MES' | 'CONSUMO_ALTO';
 type OrdenCpm = 'clave' | 'cpm' | 'abasto' | 'mes';
@@ -21,11 +22,14 @@ const CUMPLE: Record<FiltroCpm, (fila: RotacionClave) => boolean> = {
 // y listado general de todas las claves (CA3).
 @Component({
   selector: 'app-cpm-clave',
-  imports: [FormsModule],
+  imports: [FormsModule, Paginador],
   templateUrl: './cpm-clave.html',
   styleUrls: ['../../recepcion-almacen/recepcion-comun.css', '../../despacho/despacho-comun.css', './cpm-clave.css'],
 })
 export class CpmClave {
+  // Por páginas: son cientos de claves.
+  readonly pagListado = new Paginacion(() => this.listado());
+
   protected readonly rotacion = inject(RotacionAlmacen);
   protected readonly nombreMes = nombreMes;
 

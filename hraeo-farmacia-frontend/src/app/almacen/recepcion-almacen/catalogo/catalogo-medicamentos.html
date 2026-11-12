@@ -72,9 +72,7 @@
       </tbody>
     </table>
   </div>
-  @if (medicamentos().length > visibles().length) {
-    <button type="button" class="mas-button" (click)="mostrarMas()">Mostrar más ({{ medicamentos().length - visibles().length }} restantes)</button>
-  }
+  <app-paginador [control]="pag" />
   <p class="card-help">Solo medicamentos del Cuadro Básico (claves 010 y 040). Las piezas por caja salen de los movimientos "Conversion" de Intelisis.</p>
 </section>
 

@@ -435,7 +435,7 @@ export class NuevaEntrega {
       this.mostrarMensaje('Este código no trae lote (no es GS1): al guardar se toma el lote que sale primero (FEFO). Si conoces el lote, escríbelo en el renglón.', 'warn');
     } else if (gs1.caducidad && gs1.caducidad < this.hoy()) {
       // HU30 CA4: un lote vencido no se entrega.
-      this.mostrarMensaje(`El lote ${gs1.lote} venció el ${this.fecha(gs1.caducidad)}. No se puede entregar; apártalo para darlo de baja (HU35).`, 'error');
+      this.mostrarMensaje(`El lote ${gs1.lote} venció el ${this.fecha(gs1.caducidad)}. No se puede entregar; apártalo para darlo de baja.`, 'error');
       this.limpiarCodigo();
       return;
     } else {

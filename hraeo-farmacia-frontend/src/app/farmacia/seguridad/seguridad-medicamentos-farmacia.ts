@@ -8,12 +8,11 @@ import { SeguridadMedicamentos } from '../../shared/seguridad-medicamentos';
 import { AlmacenApi, Medicamento, mensajeDeError } from '../../almacen/almacen-api';
 import { FarmaciaApi } from '../farmacia-api';
 import { FARMACIA_MENU } from '../farmacia-nav';
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 
 type Filtro = 'ALTO' | 'FRIA' | 'DIFERENTE' | 'TODAS';
 type OpcionRiesgo = 'INTELISIS' | 'SI' | 'NO';
 
-// Renglones que se pintan a la vez; con el buscador se llega a cualquier clave.
-const RENGLONES = 80;
 
 // Farmacia · Seguridad del paciente: qué claves son de alto riesgo (lista ISMP: electrolitos
 // concentrados, quimioterapia, citotóxicos…) y cuáles son de red fría. Parte de lo que dice
@@ -21,11 +20,14 @@ const RENGLONES = 80;
 // las pantallas donde aparece la clave.
 @Component({
   selector: 'app-seguridad-medicamentos-farmacia',
-  imports: [FormsModule, Topbar, Sidebar, MarcaSeguridad],
+  imports: [FormsModule, Topbar, Sidebar, MarcaSeguridad, Paginador],
   templateUrl: './seguridad-medicamentos-farmacia.html',
   styleUrls: ['../panel-farmacia/panel-farmacia.css', '../farmacia-comun.css', './seguridad-medicamentos-farmacia.css'],
 })
 export class SeguridadMedicamentosFarmacia {
+  // Por páginas: el catálogo son casi mil claves.
+  readonly pagClaves = new Paginacion(() => this.filtradas());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
@@ -60,8 +62,7 @@ export class SeguridadMedicamentosFarmacia {
         if (this.filtro() === 'FRIA' && !m.redFria) return false;
         if (this.filtro() === 'DIFERENTE' && m.altoRiesgoMarcado === null) return false;
         return !texto || `${m.clave} ${m.nombreGenerico} ${m.grupoTerapeutico ?? ''}`.toLowerCase().includes(texto);
-      })
-      .slice(0, RENGLONES);
+      });
   });
 
   constructor() {

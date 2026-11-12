@@ -1,5 +1,5 @@
 <header class="screen-heading">
-  <p class="eyebrow">Rotación · HU16</p>
+  <p class="eyebrow">Rotación</p>
   <h1>Consumo promedio mensual</h1>
   <p>El CPM se calcula solo con las salidas a Farmacia registradas en el sistema. No se captura a mano.</p>
 </header>
@@ -169,7 +169,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (fila of listado(); track fila.clave) {
+        @for (fila of pagListado.visibles(); track fila.clave) {
           <tr class="clickable" [class.selected]="fila.clave === claveSeleccionada()" (click)="claveSeleccionada.set(fila.clave)">
             <td><strong>{{ fila.clave }}</strong><small>{{ fila.medicamento || 'Sin nombre en catálogo' }}</small></td>
             <td class="number"><strong>{{ fila.cpm }}</strong>@if (fila.origenCpm === 'INTELISIS') {<small>de Intelisis</small>}</td>
@@ -197,5 +197,6 @@
       </tbody>
     </table>
   </div>
+  <app-paginador [control]="pagListado" />
   <p class="card-help">CPM = cajas despachadas a Farmacia en los últimos 6 meses cerrados ÷ 6. Se recalcula solo con cada salida registrada. Meses de abasto = existencia que se alcanza a usar antes de caducar ÷ CPM: en rojo si es menos de {{ mesesMinimo }}, en ámbar si pasa de {{ mesesMaximo }}.</p>
 </section>

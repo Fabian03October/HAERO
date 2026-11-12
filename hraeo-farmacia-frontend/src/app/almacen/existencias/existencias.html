@@ -1,5 +1,5 @@
 <header class="screen-heading">
-  <p class="eyebrow">Despacho · HU12</p>
+  <p class="eyebrow">Despacho</p>
   <h1>Existencias por ubicación</h1>
   <p>Consulta en qué ubicación está cada lote para saber de dónde tomarlo al despachar.</p>
 </header>
@@ -188,7 +188,7 @@
     <form class="captura" (ngSubmit)="guardar()">
       <div class="captura-cabecera">
         <div>
-          <p class="eyebrow">{{ c.accion === 'AJUSTE' ? 'Ajuste por conteo · HU36' : 'Mover cajas · HU37' }}</p>
+          <p class="eyebrow">{{ c.accion === 'AJUSTE' ? 'Ajuste por conteo' : 'Mover cajas' }}</p>
           <strong>{{ c.grupo.clave }} · lote {{ c.grupo.lote }}</strong>
           <small>{{ c.renglon.ubicacion }} · HAERO tiene {{ c.renglon.cajas }} cajas</small>
         </div>
@@ -250,7 +250,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (grupo of gruposActivos(); track grupo.clave + grupo.lote) {
+        @for (grupo of pagActivos.visibles(); track grupo.clave + grupo.lote) {
           @for (renglon of grupo.ubicaciones; track $index; let primero = $first) {
             <tr [class.group-start]="primero" [class.expired]="grupo.vencido">
               @if (primero) {
@@ -304,6 +304,7 @@
       </tbody>
     </table>
   </div>
+  <app-paginador [control]="pagActivos" />
   <p class="card-help">Un lote puede estar repartido en varias ubicaciones. Al despachar, las cajas se descuentan de la ubicación elegida, no del total. Los lotes vencidos están en la pestaña Caducados.</p>
 </section>
 }
@@ -311,7 +312,7 @@
 <section class="card">
   <div class="card-heading">
     <div>
-      <p class="eyebrow">HU36 · HU37</p>
+      <p class="eyebrow">Existencias</p>
       <h2>Ajustes y reubicaciones de los últimos 30 días</h2>
     </div>
   </div>

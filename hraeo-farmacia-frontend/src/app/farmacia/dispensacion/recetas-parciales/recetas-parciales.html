@@ -9,7 +9,7 @@
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">Ventanilla · HU29</p>
+            <p class="eyebrow">Ventanilla</p>
             <h1>Recetas parciales y no dispensadas</h1>
             <p class="hero-text">Recetas que se surtieron en parte o que no se pudieron surtir por falta de existencia, con lo pendiente de cada clave. Una receta parcial se completa con otra entrega ligada a la misma receta.</p>
           </div>
@@ -53,7 +53,7 @@
                       <td><span class="estado" [class]="'estado ' + receta.estado">{{ estadoTexto[receta.estado] }}</span></td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : 'No hay recetas parciales ni no dispensadas. Aparecerán aquí cuando una entrega (HU28) quede incompleta.' }}</td></tr>
+                    <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : 'No hay recetas parciales ni no dispensadas. Aparecerán aquí cuando una entrega quede incompleta.' }}</td></tr>
                   }
                 </tbody>
               </table>

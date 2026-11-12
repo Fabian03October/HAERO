@@ -9,7 +9,7 @@
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">Inventario · HU35</p>
+            <p class="eyebrow">Inventario</p>
             <h1>Caducados y mermas</h1>
             <p class="hero-text">Baja de lo que caduca, se daña o se extravía en Farmacia, con su motivo. Las bajas descuentan el inventario, no cuentan como entregas a pacientes y aparecen aparte en el resumen del día.</p>
           </div>
@@ -47,7 +47,7 @@
                         <td class="number">{{ lote.piezas }}</td>
                       </tr>
                     } @empty {
-                      <tr><td colspan="4" class="empty">{{ vista() === 'OTROS' ? 'No hay lotes vigentes en Farmacia.' : 'No hay lotes vencidos en Farmacia. Se sugieren aquí a partir del inventario (HU27); nunca se dan de baja solos.' }}</td></tr>
+                      <tr><td colspan="4" class="empty">{{ vista() === 'OTROS' ? 'No hay lotes vigentes en Farmacia.' : 'No hay lotes vencidos en Farmacia. Se sugieren aquí a partir del inventario; nunca se dan de baja solos.' }}</td></tr>
                     }
                   </tbody>
                 </table>

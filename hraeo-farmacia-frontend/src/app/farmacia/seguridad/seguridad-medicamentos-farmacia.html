@@ -46,7 +46,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (m of filtradas(); track m.clave) {
+                @for (m of pagClaves.visibles(); track m.clave) {
                   <tr [class.riesgo]="m.altoRiesgo">
                     <td><strong>{{ m.clave }}</strong><app-marca-seguridad [clave]="m.clave" /></td>
                     <td class="nombre">{{ m.nombreGenerico }}<small class="sub">{{ m.grupoTerapeutico ?? m.presentacion }}</small></td>
@@ -71,6 +71,7 @@
               </tbody>
             </table>
           </div>
+          <app-paginador [control]="pagClaves" />
           <p class="nota">"Intelisis" es la columna de riesgo del catálogo de Intelisis. Los nombres con mayúsculas y minúsculas (vinBLAStina, vinCRIStina) se cambian en Intelisis y llegan solos con la sincronización.</p>
         </section>
       </div>

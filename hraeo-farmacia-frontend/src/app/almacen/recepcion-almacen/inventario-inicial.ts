@@ -5,6 +5,7 @@ import { InventarioAlmacen } from '../inventario-almacen';
 import { formatoCaducidad } from '../solicitudes-almacen';
 import { RotacionAlmacen } from '../rotacion-almacen';
 import { CapturaIntelisis } from './captura-intelisis/captura-intelisis';
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 
 // Mismo orden que la hoja del Drive; Fuente es el registro de Intelisis del que salió el lote.
 const ENCABEZADOS_EXCEL = ['CLAVE', 'DESCRIPCION', 'LOTE', 'CADUCIDAD', 'CANTIDAD', 'CONSUMO PROM.', 'UBICACION', 'FUENTE', 'FECHA DE INGRESO', 'PROVEEDOR'];
@@ -16,11 +17,14 @@ const ENCABEZADOS_EXCEL = ['CLAVE', 'DESCRIPCION', 'LOTE', 'CADUCIDAD', 'CANTIDA
 // solo se descarga.
 @Component({
   selector: 'app-inventario-inicial',
-  imports: [FormsModule, CapturaIntelisis],
+  imports: [FormsModule, CapturaIntelisis, Paginador],
   templateUrl: './inventario-inicial.html',
   styleUrl: './inventario-inicial.css',
 })
 export class InventarioInicial {
+  // Por páginas: el inventario inicial son cientos de lotes.
+  readonly pagLotes = new Paginacion(() => this.lotesFiltrados());
+
   protected readonly inventario = inject(InventarioAlmacen);
   protected readonly rotacion = inject(RotacionAlmacen);
   protected readonly formatoFecha = formatoCaducidad;

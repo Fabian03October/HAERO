@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { EstadoStock, ESTADO_STOCK_TEXTO, MESES_STOCK_MAXIMO, MESES_STOCK_MINIMO, RotacionAlmacen, TIPO_ALERTA_TEXTO, nombreMes } from '../../rotacion-almacen';
 import { SolicitudesAlmacen, mesActual } from '../../solicitudes-almacen';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 type GrupoAlerta = 'desabasto' | 'sobreabasto' | 'caducidad' | 'merma';
 type GrupoAviso = 'agotadas' | 'sin-salidas' | 'sin-movimiento' | 'consumo-alto';
@@ -31,11 +32,14 @@ const FACTOR_CONSUMO_ALTO = 1;
 // mismos datos (CPM, consumo por mes, existencia y lotes por caducar).
 @Component({
   selector: 'app-alertas-stock',
-  imports: [DatePipe],
+  imports: [DatePipe, Paginador],
   templateUrl: './alertas-stock.html',
   styleUrls: ['../../recepcion-almacen/recepcion-comun.css', '../../despacho/despacho-comun.css', './alertas-stock.css'],
 })
 export class AlertasStock {
+  // Por páginas: son cientos de claves.
+  readonly pagNiveles = new Paginacion(() => this.niveles());
+
   protected readonly rotacion = inject(RotacionAlmacen);
   private readonly solicitudes = inject(SolicitudesAlmacen);
   protected readonly estadoTexto = ESTADO_STOCK_TEXTO;

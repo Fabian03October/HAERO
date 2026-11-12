@@ -11,11 +11,9 @@ import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { DatosGs1, leerGs1 } from '../../../shared/gs1';
 import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 type TipoMensaje = 'success' | 'error' | 'info';
-
-// Medicamentos que se muestran de una vez en el buscador de la clave ("Mostrar más" agrega otros tantos).
-const MEDICAMENTOS_POR_PAGINA = 50;
 
 // Preferencias de este navegador para la ubicación de trabajo.
 const CLAVE_ULTIMA_UBICACION = 'haero.captura.ultimaUbicacion';
@@ -41,7 +39,7 @@ function normalizar(valor: unknown): string {
 // Sin registro en Intelisis no se puede recibir.
 @Component({
   selector: 'app-captura-intelisis',
-  imports: [MarcaSeguridad, FormsModule, DecimalPipe, NgTemplateOutlet, EscanerCamara],
+  imports: [MarcaSeguridad, FormsModule, DecimalPipe, NgTemplateOutlet, EscanerCamara, Paginador],
   templateUrl: './captura-intelisis.html',
   styleUrls: ['../recepcion-comun.css', './captura-intelisis.css'],
 })
@@ -72,7 +70,6 @@ export class CapturaIntelisis {
   readonly buscarClave = signal('');
   // La lista se abre al tocar el buscador; sin texto muestra todo el catálogo.
   readonly listaMedicamentosAbierta = signal(false);
-  readonly limiteMedicamentos = signal(MEDICAMENTOS_POR_PAGINA);
   readonly medicamentosCoinciden = computed(() => {
     const palabras = normalizar(this.buscarClave()).split(/\s+/).filter(Boolean);
     const catalogo = this.catalogo.catalogo();
@@ -82,17 +79,16 @@ export class CapturaIntelisis {
       return palabras.every((palabra) => todo.includes(palabra));
     });
   });
-  readonly medicamentosEncontrados = computed(() => this.medicamentosCoinciden().slice(0, this.limiteMedicamentos()));
+  // Por páginas: el catálogo son casi mil claves.
+  readonly pagMedicamentos = new Paginacion(() => this.medicamentosCoinciden());
+  readonly medicamentosEncontrados = this.pagMedicamentos.visibles;
 
   escribirClave(texto: string): void {
     this.buscarClave.set(texto);
-    this.limiteMedicamentos.set(MEDICAMENTOS_POR_PAGINA);
+    this.pagMedicamentos.reiniciar();
     this.listaMedicamentosAbierta.set(true);
   }
 
-  mostrarMasMedicamentos(): void {
-    this.limiteMedicamentos.update((limite) => limite + MEDICAMENTOS_POR_PAGINA);
-  }
   readonly clave = signal('');
   readonly nombre = computed(() => this.catalogo.nombreMedicamento(this.clave()));
 
@@ -119,6 +115,8 @@ export class CapturaIntelisis {
       ).includes(texto),
     );
   });
+  // Por páginas: una clave puede tener muchos lotes en Intelisis.
+  readonly pagRegistros = new Paginacion(() => this.registrosVisibles());
 
   ubicaciones: UbicacionCantidad[] = [{ ubicacion: '', cajas: 0 }];
   observaciones = '';
@@ -402,7 +400,7 @@ export class CapturaIntelisis {
 
   private reiniciarClave(): void {
     this.buscarClave.set('');
-    this.limiteMedicamentos.set(MEDICAMENTOS_POR_PAGINA);
+    this.pagMedicamentos.reiniciar();
     this.listaMedicamentosAbierta.set(false);
     this.clave.set('');
     this.registros.set([]);
