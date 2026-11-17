@@ -16,12 +16,14 @@
         @if (estaAbierto(item)) {
           <div class="submenu">
             @for (hijo of item.hijos!; track hijo.etiqueta) {
-              <a class="subitem" [routerLink]="hijo.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="opcionesActivo">
-                <span>{{ hijo.etiqueta }}</span>
-                @if (hijo.etiquetaExtra) {
-                  <span class="tag">{{ hijo.etiquetaExtra }}</span>
-                }
-              </a>
+              @if (!hijo.oculto?.()) {
+                <a class="subitem" [routerLink]="hijo.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="opcionesActivo">
+                  <span>{{ hijo.etiqueta }}</span>
+                  @if (hijo.etiquetaExtra) {
+                    <span class="tag">{{ hijo.etiquetaExtra }}</span>
+                  }
+                </a>
+              }
             }
           </div>
         }

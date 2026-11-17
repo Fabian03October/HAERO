@@ -28,14 +28,44 @@ export interface LoteFarmacia {
   codigos: string[];
 }
 
-// HU25
-export interface PartidaAltaInicial {
+// HU25: conteo del inventario inicial (V41). Primero se registran los códigos y lotes de cada
+// estante, luego se capturan las piezas y al final se guarda todo junto, una sola vez.
+export interface RenglonConteo {
+  id: number;
+  codigo: string;
   clave: string;
+  medicamento: string;
+  piezasPorCaja: number | null;
   lote: string;
   caducidad: string;
-  piezas: number;
-  // HU42: código de barras de la caja; si es nuevo, queda ligado a la clave.
-  codigo?: string;
+  // Estante; null si se registró sin estante.
+  ubicacion: string | null;
+  // Piezas. null = todavía no se cuenta; 0 = no había.
+  cantidad: number | null;
+  registradoPor: string;
+  registradoEn: string;
+  contadoPor: string | null;
+  contadoEn: string | null;
+}
+
+export interface EstadoConteo {
+  area: string;
+  // true cuando ya se guardó: ya no se puede contar ni dar de alta inicial.
+  cerrado: boolean;
+  cerradoEn: string | null;
+  cerradoPor: string | null;
+  totalRenglones: number;
+  sinCantidad: number;
+  renglones: RenglonConteo[];
+}
+
+// Caja escaneada. La clave solo se manda cuando el backend dijo que el código es nuevo (404).
+export interface NuevoRenglonConteo {
+  codigo: string;
+  clave?: string;
+  lote: string;
+  caducidad: string;
+  ubicacion?: string;
 }
 
 // HU26
@@ -488,8 +518,27 @@ export class FarmaciaApi {
     return this.http.get<LoteFarmacia | null>(`${this.base}/existencias/fefo`, { ...this.cabeceras(), params: { clave } });
   }
 
-  altaInicial(partidas: PartidaAltaInicial[]): Observable<{ lotes: number; piezas: number }> {
-    return this.http.post<{ lotes: number; piezas: number }>(`${this.base}/alta-inicial`, { partidas }, this.cabeceras());
+  // ---------- Inventario inicial por conteo (HU25) ----------
+  conteoInicial(): Observable<EstadoConteo> {
+    return this.http.get<EstadoConteo>(`${this.base}/conteo-inicial`, this.cabeceras());
+  }
+
+  /** Escanear otra vez el mismo lote en el mismo estante no lo duplica: regresa el mismo renglón. */
+  registrarEnConteo(nuevo: NuevoRenglonConteo): Observable<RenglonConteo> {
+    return this.http.post<RenglonConteo>(`${this.base}/conteo-inicial/renglones`, nuevo, this.cabeceras());
+  }
+
+  contarRenglon(id: number, cantidad: number): Observable<RenglonConteo> {
+    return this.http.put<RenglonConteo>(`${this.base}/conteo-inicial/renglones/${id}/cantidad`, { cantidad }, this.cabeceras());
+  }
+
+  quitarDelConteo(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/conteo-inicial/renglones/${id}`, this.cabeceras());
+  }
+
+  /** Da de alta todo el conteo (todo o nada) y cierra el inventario inicial para siempre. */
+  guardarInventarioInicial(): Observable<EstadoConteo> {
+    return this.http.post<EstadoConteo>(`${this.base}/conteo-inicial/cerrar`, {}, this.cabeceras());
   }
 
   // ---------- Recepción (HU26) ----------
