@@ -10,120 +10,248 @@
         <header class="hero">
           <div>
             <p class="eyebrow">Inventario</p>
-            <h1>Alta inicial de Farmacia</h1>
-            <p class="hero-text">Da de alta lo que ya está en los estantes de Farmacia, caja por caja, para que el inventario arranque con lo que de verdad hay. No cuenta como recepción ni como entrega.</p>
+            <h1>Inventario inicial de Farmacia</h1>
+            <p class="hero-text">Se cuenta estante por estante: primero se escanean las cajas y después se escriben las piezas. Al final se guarda todo junto, una sola vez.</p>
           </div>
         </header>
 
         @if (mensaje()) {
-          <div class="banner" [class.error]="tipoMensaje() === 'error'" [class.warn]="tipoMensaje() === 'warn'" [class.info]="tipoMensaje() === 'info'">{{ mensaje() }}</div>
+          <div class="banner error">{{ mensaje() }}</div>
         }
 
-        <div class="two-columns">
+        @if (!estado()) {
           <section class="card">
-            <div class="card-heading">
-              <div>
-                <p class="eyebrow">Caja del estante</p>
-                <h2>Escanea y cuenta</h2>
-              </div>
+            <p class="empty-box">{{ errorCarga() || 'Cargando el inventario inicial…' }}</p>
+            @if (errorCarga()) {
+              <div class="centro"><button class="btn secondary" type="button" (click)="cargar()">Reintentar</button></div>
+            }
+          </section>
+        } @else if (estado()!.cerrado) {
+          <!-- Ya guardado: no se puede volver a hacer. -->
+          <section class="card cerrado">
+            <p class="eyebrow">Listo</p>
+            <h2>El inventario inicial de Farmacia ya se guardó</h2>
+            <p>Lo guardó {{ estado()!.cerradoPor }} el {{ fechaHora(estado()!.cerradoEn) }}. Ya no se puede volver a hacer: desde ahora el inventario cambia con las recepciones, las entregas y las bajas.</p>
+            <a class="btn" routerLink="/farmacia/inventario/existencias">Ir a Existencias</a>
+          </section>
+        } @else if (revisando()) {
+          <!-- Revisar y guardar -->
+          <section class="card">
+            <div class="estante-cabeza">
+              <button class="link volver" type="button" (click)="volver()">← Estantes</button>
+              <h2>Revisar y guardar</h2>
             </div>
 
-            <div class="scanner">
-              <input #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanear()" placeholder="Escanea el código de la caja y presiona Enter" autocomplete="off" />
-              <button type="button" title="Leer código" (click)="escanear()">▣</button>
-              <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
+            <div class="resumen">
+              <span class="chip">{{ resumen().renglones }} renglones</span>
+              <span class="chip">{{ resumen().claves }} claves</span>
+              <span class="chip">{{ numero(resumen().piezas) }} piezas</span>
+              <span class="chip" [class.ok]="!resumen().faltan" [class.aviso]="resumen().faltan">
+                Faltan {{ resumen().faltan }}{{ resumen().faltan ? '' : ' ✓' }}
+              </span>
             </div>
-            @if (camaraAbierta()) {
-              <app-escaner-camara (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
-            }
-            <!-- El código queda enlazado a la clave: es el que se escanea después para surtir. -->
-            @if (codigo()) {
-              <p class="codigo-capturado">Código de la caja: <code>{{ codigo() }}</code> <button class="link" type="button" (click)="codigo.set('')">Quitar</button></p>
-            } @else {
-              <p class="codigo-falta">Falta escanear el código de barras de la caja.</p>
-            }
 
-            <div class="field">
-              <label>Clave</label>
-              @if (medicamento(); as elegido) {
-                <div class="en-linea elegido">
-                  <span><strong>{{ elegido.clave }}</strong> {{ elegido.nombreGenerico }}</span>
-                  <button class="link" type="button" (click)="medicamento.set(null)">Cambiar</button>
+            @if (resumen().faltan) {
+              <div class="aviso-bloque">
+                <strong>Faltan piezas por capturar</strong> (escribe 0 si no había). Toca un estante para terminarlo:
+                <div class="acciones">
+                  @for (e of resumen().estantesConFaltantes; track e.nombre) {
+                    <button class="btn secondary chico" type="button" (click)="abrir(e.nombre)">{{ e.nombre || 'Sin estante' }} · faltan {{ e.total - e.contados }}</button>
+                  }
                 </div>
-              } @else {
-                <!-- Todo el catálogo de Intelisis: aquí es donde la clave se da de alta (con el código de la caja). -->
-                <app-buscador-medicamento [soloDadasDeAlta]="false" (elegido)="medicamento.set($event)" />
+              </div>
+            }
+            @if (resumen().repartidos.length) {
+              <div class="aviso-bloque">
+                <strong>Lotes en varios estantes</strong> (se suman al guardar):
+                <ul>
+                  @for (g of resumen().repartidos; track g.llave) {
+                    <li>{{ g.medicamento }} · lote {{ g.lote }} → {{ g.partes }} = <b>{{ numero(g.total) }} piezas</b></li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (resumen().enCero) {
+              <div class="aviso-bloque">
+                <strong>{{ resumen().enCero }} {{ resumen().enCero === 1 ? 'renglón' : 'renglones' }} en 0:</strong> no se dan de alta.
+              </div>
+            }
+
+            @if (!confirmando()) {
+              <div class="centro">
+                <button class="btn grande" type="button" [disabled]="resumen().faltan > 0 || !resumen().renglones" (click)="confirmando.set(true)">
+                  Guardar inventario inicial
+                </button>
+              </div>
+            } @else {
+              <!-- Confirmación dentro de la página: no se puede deshacer. -->
+              <div class="confirmacion" role="alertdialog" aria-labelledby="titulo-confirmar">
+                <h3 id="titulo-confirmar">¿Guardar el inventario inicial?</h3>
+                <p>Se darán de alta <b>{{ resumen().lotesAlta }} {{ resumen().lotesAlta === 1 ? 'lote' : 'lotes' }}</b> con <b>{{ numero(resumen().piezas) }} piezas</b>.</p>
+                <p><b>Después ya no se podrá volver a hacer el inventario inicial.</b></p>
+                <div class="acciones derecha">
+                  <button class="btn secondary" type="button" [disabled]="guardando()" (click)="confirmando.set(false)">Cancelar</button>
+                  <button class="btn peligro" type="button" [disabled]="guardando()" (click)="guardar()">{{ guardando() ? 'Guardando…' : 'Sí, guardar' }}</button>
+                </div>
+              </div>
+            }
+          </section>
+        } @else if (estante() !== null) {
+          <!-- Un estante: se escanea y se cuenta ahí mismo. -->
+          <section class="card">
+            <div class="estante-cabeza">
+              <button class="link volver" type="button" (click)="volver()">← Estantes</button>
+              <h2>{{ estante() ? 'Estante ' + estante() : 'Sin estante' }}</h2>
+              <span class="contador-estante">{{ contadosEstante() }} de {{ renglonesDelEstante().length }} contados</span>
+            </div>
+
+            <div class="escaner-grande">
+              <div class="escaner-titulo">
+                <label for="escaner-conteo">Escanea cada caja del estante</label>
+                <span class="continuo">🔊 Escaneo continuo</span>
+              </div>
+              <div class="scanner">
+                <input id="escaner-conteo" #campoCodigo [(ngModel)]="codigoEscaneado" (keyup.enter)="escanear()" autocomplete="off"
+                       placeholder="Da clic aquí y pasa las cajas por el lector" />
+                <button type="button" title="Leer lo escrito" (click)="escanear()">▣</button>
+                <button type="button" title="Escanear con la cámara" aria-label="Escanear con la cámara" (click)="camaraAbierta.set(true)">📷</button>
+              </div>
+              @if (ultimo(); as u) {
+                <p [class]="'resultado-escaneo ' + u.tipo" role="status">{{ u.texto }}</p>
+              }
+              @if (pendiente(); as caja) {
+                <form class="manual" (ngSubmit)="agregarManual()">
+                  <span class="manual-codigo">Código <code>{{ caja.codigo }}</code></span>
+                  <div class="field">
+                    <label for="lote-manual">Lote</label>
+                    <input id="lote-manual" #campoLote name="lote" [(ngModel)]="loteManual" [readonly]="caja.loteDelCodigo" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="caducidad-manual">Caducidad (mes y año)</label>
+                    <input id="caducidad-manual" name="caducidad" type="month" [(ngModel)]="mesManual" />
+                  </div>
+                  <button class="btn" type="submit">Agregar</button>
+                  <button class="link" type="button" (click)="cancelarCaja()">Cancelar</button>
+                </form>
+              }
+              @if (porClave(); as caja) {
+                <div class="pide-clave">
+                  <span>¿De qué medicamento es la caja <code>{{ caja.codigo }}</code>?</span>
+                  <!-- Todo el catálogo de Intelisis: aquí es donde la clave se da de alta con el código de la caja. -->
+                  <app-buscador-medicamento [soloDadasDeAlta]="false" (elegido)="elegirClave($event)" />
+                  <button class="link" type="button" (click)="cancelarCaja()">Cancelar</button>
+                </div>
               }
             </div>
-
-            <div class="en-linea">
-              <div class="field">
-                <label for="lote">Lote</label>
-                <input id="lote" [ngModel]="lote()" (ngModelChange)="lote.set($event)" [readonly]="loteDelCodigo()" placeholder="Lote de la caja" />
-              </div>
-              <div class="field">
-                <label for="caducidad">Caducidad</label>
-                <input id="caducidad" type="date" [ngModel]="caducidad()" (ngModelChange)="caducidad.set($event)" [readonly]="loteDelCodigo()" />
-              </div>
-              <div class="field">
-                <label for="piezas">Piezas contadas</label>
-                <input id="piezas" type="number" min="1" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="agregar()" />
-              </div>
-            </div>
-            @if (vencido()) {
-              <div class="banner warn">Este lote ya venció. Se puede dar de alta para que quede registrado, pero no estará disponible para entregar; después se da de baja.</div>
+            @if (camaraAbierta()) {
+              <app-escaner-camara [continuo]="true" (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
             }
 
-            <div class="acciones">
-              <button class="btn" type="button" (click)="agregar()">Agregar a la lista</button>
-              <button class="btn secondary" type="button" (click)="reiniciarCaja()">Limpiar caja</button>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-heading">
-              <div>
-                <p class="eyebrow">Por dar de alta</p>
-                <h2>{{ cajas().length }} {{ cajas().length === 1 ? 'lote' : 'lotes' }} · {{ totalPiezas().toLocaleString('es-MX') }} piezas</h2>
-              </div>
-            </div>
+            @if (avisoTabla()) {
+              <div class="banner error tabla-aviso">{{ avisoTabla() }}</div>
+            }
             <div class="table-wrap">
-              <table>
+              <table class="conteo">
                 <thead>
                   <tr>
-                    <th>Clave</th>
+                    <th>Medicamento</th>
                     <th>Lote</th>
                     <th>Caducidad</th>
                     <th class="number">Piezas</th>
+                    <th>Contó</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (caja of cajas(); track caja.id) {
-                    <tr>
-                      <td><strong>{{ caja.clave }}</strong><small class="sub">{{ caja.medicamento }}</small></td>
-                      <td>{{ caja.lote }}</td>
+                  @for (r of renglonesDelEstante(); track r.id) {
+                    <tr [class.falta]="r.cantidad === null" [class.reciente]="r.id === ultimoId()">
                       <td>
-                        {{ fecha(caja.caducidad) }}
-                        @if (esVencida(caja)) {
+                        <strong>{{ r.medicamento }}</strong>
+                        <small class="sub">{{ r.clave }}@if (r.piezasPorCaja) { · {{ r.piezasPorCaja }} pzas por caja}</small>
+                      </td>
+                      <td>{{ r.lote }}</td>
+                      <td>
+                        {{ mesAnio(r.caducidad) }}
+                        @if (esVencido(r)) {
                           <span class="pill danger">Vencido</span>
                         }
                       </td>
-                      <td class="number">{{ caja.piezas }}</td>
-                      <td><button class="link danger" type="button" (click)="quitar(caja.id)">Quitar</button></td>
+                      <td class="number">
+                        <input class="cantidad" type="number" min="0" step="1" inputmode="numeric" data-cantidad placeholder="—"
+                               [value]="valor(r)" (input)="escribir(r, $any($event.target).value)"
+                               (keydown.enter)="enterCantidad($event, r)" (blur)="guardarCantidad(r)"
+                               [attr.aria-label]="'Piezas de ' + r.medicamento + ' lote ' + r.lote" />
+                      </td>
+                      <td>
+                        @if (r.contadoPor) {
+                          <span class="conto">{{ r.contadoPor }}</span>
+                        } @else {
+                          <span class="conto falta">— falta</span>
+                        }
+                      </td>
+                      <td><button class="btn-quitar" type="button" (click)="quitar(r)">Quitar</button></td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="5" class="empty">Escanea la primera caja del estante. Si vuelves a escanear el mismo lote, se suman las piezas.</td></tr>
+                    <tr><td colspan="6" class="empty">Escanea la primera caja de este estante.</td></tr>
                   }
                 </tbody>
               </table>
             </div>
-            <div class="card-foot">
-              <span>{{ totalClaves() }} {{ totalClaves() === 1 ? 'clave' : 'claves' }}. Cada alta queda con tu usuario, la fecha y la hora.</span>
-              <button class="btn" type="button" [disabled]="!cajas().length || guardando()" (click)="darDeAlta()">{{ guardando() ? 'Guardando…' : 'Dar de alta' }}</button>
+            <p class="nota">Escribe las piezas y da Enter: se guarda y pasa al siguiente. Escribe 0 si no había. Lo que capturan los demás aparece solo cada 10 segundos.</p>
+          </section>
+        } @else {
+          <!-- Tablero de estantes -->
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">Tablero de estantes</p>
+                <h2>{{ avance().contados }} de {{ avance().total }} renglones contados</h2>
+              </div>
+              <button class="btn" type="button" [disabled]="!avance().total" (click)="revisar()">Revisar y guardar →</button>
+            </div>
+
+            <div class="avance">
+              <span>Avance</span>
+              <div class="barra-avance" role="progressbar" [attr.aria-valuenow]="avance().porcentaje" aria-valuemin="0" aria-valuemax="100">
+                <div [style.width.%]="avance().porcentaje"></div>
+              </div>
+              <span class="porcentaje">{{ avance().porcentaje }} %</span>
+            </div>
+
+            <div class="estantes">
+              @for (e of estantes(); track e.nombre) {
+                <button type="button" class="estante" [class]="estadoDe(e)" (click)="abrir(e.nombre)">
+                  <strong>{{ e.nombre || 'Sin estante' }}</strong>
+                  <span>{{ textoEstado(e) }}</span>
+                  <small>{{ e.total ? e.contados + ' de ' + e.total : 'aún no se escanea' }}</small>
+                </button>
+              }
+              @if (creandoEstante()) {
+                <form class="estante nuevo formulario" (ngSubmit)="crearEstante()">
+                  <label for="nombre-estante">Nombre del estante</label>
+                  <input id="nombre-estante" #campoEstante name="nombre" [(ngModel)]="nombreNuevo" maxlength="40" placeholder="Ej. A-4" autocomplete="off" />
+                  <div class="acciones">
+                    <button class="btn chico" type="submit">Abrir</button>
+                    <button class="link" type="button" (click)="creandoEstante.set(false)">Cancelar</button>
+                  </div>
+                </form>
+              } @else {
+                <button type="button" class="estante nuevo" (click)="nuevoEstante()">
+                  <strong>+</strong>
+                  <span>Nuevo estante</span>
+                  <small>empezar otro</small>
+                </button>
+              }
+            </div>
+
+            <div class="leyenda">
+              <span class="completo">Completo</span>
+              <span class="parcial">Faltan cantidades</span>
+              <span class="sin-contar">Sin contar</span>
+              <span class="vacio">Sin códigos</span>
             </div>
           </section>
-        </div>
+        }
       </div>
     </main>
   </div>

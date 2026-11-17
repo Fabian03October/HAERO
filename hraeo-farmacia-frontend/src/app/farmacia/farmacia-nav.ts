@@ -1,4 +1,5 @@
 import { ItemMenu } from '../shared/sidebar/sidebar';
+import { inventarioInicialCerrado } from './inventario/alta-inicial/inventario-inicial-estado';
 
 // Menú de Farmacia compartido por todas sus pantallas (Iteración 3).
 // Orden: lo que se usa a diario con pacientes primero; abasto e inventario después;
@@ -40,7 +41,8 @@ export const FARMACIA_MENU: ItemMenu[] = [
     hijos: [
       { etiqueta: 'Existencias', routerLink: '/farmacia/inventario/existencias' },
       { etiqueta: 'Caducados y mermas', routerLink: '/farmacia/inventario/bajas' },
-      { etiqueta: 'Alta inicial', routerLink: '/farmacia/inventario/alta-inicial' },
+      // Se hace una sola vez: después de guardarlo desaparece del menú.
+      { etiqueta: 'Inventario inicial', routerLink: '/farmacia/inventario/alta-inicial', oculto: inventarioInicialCerrado },
     ],
   },
   { etiqueta: 'Baja en Intelisis', routerLink: '/farmacia/baja-intelisis' },

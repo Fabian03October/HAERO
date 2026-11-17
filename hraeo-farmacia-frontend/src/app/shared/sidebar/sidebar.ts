@@ -12,6 +12,8 @@ export interface ItemMenu {
   // Si tiene hijos se muestra como submenú desplegable; routerLink es el prefijo
   // de ruta del grupo y sirve para abrirlo cuando alguna de sus páginas está activa.
   hijos?: ItemMenu[];
+  // Si devuelve true, la opción no se muestra (por ejemplo, el inventario inicial ya guardado).
+  oculto?: () => boolean;
 }
 
 @Component({

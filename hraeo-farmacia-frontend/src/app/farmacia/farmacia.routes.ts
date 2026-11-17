@@ -19,8 +19,9 @@ import { CatalogoCajas } from './cajas-quirofano/catalogo-cajas/catalogo-cajas';
 import { Quimioterapia } from './quimioterapia/quimioterapia';
 import { ImprimirVale } from './cajas-quirofano/imprimir-vale/imprimir-vale';
 import { roleGuard } from '../auth/role-guard';
+import { consultarInventarioInicial, inventarioInicialAbierto } from './inventario/alta-inicial/inventario-inicial-estado';
 
-const SOLO_FARMACIA = { canActivate: [roleGuard], data: { roles: ['FARMACIA'] } };
+const SOLO_FARMACIA = { canActivate: [roleGuard, consultarInventarioInicial], data: { roles: ['FARMACIA'] } };
 
 export const FARMACIA_ROUTES: Routes = [
   { path: '', component: PanelFarmacia, ...SOLO_FARMACIA },
@@ -31,7 +32,13 @@ export const FARMACIA_ROUTES: Routes = [
   { path: 'dispensacion/devoluciones', component: Devoluciones, ...SOLO_FARMACIA },
   { path: 'inventario/existencias', component: ExistenciasFarmacia, ...SOLO_FARMACIA },
   { path: 'inventario/recepcion', component: RecepcionFarmacia, ...SOLO_FARMACIA },
-  { path: 'inventario/alta-inicial', component: AltaInicialFarmacia, ...SOLO_FARMACIA },
+  // Inventario inicial por estantes: una sola vez; ya guardado, la ruta manda a Existencias.
+  {
+    path: 'inventario/alta-inicial',
+    component: AltaInicialFarmacia,
+    ...SOLO_FARMACIA,
+    canActivate: [roleGuard, inventarioInicialAbierto],
+  },
   { path: 'inventario/bajas', component: BajasFarmacia, ...SOLO_FARMACIA },
   { path: 'baja-intelisis', component: BajaIntelisis, ...SOLO_FARMACIA },
   { path: 'trazabilidad', component: Trazabilidad, ...SOLO_FARMACIA },
