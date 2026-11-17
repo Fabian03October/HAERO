@@ -6,6 +6,7 @@ import com.example.backend.farmacia.dto.BajaResponse;
 import com.example.backend.farmacia.dto.LoteFarmaciaResponse;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.CodigoMedicamento;
 import com.example.backend.farmacia.dto.RegistrarBajaRequest;
+import com.example.backend.farmacia.service.ServicioConteoInicial;
 import com.example.backend.farmacia.service.ServicioInventarioFarmacia;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,9 +21,11 @@ import java.util.List;
 public class InventarioFarmaciaController {
 
     private final ServicioInventarioFarmacia servicio;
+    private final ServicioConteoInicial conteoInicial;
 
-    public InventarioFarmaciaController(ServicioInventarioFarmacia servicio) {
+    public InventarioFarmaciaController(ServicioInventarioFarmacia servicio, ServicioConteoInicial conteoInicial) {
         this.servicio = servicio;
+        this.conteoInicial = conteoInicial;
     }
 
     @GetMapping("/existencias")
@@ -52,6 +55,8 @@ public class InventarioFarmaciaController {
 
     @PostMapping("/alta-inicial")
     public ResponseEntity<AltaInicialResponse> altaInicial(@RequestBody AltaInicialRequest request, Authentication authentication) {
+        // El alta inicial se hace una sola vez: después de guardar el conteo inicial ya no se acepta.
+        conteoInicial.exigirAbierto(ServicioConteoInicial.FARMACIA);
         return ResponseEntity.status(HttpStatus.CREATED).body(servicio.altaInicial(request, authentication.getName()));
     }
 
