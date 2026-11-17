@@ -5,6 +5,7 @@ import com.example.backend.almacen.dto.RegistrarEntradaResponse;
 import com.example.backend.almacen.dto.RegistroIntelisisResponse;
 import com.example.backend.almacen.dto.ResolverCodigoResponse;
 import com.example.backend.almacen.service.ServicioRecepcion;
+import com.example.backend.farmacia.service.ServicioConteoInicial;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,9 +18,11 @@ import java.util.List;
 public class RecepcionController {
 
     private final ServicioRecepcion servicioRecepcion;
+    private final ServicioConteoInicial conteoInicial;
 
-    public RecepcionController(ServicioRecepcion servicioRecepcion) {
+    public RecepcionController(ServicioRecepcion servicioRecepcion, ServicioConteoInicial conteoInicial) {
         this.servicioRecepcion = servicioRecepcion;
+        this.conteoInicial = conteoInicial;
     }
 
     @GetMapping("/codigos-barras/{codigo}")
@@ -37,6 +40,10 @@ public class RecepcionController {
     @PostMapping("/entradas")
     public ResponseEntity<RegistrarEntradaResponse> registrarEntrada(@RequestBody RegistrarEntradaRequest request,
                                                                       Authentication authentication) {
+        // El alta inicial se hace una sola vez: después de guardar el conteo inicial ya no se acepta.
+        if ("EXISTENCIA".equals(request.getOrigen())) {
+            conteoInicial.exigirAbierto(ServicioConteoInicial.ALMACEN);
+        }
         RegistrarEntradaResponse response = servicioRecepcion.registrarEntrada(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
