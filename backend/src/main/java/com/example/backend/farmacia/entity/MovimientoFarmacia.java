@@ -1,6 +1,6 @@
 package com.example.backend.farmacia.entity;
 
-import com.example.backend.entity.Usuario;
+import com.example.backend.usuarios.entity.Usuario;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

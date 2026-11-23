@@ -1,10 +1,13 @@
 package com.example.backend.farmacia.controller;
 
+import com.example.backend.farmacia.dto.LoteTrazableResponse;
 import com.example.backend.farmacia.dto.TrazabilidadResponse;
 import com.example.backend.farmacia.service.ServicioTrazabilidad;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /** HU33: trazabilidad de lote a paciente (y de paciente a lotes). */
 @RestController
@@ -22,7 +25,11 @@ public class TrazabilidadController {
                                                           @RequestParam(required = false) String clave,
                                                           @RequestParam(required = false) String expediente,
                                                           @RequestParam(required = false) String paciente,
+                                                          @RequestParam(required = false) String receta,
                                                           Authentication authentication) {
+        if (receta != null && !receta.isBlank()) {
+            return ResponseEntity.ok(servicio.porReceta(receta, authentication.getName()));
+        }
         if (paciente != null && !paciente.isBlank()) {
             return ResponseEntity.ok(servicio.porPaciente(paciente, authentication.getName()));
         }
@@ -30,5 +37,11 @@ public class TrazabilidadController {
             return ResponseEntity.ok(servicio.porExpediente(expediente, authentication.getName()));
         }
         return ResponseEntity.ok(servicio.porLote(lote, clave, authentication.getName()));
+    }
+
+    // Lotes de un medicamento (clave o nombre) o de un número de lote, en HAERO y en Intelisis.
+    @GetMapping("/lotes")
+    public ResponseEntity<List<LoteTrazableResponse>> lotes(@RequestParam String q) {
+        return ResponseEntity.ok(servicio.buscarLotes(q));
     }
 }

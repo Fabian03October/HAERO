@@ -2,7 +2,7 @@ package com.example.backend.farmacia.service;
 
 import com.example.backend.almacen.entity.CodigoBarras;
 import com.example.backend.almacen.entity.Medicamento;
-import com.example.backend.entity.Usuario;
+import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.farmacia.dto.CajasQuirofanoDtos.ArmarRequest;
 import com.example.backend.farmacia.dto.CajasQuirofanoDtos.CajaDadaDeBaja;
 import com.example.backend.farmacia.dto.CajasQuirofanoDtos.CajaResponse;

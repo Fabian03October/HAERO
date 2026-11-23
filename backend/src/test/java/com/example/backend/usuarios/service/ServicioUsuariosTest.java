@@ -1,0 +1,513 @@
+package com.example.backend.usuarios.service;
+
+import com.example.backend.usuarios.dto.CambiarContrasenaRequest;
+import com.example.backend.usuarios.dto.CrearUsuarioRequest;
+import com.example.backend.usuarios.dto.EditarUsuarioRequest;
+import com.example.backend.usuarios.dto.RestablecerContrasenaRequest;
+import com.example.backend.usuarios.dto.UsuarioResponse;
+import com.example.backend.usuarios.entity.Rol;
+import com.example.backend.usuarios.entity.Usuario;
+import com.example.backend.usuarios.repository.RolRepository;
+import com.example.backend.usuarios.repository.UsuarioRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class ServicioUsuariosTest {
+
+    @Mock
+    private UsuarioRepository usuarioRepository;
+
+    @Mock
+    private RolRepository rolRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private com.example.backend.usuarios.repository.BitacoraUsuarioRepository bitacoraRepository;
+
+    private ServicioUsuarios servicioUsuarios;
+
+    private Rol rolFarmacia;
+    private Usuario usuarioExistente;
+
+    @BeforeEach
+    void configurar() {
+        servicioUsuarios = new ServicioUsuarios(usuarioRepository, rolRepository, passwordEncoder, bitacoraRepository);
+
+        rolFarmacia = new Rol();
+        rolFarmacia.setNombre("FARMACIA");
+
+        usuarioExistente = new Usuario();
+        usuarioExistente.setId(5L);
+        usuarioExistente.setNombreCompleto("Juan Perez");
+        usuarioExistente.setNombreUsuario("jperez");
+        usuarioExistente.setCorreo("jperez@hraeo.test");
+        usuarioExistente.setContrasenaHash("hash-actual");
+        usuarioExistente.setRol(rolFarmacia);
+        usuarioExistente.setActivo(true);
+        usuarioExistente.setDebeCambiarContrasena(false);
+    }
+
+    // ---------- crearUsuario ----------
+
+    @Test
+    void crearUsuario_conDatosValidos_loGuardaYDevuelveActivo() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreCompleto("Ana Torres");
+        request.setNombreUsuario("atorres");
+        request.setCorreo("atorres@hraeo.test");
+        request.setContrasenaTemporal("Temporal123*");
+        request.setRol("ALMACEN");
+
+        Rol rolAlmacen = new Rol();
+        rolAlmacen.setNombre("ALMACEN");
+
+        when(usuarioRepository.existsByNombreUsuario("atorres")).thenReturn(false);
+        when(usuarioRepository.existsByCorreo("atorres@hraeo.test")).thenReturn(false);
+        when(rolRepository.findByNombre("ALMACEN")).thenReturn(Optional.of(rolAlmacen));
+        when(passwordEncoder.encode("Temporal123*")).thenReturn("hash-nuevo");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UsuarioResponse respuesta = servicioUsuarios.crearUsuario(request, "admin");
+
+        assertThat(respuesta.getNombreUsuario()).isEqualTo("atorres");
+        assertThat(respuesta.isActivo()).isTrue();
+        assertThat(respuesta.isDebeCambiarContrasena()).isTrue();
+
+        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
+        verify(usuarioRepository).save(captor.capture());
+        assertThat(captor.getValue().getContrasenaHash()).isEqualTo("hash-nuevo");
+    }
+
+    @Test
+    void crearUsuario_conNombreUsuarioRepetido_lanza409() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreUsuario("jperez");
+
+        when(usuarioRepository.existsByNombreUsuario("jperez")).thenReturn(true);
+
+        assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("El nombre de usuario ya existe");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void crearUsuario_conContrasenaCorta_lanza400() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreUsuario("nuevo");
+        request.setCorreo("nuevo@hraeo.test");
+        request.setContrasenaTemporal("123");
+
+        when(usuarioRepository.existsByNombreUsuario("nuevo")).thenReturn(false);
+        when(usuarioRepository.existsByCorreo("nuevo@hraeo.test")).thenReturn(false);
+
+        assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("al menos 8 caracteres");
+    }
+
+    @Test
+    void crearUsuario_conCorreoInvalido_lanza400() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreUsuario("nuevo");
+        request.setCorreo("no-es-correo");
+        request.setContrasenaTemporal("Temporal123*");
+
+        when(usuarioRepository.existsByNombreUsuario("nuevo")).thenReturn(false);
+        when(usuarioRepository.existsByCorreo("no-es-correo")).thenReturn(false);
+
+        assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("correo");
+    }
+
+    @Test
+    void crearUsuario_conRolInexistente_lanza400() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreUsuario("nuevo");
+        request.setCorreo("nuevo@hraeo.test");
+        request.setContrasenaTemporal("Temporal123*");
+        request.setRol("NOEXISTE");
+
+        when(usuarioRepository.existsByNombreUsuario("nuevo")).thenReturn(false);
+        when(usuarioRepository.existsByCorreo("nuevo@hraeo.test")).thenReturn(false);
+        when(rolRepository.findByNombre("NOEXISTE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Rol inválido");
+    }
+
+    @Test
+    void crearUsuario_conRolAdmin_lanza400() {
+        CrearUsuarioRequest request = new CrearUsuarioRequest();
+        request.setNombreUsuario("otroadmin");
+        request.setCorreo("otroadmin@hraeo.test");
+        request.setContrasenaTemporal("Temporal123*");
+        request.setRol("ADMIN");
+
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+
+        when(usuarioRepository.existsByNombreUsuario("otroadmin")).thenReturn(false);
+        when(usuarioRepository.existsByCorreo("otroadmin@hraeo.test")).thenReturn(false);
+        when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
+
+        assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("solo puede existir uno");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    // ---------- editarUsuario ----------
+
+    @Test
+    void editarUsuario_conDatosValidos_actualizaNombreCorreoYRol() {
+        EditarUsuarioRequest request = new EditarUsuarioRequest();
+        request.setNombreCompleto("Juan Perez Editado");
+        request.setCorreo("jperez.nuevo@hraeo.test");
+        request.setRol("SUPERVISION");
+
+        Rol rolSupervision = new Rol();
+        rolSupervision.setNombre("SUPERVISION");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.existsByCorreoAndIdNot("jperez.nuevo@hraeo.test", 5L)).thenReturn(false);
+        when(rolRepository.findByNombre("SUPERVISION")).thenReturn(Optional.of(rolSupervision));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UsuarioResponse respuesta = servicioUsuarios.editarUsuario(5L, request, "admin");
+
+        assertThat(respuesta.getNombreCompleto()).isEqualTo("Juan Perez Editado");
+        assertThat(respuesta.getRol()).isEqualTo("SUPERVISION");
+    }
+
+    @Test
+    void editarUsuario_aSiMismo_lanza400() {
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, new EditarUsuarioRequest(), "jperez"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("no puede editar su propio usuario");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void editarUsuario_asignandoRolAdmin_lanza400() {
+        EditarUsuarioRequest request = new EditarUsuarioRequest();
+        request.setCorreo("jperez@hraeo.test");
+        request.setRol("ADMIN");
+
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.existsByCorreoAndIdNot("jperez@hraeo.test", 5L)).thenReturn(false);
+        when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
+
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("solo puede existir uno");
+    }
+
+    @Test
+    void editarUsuario_conCorreoYaUsadoPorOtro_lanza409() {
+        EditarUsuarioRequest request = new EditarUsuarioRequest();
+        request.setCorreo("ocupado@hraeo.test");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.existsByCorreoAndIdNot("ocupado@hraeo.test", 5L)).thenReturn(true);
+
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(5L, request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("correo ya está registrado");
+    }
+
+    @Test
+    void editarUsuario_conIdInexistente_lanza404() {
+        when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> servicioUsuarios.editarUsuario(99L, new EditarUsuarioRequest(), "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Usuario no encontrado");
+    }
+
+    // ---------- desactivar / reactivar ----------
+
+    @Test
+    void desactivarUsuario_aOtroUsuario_loDesactiva() {
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UsuarioResponse respuesta = servicioUsuarios.desactivarUsuario(5L, "admin");
+
+        assertThat(respuesta.isActivo()).isFalse();
+    }
+
+    @Test
+    void desactivarUsuario_aSiMismo_lanza400YNoLoGuarda() {
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+
+        assertThatThrownBy(() -> servicioUsuarios.desactivarUsuario(5L, "jperez"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("no puede desactivarse a sí mismo");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivarUsuario_loMarcaActivo() {
+        usuarioExistente.setActivo(false);
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UsuarioResponse respuesta = servicioUsuarios.reactivarUsuario(5L, "admin");
+
+        assertThat(respuesta.isActivo()).isTrue();
+    }
+
+    // ---------- restablecerContrasena / cambiarContrasenaPropia ----------
+
+    @Test
+    void restablecerContrasena_conTemporalValida_marcaDebeCambiarContrasena() {
+        RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
+        request.setContrasenaTemporal("NuevaTemp123*");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.encode("NuevaTemp123*")).thenReturn("hash-restablecido");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UsuarioResponse respuesta = servicioUsuarios.restablecerContrasena(5L, request, "admin");
+
+        assertThat(respuesta.isDebeCambiarContrasena()).isTrue();
+    }
+
+    @Test
+    void restablecerContrasena_aUnAdmin_lanza400() {
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+        usuarioExistente.setRol(rolAdmin);
+
+        RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
+        request.setContrasenaTemporal("NuevaTemp123*");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+
+        assertThatThrownBy(() -> servicioUsuarios.restablecerContrasena(5L, request, "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("No se puede restablecer la contraseña del administrador");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void cambiarContrasenaPropia_siendoAdmin_laCambia() {
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("ADMIN");
+        usuarioExistente.setRol(rolAdmin);
+        usuarioExistente.setDebeCambiarContrasena(true);
+
+        CambiarContrasenaRequest request = new CambiarContrasenaRequest();
+        request.setContrasenaActual("clave-de-prueba");
+        request.setContrasenaNueva("NuevaValida123*");
+
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.matches("clave-de-prueba", "hash-actual")).thenReturn(true);
+        when(passwordEncoder.encode("NuevaValida123*")).thenReturn("hash-nuevo");
+
+        servicioUsuarios.cambiarContrasenaPropia("jperez", request);
+
+        assertThat(usuarioExistente.getContrasenaHash()).isEqualTo("hash-nuevo");
+        assertThat(usuarioExistente.isDebeCambiarContrasena()).isFalse();
+        verify(usuarioRepository).save(usuarioExistente);
+    }
+
+    @Test
+    void cambiarContrasenaPropia_conLaMismaContrasena_lanza400() {
+        CambiarContrasenaRequest request = new CambiarContrasenaRequest();
+        request.setContrasenaActual("Actual123");
+        request.setContrasenaNueva("Actual123");
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.matches("Actual123", "hash-actual")).thenReturn(true);
+
+        assertThatThrownBy(() -> servicioUsuarios.cambiarContrasenaPropia("jperez", request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("distinta de la actual");
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void validarContrasena_pideOchoCaracteresConLetraYNumero() {
+        ServicioUsuarios.validarContrasena("Farmacia2026");
+        ServicioUsuarios.validarContrasena("abc12345");
+
+        for (String debil : new String[] {"12345678", "abcdefgh", "Abc123", "        ", null}) {
+            assertThatThrownBy(() -> ServicioUsuarios.validarContrasena(debil))
+                    .as("debería rechazar \"%s\"", debil)
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("al menos una letra y un número");
+        }
+    }
+
+    @Test
+    void cambiarContrasenaPropia_conActualIncorrecta_lanza400() {
+        CambiarContrasenaRequest request = new CambiarContrasenaRequest();
+        request.setContrasenaActual("mala");
+        request.setContrasenaNueva("NuevaValida123*");
+
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.matches("mala", "hash-actual")).thenReturn(false);
+
+        assertThatThrownBy(() -> servicioUsuarios.cambiarContrasenaPropia("jperez", request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("contraseña actual no es correcta");
+
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void cambiarContrasenaPropia_conDatosValidos_actualizaYQuitaBanderaTemporal() {
+        usuarioExistente.setDebeCambiarContrasena(true);
+
+        CambiarContrasenaRequest request = new CambiarContrasenaRequest();
+        request.setContrasenaActual("hash-actual-en-claro");
+        request.setContrasenaNueva("NuevaValida123*");
+
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.matches("hash-actual-en-claro", "hash-actual")).thenReturn(true);
+        when(passwordEncoder.encode("NuevaValida123*")).thenReturn("hash-nuevo");
+
+        servicioUsuarios.cambiarContrasenaPropia("jperez", request);
+
+        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
+        verify(usuarioRepository).save(captor.capture());
+        assertThat(captor.getValue().getContrasenaHash()).isEqualTo("hash-nuevo");
+        assertThat(captor.getValue().isDebeCambiarContrasena()).isFalse();
+    }
+
+    // ---------- Políticas de uso y bloqueo ----------
+
+    @Test
+    void aceptarPoliticas_guardaLaVersionYLaFechaEnElServidor() {
+        when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
+        com.example.backend.usuarios.dto.AceptarPoliticasRequest request = new com.example.backend.usuarios.dto.AceptarPoliticasRequest();
+        request.setVersion("1.0");
+
+        var respuesta = servicioUsuarios.aceptarPoliticas("jperez", request);
+
+        assertThat(respuesta.getVersion()).isEqualTo("1.0");
+        assertThat(respuesta.getFecha()).isNotNull();
+        assertThat(usuarioExistente.getVersionPoliticasAceptada()).isEqualTo("1.0");
+        verify(usuarioRepository).save(usuarioExistente);
+    }
+
+    @Test
+    void aceptarPoliticas_sinVersion_lanza400() {
+        assertThatThrownBy(() -> servicioUsuarios.aceptarPoliticas("jperez", new com.example.backend.usuarios.dto.AceptarPoliticasRequest()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("versión");
+    }
+
+    @Test
+    void restablecerContrasena_quitaElBloqueoPorIntentos() {
+        usuarioExistente.setIntentosFallidos(3);
+        usuarioExistente.setBloqueadoHasta(java.time.LocalDateTime.now().plusMinutes(8));
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.encode(any())).thenReturn("nuevo-hash");
+        when(usuarioRepository.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
+        RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
+        request.setContrasenaTemporal("Temporal123");
+
+        servicioUsuarios.restablecerContrasena(5L, request, "admin");
+
+        assertThat(usuarioExistente.getIntentosFallidos()).isZero();
+        assertThat(usuarioExistente.getBloqueadoHasta()).isNull();
+    }
+
+    // ---------- Revisión Iteración 1: sesión al cambiar el rol y bitácora (HU07 CA3, HU41) ----------
+
+    @Test
+    void editarUsuario_alCambiarElRol_cierraSuSesionYLoAnotaEnLaBitacora() {
+        java.time.LocalDateTime antes = java.time.LocalDateTime.now().minusDays(1);
+        usuarioExistente.setTokenValidoDesde(antes);
+        EditarUsuarioRequest request = new EditarUsuarioRequest();
+        request.setNombreCompleto("Juan Perez");
+        request.setCorreo("jperez@hraeo.test");
+        request.setRol("ALMACEN");
+        Rol rolAlmacen = new Rol();
+        rolAlmacen.setNombre("ALMACEN");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.existsByCorreoAndIdNot("jperez@hraeo.test", 5L)).thenReturn(false);
+        when(rolRepository.findByNombre("ALMACEN")).thenReturn(Optional.of(rolAlmacen));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        servicioUsuarios.editarUsuario(5L, request, "admin");
+
+        assertThat(usuarioExistente.getTokenValidoDesde()).isAfter(antes);
+        ArgumentCaptor<com.example.backend.usuarios.entity.BitacoraUsuario> captor =
+                ArgumentCaptor.forClass(com.example.backend.usuarios.entity.BitacoraUsuario.class);
+        verify(bitacoraRepository).save(captor.capture());
+        assertThat(captor.getValue().getAccion()).isEqualTo("EDICION");
+        assertThat(captor.getValue().getRealizadoPor()).isEqualTo("admin");
+        assertThat(captor.getValue().getDetalle()).isEqualTo("Rol: FARMACIA → ALMACEN");
+    }
+
+    @Test
+    void editarUsuario_sinCambiarElRol_noCierraSuSesion() {
+        java.time.LocalDateTime antes = java.time.LocalDateTime.now().minusDays(1);
+        usuarioExistente.setTokenValidoDesde(antes);
+        EditarUsuarioRequest request = new EditarUsuarioRequest();
+        request.setNombreCompleto("Juan Pérez López");
+        request.setCorreo("jperez@hraeo.test");
+        request.setRol("FARMACIA");
+
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioRepository.existsByCorreoAndIdNot("jperez@hraeo.test", 5L)).thenReturn(false);
+        when(rolRepository.findByNombre("FARMACIA")).thenReturn(Optional.of(rolFarmacia));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        servicioUsuarios.editarUsuario(5L, request, "admin");
+
+        assertThat(usuarioExistente.getTokenValidoDesde()).isEqualTo(antes);
+        verify(bitacoraRepository).save(any());
+    }
+
+    @Test
+    void restablecerContrasena_seAnotaEnLaBitacoraSinGuardarLaContrasena() {
+        RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
+        request.setContrasenaTemporal("Temporal123*");
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
+        when(passwordEncoder.encode("Temporal123*")).thenReturn("hash-temporal");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        servicioUsuarios.restablecerContrasena(5L, request, "admin");
+
+        ArgumentCaptor<com.example.backend.usuarios.entity.BitacoraUsuario> captor =
+                ArgumentCaptor.forClass(com.example.backend.usuarios.entity.BitacoraUsuario.class);
+        verify(bitacoraRepository).save(captor.capture());
+        assertThat(captor.getValue().getAccion()).isEqualTo("RESTABLECIMIENTO_CONTRASENA");
+        assertThat(captor.getValue().getDetalle()).isNull();
+    }
+}

@@ -1,5 +1,10 @@
 package com.example.backend.almacen.repository;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import java.util.Optional;
+
 import com.example.backend.almacen.entity.Lote;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -18,4 +23,9 @@ public interface LoteRepository extends JpaRepository<Lote, Long> {
 
     // Trazabilidad de Farmacia (HU33): el lote buscado en cualquier clave.
     List<Lote> findByNumeroLoteIgnoreCase(String numeroLote);
+
+    /** El lote con candado de escritura hasta que termine la transacción (dos personas no lo cambian a la vez). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT l FROM Lote l WHERE l.id = :id")
+    Optional<Lote> bloquear(Long id);
 }

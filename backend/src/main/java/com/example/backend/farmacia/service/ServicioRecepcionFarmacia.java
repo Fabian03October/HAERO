@@ -6,7 +6,7 @@ import com.example.backend.almacen.entity.Movimiento;
 import com.example.backend.almacen.entity.Solicitud;
 import com.example.backend.almacen.repository.MovimientoRepository;
 import com.example.backend.almacen.repository.SolicitudRepository;
-import com.example.backend.entity.Usuario;
+import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.farmacia.dto.DespachoPorRecibirResponse;
 import com.example.backend.farmacia.dto.PartidaPorRecibir;
 import com.example.backend.farmacia.dto.PartidaRecibida;

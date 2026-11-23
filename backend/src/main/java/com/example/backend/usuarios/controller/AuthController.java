@@ -1,0 +1,33 @@
+package com.example.backend.usuarios.controller;
+
+import com.example.backend.usuarios.dto.LoginRequest;
+import com.example.backend.usuarios.dto.LoginResponse;
+import com.example.backend.usuarios.service.ServicioAutenticacion;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final ServicioAutenticacion servicioAutenticacion;
+
+    public AuthController(ServicioAutenticacion servicioAutenticacion) {
+        this.servicioAutenticacion = servicioAutenticacion;
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        LoginResponse response = servicioAutenticacion.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(Authentication authentication) {
+        if (authentication != null) {
+            servicioAutenticacion.logout(authentication.getName());
+        }
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -1,6 +1,6 @@
 package com.example.backend.hospitalizacion;
 
-import com.example.backend.entity.Usuario;
+import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.hospitalizacion.dto.AreaHospitalizacion;
 import com.example.backend.hospitalizacion.dto.CamaHospitalizacion;
 import com.example.backend.hospitalizacion.dto.DetalleCama;
@@ -10,7 +10,7 @@ import com.example.backend.hospitalizacion.dto.EventoHospitalizacion;
 import com.example.backend.hospitalizacion.dto.MedicamentoIndicado;
 import com.example.backend.hospitalizacion.dto.PacienteInternado;
 import com.example.backend.intelisis.ConexionIntelisis;
-import com.example.backend.repository.UsuarioRepository;
+import com.example.backend.usuarios.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;

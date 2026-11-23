@@ -1,5 +1,7 @@
 package com.example.backend.almacen.repository;
 
+import org.springframework.data.jpa.repository.Query;
+
 import com.example.backend.almacen.entity.Movimiento;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -19,4 +21,8 @@ public interface MovimientoRepository extends JpaRepository<Movimiento, Long> {
     Optional<Movimiento> findFirstByTipoOrderByFechaAsc(String tipo);
 
     List<Movimiento> findByExpedienteIdInOrderByFechaAsc(Collection<Long> expedientes);
+
+    /** Cajas apartadas en caducados de un lote (suma de sus movimientos BAJA_CADUCIDAD). */
+    @Query("SELECT COALESCE(SUM(m.cantidadCajas), 0) FROM Movimiento m WHERE m.existencia.lote.id = :loteId AND m.tipo = 'BAJA_CADUCIDAD'")
+    int cajasEnCaducados(Long loteId);
 }

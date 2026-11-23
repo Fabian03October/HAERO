@@ -1,13 +1,18 @@
 package com.example.backend.farmacia.service;
 
 import com.example.backend.farmacia.dto.HojaBajaResponse;
+import com.example.backend.farmacia.entity.FarmaciaBajaVolumen;
+import com.example.backend.farmacia.entity.FarmaciaHojaBaja;
+import com.example.backend.farmacia.entity.Receta;
+import com.example.backend.farmacia.repository.EntregaRepository;
+import com.example.backend.farmacia.repository.FarmaciaBajaVolumenRepository;
+import com.example.backend.farmacia.repository.FarmaciaHojaBajaRepository;
+import com.example.backend.usuarios.entity.Usuario;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,12 +33,17 @@ public class ServicioBajaArea {
             "QUIMIO", ServicioQuimioterapia.PREFIJO_FOLIO,
             "QUIROFANO", ServicioCajasQuirofano.PREFIJO_FOLIO);
 
-    private final JdbcTemplate haero;
+    private final EntregaRepository entregas;
+    private final FarmaciaBajaVolumenRepository bajasVolumen;
+    private final FarmaciaHojaBajaRepository hojasBaja;
     private final ServicioHojasCarrito hojas;
     private final ServicioInventarioFarmacia inventario;
 
-    public ServicioBajaArea(JdbcTemplate haero, ServicioHojasCarrito hojas, ServicioInventarioFarmacia inventario) {
-        this.haero = haero;
+    public ServicioBajaArea(EntregaRepository entregas, FarmaciaBajaVolumenRepository bajasVolumen, FarmaciaHojaBajaRepository hojasBaja,
+                            ServicioHojasCarrito hojas, ServicioInventarioFarmacia inventario) {
+        this.entregas = entregas;
+        this.bajasVolumen = bajasVolumen;
+        this.hojasBaja = hojasBaja;
         this.hojas = hojas;
         this.inventario = inventario;
     }
@@ -43,61 +53,53 @@ public class ServicioBajaArea {
     }
 
     /** Lo que falta de pasar a la baja del día y la baja que ya existe (si hay). */
+    @Transactional(readOnly = true)
     public EstadoBajaArea estado(String area) {
         String prefijo = prefijo(area);
-        java.sql.Date hoy = java.sql.Date.valueOf(LocalDate.now());
-        Map<String, Object> pendientes = haero.queryForMap("""
-                SELECT COUNT(DISTINCT e.receta_id) AS pacientes, COUNT(*) AS entregas
-                FROM farmacia_entrega e JOIN farmacia_receta r ON r.id = e.receta_id
-                WHERE r.folio LIKE ? AND CAST(e.fecha AS date) <= ? AND e.baja_volumen_folio IS NULL
-                """, prefijo + "%", hoy);
-        List<Map<String, Object>> baja = haero.queryForList("""
-                SELECT TOP 1 b.folio, b.fecha, u.nombre_completo FROM farmacia_baja_volumen b JOIN usuario u ON u.id = b.usuario_id
-                WHERE b.dia = ? AND b.central = ? ORDER BY b.folio
-                """, hoy, area);
-        Map<String, Object> b = baja.isEmpty() ? Map.of() : baja.get(0);
-        return new EstadoBajaArea(area, LocalDate.now(), ((Number) pendientes.get("pacientes")).intValue(),
-                ((Number) pendientes.get("entregas")).intValue(), b.get("folio") == null ? null : ((Number) b.get("folio")).intValue(),
-                b.get("fecha") instanceof Timestamp t ? t.toLocalDateTime() : null, (String) b.get("nombre_completo"));
+        LocalDate hoy = LocalDate.now();
+        EntregaRepository.Pendientes pendientes = entregas.pendientesDeBaja(prefijo + "%", hoy.plusDays(1).atStartOfDay());
+        FarmaciaBajaVolumen baja = bajasVolumen.findFirstByDiaAndCentralOrderByFolio(hoy, area).orElse(null);
+        return new EstadoBajaArea(area, hoy, (int) pendientes.getPacientes(), (int) pendientes.getEntregas(),
+                baja == null ? null : baja.getFolio(), baja == null ? null : baja.getFecha(),
+                baja == null ? null : baja.getUsuario().getNombreCompleto());
     }
 
     @Transactional
     public List<HojaBajaResponse> terminar(String area, String nombreUsuario) {
         String prefijo = prefijo(area);
-        long usuario = inventario.usuario(nombreUsuario).getId();
+        Usuario usuario = inventario.usuario(nombreUsuario);
         LocalDate hoy = LocalDate.now();
-        java.sql.Date dia = java.sql.Date.valueOf(hoy);
-        Timestamp ahora = Timestamp.valueOf(LocalDateTime.now());
+        LocalDateTime ahora = LocalDateTime.now();
 
         // Hoja por paciente (receta) con algo entregado que todavía no tiene. También lo de días
         // anteriores que no se pasó (por ejemplo, la caja del turno nocturno que regresó al otro día):
         // entra en la baja de HOY, que es cuando se captura en Intelisis; nada se queda sin baja.
-        haero.update("""
-                INSERT INTO farmacia_hoja_baja (receta_id, dia, central, espacio, fecha, usuario_id)
-                SELECT DISTINCT r.id, ?, ?, NULL, ?, ?
-                FROM farmacia_receta r JOIN farmacia_entrega e ON e.receta_id = r.id
-                WHERE r.folio LIKE ? AND CAST(e.fecha AS date) <= ? AND e.baja_volumen_folio IS NULL
-                  AND NOT EXISTS (SELECT 1 FROM farmacia_hoja_baja h WHERE h.receta_id = r.id)
-                """, dia, area, ahora, usuario, prefijo + "%", dia);
+        for (Receta receta : entregas.recetasSinHoja(prefijo + "%", hoy.plusDays(1).atStartOfDay())) {
+            FarmaciaHojaBaja hoja = new FarmaciaHojaBaja();
+            hoja.setReceta(receta);
+            hoja.setDia(hoy);
+            hoja.setCentral(area);
+            hoja.setFecha(ahora);
+            hoja.setUsuario(usuario);
+            hojasBaja.save(hoja);
+        }
+        hojasBaja.flush();
 
-        String sinBaja = "FROM farmacia_entrega e JOIN farmacia_hoja_baja h ON h.receta_id = e.receta_id "
-                + "WHERE h.central = ? AND e.baja_volumen_folio IS NULL";
-        Integer pendientes = haero.queryForObject("SELECT COUNT(*) " + sinBaja, Integer.class, area);
-        if (pendientes == null || pendientes == 0) {
+        if (entregas.sinBajaConHoja(area) == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No hay entregas pendientes para dar de baja");
         }
-        Integer existente = haero.queryForList("SELECT TOP 1 folio FROM farmacia_baja_volumen WHERE dia = ? AND central = ? ORDER BY folio",
-                Integer.class, dia, area).stream().findFirst().orElse(null);
-        int folio;
-        if (existente != null) {
-            folio = existente;
-            haero.update("UPDATE farmacia_baja_volumen SET fecha = ?, usuario_id = ? WHERE folio = ?", ahora, usuario, folio);
-        } else {
-            folio = haero.queryForObject("INSERT INTO farmacia_baja_volumen (dia, central, fecha, usuario_id) OUTPUT INSERTED.folio VALUES (?, ?, ?, ?)",
-                    Integer.class, dia, area, ahora, usuario);
-        }
-        haero.update("UPDATE e SET baja_volumen_folio = ? " + sinBaja, folio, area);
-        return hojas.bajasVolumen(area, hoy, folio);
+        // Si ya hubo baja hoy, se suma a la misma (mismo folio).
+        FarmaciaBajaVolumen baja = bajasVolumen.findFirstByDiaAndCentralOrderByFolio(hoy, area).orElseGet(() -> {
+            FarmaciaBajaVolumen nueva = new FarmaciaBajaVolumen();
+            nueva.setDia(hoy);
+            nueva.setCentral(area);
+            return nueva;
+        });
+        baja.setFecha(ahora);
+        baja.setUsuario(usuario);
+        bajasVolumen.saveAndFlush(baja);
+        entregas.asignarBajaVolumen(baja.getFolio(), area);
+        return hojas.bajasVolumen(area, hoy, baja.getFolio());
     }
 
     private static String prefijo(String area) {

@@ -7,7 +7,7 @@ import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.almacen.entity.Movimiento;
 import com.example.backend.almacen.entity.Solicitud;
 import com.example.backend.almacen.repository.MovimientoRepository;
-import com.example.backend.entity.Usuario;
+import com.example.backend.usuarios.entity.Usuario;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

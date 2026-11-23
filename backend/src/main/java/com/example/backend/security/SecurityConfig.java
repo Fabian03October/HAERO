@@ -1,5 +1,6 @@
 package com.example.backend.security;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
 import java.util.List;
 
 @Configuration
@@ -56,6 +58,13 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 401 = sin sesión o sesión vencida (el front manda al login); 403 = la sesión es válida
+                // pero el rol no tiene permiso. Antes las dos salían como 403 vacío.
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint((request, response, e) -> responder(response, HttpServletResponse.SC_UNAUTHORIZED,
+                                "Tu sesión no es válida o expiró. Vuelve a iniciar sesión."))
+                        .accessDeniedHandler((request, response, e) -> responder(response, HttpServletResponse.SC_FORBIDDEN,
+                                "No tiene permisos para realizar esta acción")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/usuarios/me/**").authenticated()
@@ -77,5 +86,12 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    // Mismo formato que GlobalExceptionHandler: {"mensaje": "..."}. Los mensajes son fijos, sin comillas.
+    private static void responder(HttpServletResponse response, int estado, String mensaje) throws IOException {
+        response.setStatus(estado);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"mensaje\":\"" + mensaje + "\"}");
     }
 }

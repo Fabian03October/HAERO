@@ -1,6 +1,6 @@
 package com.example.backend.farmacia.service;
 
-import com.example.backend.entity.Usuario;
+import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.intelisis.ConexionIntelisis;
 import com.example.backend.farmacia.dto.CajaEntregaRequest;
 import com.example.backend.farmacia.dto.ClaveRecetaRequest;

@@ -74,8 +74,12 @@ public class ServicioRecetasIntelisis {
         if (limpio == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el folio de la receta");
         }
-        String porId = limpio.matches("\\d{1,9}") ? " OR r.ID_Receta = " + Integer.parseInt(limpio) : "";
-        return consultar("WHERE r.Folio = ?" + porId, limpio).stream().findFirst()
+        // Primero por Folio; solo si no hay, por ID_Receta (un mismo número puede ser folio de una y ID de otra).
+        List<RecetaIntelisisResponse> porFolio = consultar("WHERE r.Folio = ?", limpio);
+        if (porFolio.isEmpty() && limpio.matches("\\d{1,9}")) {
+            porFolio = consultar("WHERE r.ID_Receta = ?", Integer.parseInt(limpio));
+        }
+        return porFolio.stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una receta con el folio " + limpio + " en Intelisis"));
     }
 

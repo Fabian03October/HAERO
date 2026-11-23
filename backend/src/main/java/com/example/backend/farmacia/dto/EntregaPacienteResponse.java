@@ -16,4 +16,6 @@ public class EntregaPacienteResponse {
     private String lote;
     private int piezas;
     private String despachador;
+    // "HAERO" (entrega registrada en HAERO) o "Intelisis" (baja de Farmacia anterior a HAERO).
+    private String fuente;
 }
