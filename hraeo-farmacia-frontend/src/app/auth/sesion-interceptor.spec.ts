@@ -1,35 +1,9 @@
-import { HttpClient, HttpRequest, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { rolTieneAcceso, sesionInterceptor } from './sesion-interceptor';
+import { sesionInterceptor } from './sesion-interceptor';
 import { Session } from './session';
-
-const peticion = (metodo: 'GET' | 'POST', url: string) => new HttpRequest(metodo, url, null);
-
-describe('rolTieneAcceso (mismas reglas que SecurityConfig)', () => {
-  it('Almacén puede todo /api/almacen', () => {
-    expect(rolTieneAcceso('ALMACEN', peticion('POST', 'http://localhost:8080/api/almacen/entradas'))).toBe(true);
-    expect(rolTieneAcceso('ALMACEN', peticion('GET', '/api/almacen/existencias'))).toBe(true);
-  });
-
-  it('Supervisión solo consulta', () => {
-    expect(rolTieneAcceso('SUPERVISION', peticion('GET', '/api/almacen/alertas'))).toBe(true);
-    expect(rolTieneAcceso('SUPERVISION', peticion('POST', '/api/almacen/canjes'))).toBe(false);
-  });
-
-  it('Farmacia consulta el catálogo pero no el resto de Almacén', () => {
-    expect(rolTieneAcceso('FARMACIA', peticion('GET', '/api/almacen/medicamentos'))).toBe(true);
-    expect(rolTieneAcceso('FARMACIA', peticion('GET', '/api/almacen/existencias'))).toBe(false);
-    expect(rolTieneAcceso('FARMACIA', peticion('POST', '/api/farmacia/solicitudes'))).toBe(true);
-  });
-
-  it('usuarios solo Admin, salvo /me', () => {
-    expect(rolTieneAcceso('ALMACEN', peticion('GET', '/api/usuarios'))).toBe(false);
-    expect(rolTieneAcceso('ADMIN', peticion('GET', '/api/usuarios'))).toBe(true);
-    expect(rolTieneAcceso('FARMACIA', peticion('POST', '/api/usuarios/me/contrasena'))).toBe(true);
-  });
-});
 
 describe('sesionInterceptor: pendientes que exige el servidor (HU08 CA4)', () => {
   let http: HttpClient;
@@ -44,7 +18,7 @@ describe('sesionInterceptor: pendientes que exige el servidor (HU08 CA4)', () =>
       providers: [
         provideHttpClient(withInterceptors([sesionInterceptor])),
         provideHttpClientTesting(),
-        { provide: Router, useValue: { navigateByUrl: navegar } },
+        { provide: Router, useValue: { navigateByUrl: navegar, url: '/almacen/existencias' } },
       ],
     });
     http = TestBed.inject(HttpClient);
@@ -79,5 +53,43 @@ describe('sesionInterceptor: pendientes que exige el servidor (HU08 CA4)', () =>
     responder403('aceptar-politicas');
     expect(navegar).toHaveBeenCalledWith('/politicas');
     expect(session.usuarioActual()?.versionPoliticasAceptada).toBeNull();
+  });
+
+  const responder = (metodo: 'GET' | 'POST', status: number, headers: Record<string, string> = {}) => {
+    const cabeceras = { headers: { Authorization: 'Bearer t' } };
+    (metodo === 'GET' ? http.get('/api/almacen/existencias', cabeceras) : http.post('/api/almacen/existencias', {}, cabeceras)).subscribe({
+      error: () => {},
+    });
+    const peticion = backend.expectOne('/api/almacen/existencias');
+    if (status === 0) peticion.error(new ProgressEvent('error'));
+    else peticion.flush({ mensaje: 'x' }, { status, statusText: 'x', headers });
+  };
+
+  it('401: sesión vencida, manda al login con el motivo', () => {
+    responder('GET', 401, { 'X-Auth-Error': 'inactividad' });
+    expect(navegar).toHaveBeenCalledWith('/login?volver=%2Falmacen%2Fexistencias');
+    expect(session.motivoSalida()).toContain('inactividad');
+  });
+
+  it('403 sin pendiente: no cierra la sesión ni cambia de pantalla', () => {
+    responder('POST', 403);
+    expect(navegar).not.toHaveBeenCalled();
+    expect(session.usuarioActual()).not.toBeNull();
+  });
+
+  it('sin conexión al consultar: página de sin conexión con la pantalla para reintentar', () => {
+    responder('GET', 0);
+    expect(navegar).toHaveBeenCalledWith('/sin-conexion?volver=%2Falmacen%2Fexistencias');
+  });
+
+  it('error 500 al consultar: página de error del sistema', () => {
+    responder('GET', 500);
+    expect(navegar).toHaveBeenCalledWith('/error-sistema?volver=%2Falmacen%2Fexistencias');
+  });
+
+  it('error al guardar o 503: se queda en la pantalla para no perder lo capturado', () => {
+    responder('POST', 500);
+    responder('GET', 503);
+    expect(navegar).not.toHaveBeenCalled();
   });
 });

@@ -1,18 +1,19 @@
 import { Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DecimalPipe } from '@angular/common';
+import { Observable } from 'rxjs';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
 import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../../../shared/gs1';
 import { pitido } from '../../../shared/pitido';
-import { Medicamento, leerCaducidad, mensajeDeError } from '../../../almacen/almacen-api';
+import { AlmacenApi, Medicamento, leerCaducidad, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
-import { EstadoConteo, FarmaciaApi, LoteIntelisisConteo, NuevoRenglonConteo, RenglonConteo } from '../../farmacia-api';
+import { AreaConteo, EstadoConteo, FarmaciaApi, LoteIntelisisConteo, NuevoRenglonConteo, RenglonConteo } from '../../farmacia-api';
 import { InventarioInicialEstado } from './inventario-inicial-estado';
 
 // Cada cuánto se vuelve a pedir el conteo para ver lo que capturan los demás.
@@ -33,12 +34,14 @@ interface CajaPendiente {
   loteDelCodigo: boolean;
 }
 
-// Farmacia · Inventario inicial (HU25), por estantes. Tablero con el avance de cada estante;
-// al entrar a uno se escanean sus cajas y se capturan las piezas ahí mismo. Todo vive en el
-// servidor (varias personas a la vez) y al final se guarda junto, una sola vez.
+// Inventario inicial (HU25), por estantes, igual para Almacén y Farmacia (el área viene en la
+// ruta: data.area). Tablero con el avance de cada estante; al entrar a uno se escanean sus cajas
+// (pueden quedar sin contar) y después se capturan las cantidades: cajas en Almacén, piezas en
+// Farmacia. Todo vive en el servidor (varias personas a la vez) y al final se guarda junto, una sola vez.
+// En Almacén la pantalla va dentro de Recepción, que ya pone la barra y el menú.
 @Component({
   selector: 'app-alta-inicial-farmacia',
-  imports: [FormsModule, RouterLink, DecimalPipe, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
+  imports: [FormsModule, RouterLink, DecimalPipe, NgTemplateOutlet, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
   templateUrl: './alta-inicial-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './alta-inicial-farmacia.css'],
 })
@@ -47,7 +50,15 @@ export class AltaInicialFarmacia {
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
   private readonly api = inject(FarmaciaApi);
+  private readonly almacenApi = inject(AlmacenApi);
   private readonly inventario = inject(InventarioInicialEstado);
+
+  readonly area: AreaConteo = inject(ActivatedRoute).snapshot.data['area'] === 'ALMACEN' ? 'almacen' : 'farmacia';
+  readonly enAlmacen = this.area === 'almacen';
+  readonly unidad = this.enAlmacen ? 'cajas' : 'piezas';
+  readonly unidadTitulo = this.enAlmacen ? 'Cajas' : 'Piezas';
+  readonly nombreArea = this.enAlmacen ? 'Almacén' : 'Farmacia';
+  readonly rutaExistencias = this.enAlmacen ? '/almacen/recepcion/inventario' : '/farmacia/inventario/existencias';
 
   readonly estado = signal<EstadoConteo | null>(null);
   readonly errorCarga = signal('');
@@ -178,11 +189,11 @@ export class AltaInicialFarmacia {
   }
 
   cargar(silencioso = false): void {
-    this.api.conteoInicial().subscribe({
+    this.api.conteoInicial(this.area).subscribe({
       next: (estado) => {
         this.estado.set(estado);
         this.errorCarga.set('');
-        if (estado.cerrado) this.inventario.marcarCerrado();
+        if (estado.cerrado) this.marcarCerrado();
       },
       error: (error) => {
         if (!silencioso) this.errorCarga.set(mensajeDeError(error, 'No se pudo cargar el inventario inicial.'));
@@ -274,7 +285,11 @@ export class AltaInicialFarmacia {
       return;
     }
     this.buscandoClave.set(true);
-    this.api.codigoMedicamento(codigo).subscribe({
+    // Cada área busca el código en su propia ruta (Almacén no puede usar la de Farmacia); las dos dan clave y nombre.
+    const buscar: Observable<{ clave: string; nombre: string }> = this.enAlmacen
+      ? this.almacenApi.resolverCodigo(codigo)
+      : this.api.codigoMedicamento(codigo);
+    buscar.subscribe({
       next: (c) => {
         this.buscandoClave.set(false);
         this.usarClaveDeLaCaja(c.clave, c.nombre);
@@ -293,7 +308,7 @@ export class AltaInicialFarmacia {
   private usarClaveDeLaCaja(clave: string, nombre: string): void {
     this.claveCaja.set({ clave, nombre });
     this.lotesCaja.set(null);
-    this.api.lotesParaConteo(clave).subscribe({
+    this.api.lotesParaConteo(clave, this.area).subscribe({
       next: (lotes) => {
         this.lotesCaja.set(lotes);
         // Si el código trajo el lote y está en Intelisis, se registra sin preguntar.
@@ -368,7 +383,7 @@ export class AltaInicialFarmacia {
     const estante = this.estante();
     const nuevo: NuevoRenglonConteo = { ...datos, ubicacion: estante || undefined };
     const yaEstaba = new Set(this.renglones().map((r) => r.id));
-    this.api.registrarEnConteo(nuevo).subscribe({
+    this.api.registrarEnConteo(nuevo, this.area).subscribe({
       next: (renglon) => {
         this.pendiente.set(null);
         this.porClave.set(null);
@@ -397,8 +412,8 @@ export class AltaInicialFarmacia {
   }
 
   quitar(renglon: RenglonConteo): void {
-    if (renglon.cantidad !== null && !confirm(`¿Quitar ${renglon.medicamento} lote ${renglon.lote}? Ya tiene ${renglon.cantidad} piezas contadas.`)) return;
-    this.api.quitarDelConteo(renglon.id).subscribe({
+    if (renglon.cantidad !== null && !confirm(`¿Quitar ${renglon.medicamento} lote ${renglon.lote}? Ya tiene ${renglon.cantidad} ${this.unidad} contadas.`)) return;
+    this.api.quitarDelConteo(renglon.id, this.area).subscribe({
       next: () => this.estado.update((e) => e && { ...e, renglones: e.renglones.filter((r) => r.id !== renglon.id) }),
       error: (error: HttpErrorResponse) => {
         if (error.status === 409) return this.yaGuardado(error);
@@ -435,13 +450,13 @@ export class AltaInicialFarmacia {
     if (texto.trim() === '') return this.quitarBorrador(renglon.id);
     const cantidad = Number(texto);
     if (!Number.isInteger(cantidad) || cantidad < 0) {
-      this.avisoTabla.set('Escribe las piezas con un número entero (0 si no había).');
+      this.avisoTabla.set(`Escribe las ${this.unidad} con un número entero (0 si no había).`);
       return;
     }
     if (cantidad === renglon.cantidad) return this.quitarBorrador(renglon.id);
     this.avisoTabla.set('');
     this.enviandoCantidad.add(renglon.id);
-    this.api.contarRenglon(renglon.id, cantidad).subscribe({
+    this.api.contarRenglon(renglon.id, cantidad, this.area).subscribe({
       next: (actualizado) => {
         this.enviandoCantidad.delete(renglon.id);
         this.ponerRenglon(actualizado);
@@ -451,7 +466,7 @@ export class AltaInicialFarmacia {
       error: (error: HttpErrorResponse) => {
         this.enviandoCantidad.delete(renglon.id);
         if (error.status === 409) return this.yaGuardado(error);
-        this.avisoTabla.set(mensajeDeError(error, `No se guardaron las piezas de ${renglon.clave} lote ${renglon.lote}.`));
+        this.avisoTabla.set(mensajeDeError(error, `No se guardaron las ${this.unidad} de ${renglon.clave} lote ${renglon.lote}.`));
       },
     });
   }
@@ -480,16 +495,16 @@ export class AltaInicialFarmacia {
     if (!renglon || this.guardandoCaptura()) return;
     const cantidad = Number(this.piezasCaptura.trim());
     if (this.piezasCaptura.trim() === '' || !Number.isInteger(cantidad) || cantidad < 0) {
-      this.errorCaptura.set('Escribe las piezas con un número entero (0 si no había).');
+      this.errorCaptura.set(`Escribe las ${this.unidad} con un número entero (0 si no había).`);
       return;
     }
     this.guardandoCaptura.set(true);
-    this.api.contarRenglon(renglon.id, cantidad).subscribe({
+    this.api.contarRenglon(renglon.id, cantidad, this.area).subscribe({
       next: (actualizado) => {
         this.guardandoCaptura.set(false);
         this.ponerRenglon(actualizado);
         this.capturando.set(null);
-        this.avisar(`✓ ${actualizado.medicamento} · lote ${actualizado.lote}: ${cantidad} piezas`, 'ok');
+        this.avisar(`✓ ${actualizado.medicamento} · lote ${actualizado.lote}: ${cantidad} ${this.unidad}`, 'ok');
         this.enfocarEscaner();
       },
       error: (error: HttpErrorResponse) => {
@@ -498,7 +513,7 @@ export class AltaInicialFarmacia {
           this.capturando.set(null);
           return this.yaGuardado(error);
         }
-        this.errorCaptura.set(mensajeDeError(error, 'No se guardaron las piezas.'));
+        this.errorCaptura.set(mensajeDeError(error, `No se guardaron las ${this.unidad}.`));
       },
     });
   }
@@ -532,13 +547,13 @@ export class AltaInicialFarmacia {
       this.estante.set(nuevo);
       return this.cerrarRenombrar();
     }
-    this.api.renombrarEstante(actual, nuevo).subscribe({
+    this.api.renombrarEstante(actual, nuevo, this.area).subscribe({
       next: (estado) => {
         this.estado.set(estado);
         this.estantesNuevos.update((lista) => lista.filter((n) => n !== actual && n !== nuevo));
         this.estante.set(nuevo);
         this.renombrando.set(false);
-        this.avisar(yaExiste ? `Se juntó con el estante ${nuevo}; los lotes repetidos sumaron sus piezas.` : `El estante ahora se llama ${nuevo}.`, 'ok');
+        this.avisar(yaExiste ? `Se juntó con el estante ${nuevo}; los lotes repetidos sumaron sus ${this.unidad}.` : `El estante ahora se llama ${nuevo}.`, 'ok');
         this.enfocarEscaner();
       },
       error: (error: HttpErrorResponse) => {
@@ -571,13 +586,13 @@ export class AltaInicialFarmacia {
       this.errorMover.set('Ya está en ese estante; escribe otro.');
       return;
     }
-    this.api.moverEnConteo(renglon.id, destino).subscribe({
+    this.api.moverEnConteo(renglon.id, destino, this.area).subscribe({
       next: (resultado) => {
         // Si en el destino ya estaba el lote, el backend juntó los dos y borró este.
         this.estado.update((e) => e && { ...e, renglones: e.renglones.filter((r) => r.id !== renglon.id) });
         this.ponerRenglon(resultado);
         this.moviendo.set(null);
-        const juntado = resultado.id !== renglon.id ? ' (ya estaba ahí: se juntaron y se sumaron las piezas)' : '';
+        const juntado = resultado.id !== renglon.id ? ` (ya estaba ahí: se juntaron y se sumaron las ${this.unidad})` : '';
         this.avisoTabla.set('');
         this.avisar(`${renglon.medicamento} · lote ${renglon.lote} pasó a ${destino || 'Sin estante'}${juntado}.`, 'ok');
       },
@@ -596,12 +611,12 @@ export class AltaInicialFarmacia {
     if (this.guardando()) return;
     this.guardando.set(true);
     this.mensaje.set('');
-    this.api.guardarInventarioInicial().subscribe({
+    this.api.guardarInventarioInicial(this.area).subscribe({
       next: (estado) => {
         this.guardando.set(false);
         this.confirmando.set(false);
         this.estado.set(estado);
-        this.inventario.marcarCerrado();
+        this.marcarCerrado();
       },
       error: (error: HttpErrorResponse) => {
         this.guardando.set(false);
@@ -650,8 +665,8 @@ export class AltaInicialFarmacia {
 
   // Otra persona ya guardó el inventario inicial: se muestra el aviso y la pantalla de cerrado.
   private yaGuardado(error: HttpErrorResponse): void {
-    this.mensaje.set(mensajeDeError(error, 'El inventario inicial de Farmacia ya se guardó.'));
-    this.inventario.marcarCerrado();
+    this.mensaje.set(mensajeDeError(error, `El inventario inicial de ${this.nombreArea} ya se guardó.`));
+    this.marcarCerrado();
     this.cargar();
   }
 
@@ -672,5 +687,10 @@ export class AltaInicialFarmacia {
 
   private enfocarEscaner(): void {
     setTimeout(() => this.campoCodigo()?.nativeElement.focus());
+  }
+
+  // Solo Farmacia quita la opción de su menú; Almacén la deja (la pantalla avisa que ya se guardó).
+  private marcarCerrado(): void {
+    if (!this.enAlmacen) this.inventario.marcarCerrado();
   }
 }

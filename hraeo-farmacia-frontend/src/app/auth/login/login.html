@@ -42,7 +42,9 @@
       <button class="btn block" type="button" (click)="iniciarSesion(usuario.value, contrasena.value)">
         Iniciar sesión
       </button>
-      <p class="help">¿Olvidaste tu contraseña? Pide al administrador que la restablezca.</p>
+      <p class="help">¿Olvidaste tu contraseña? Escribe al administrador del sistema para que la restablezca:
+        <a [href]="'mailto:' + contacto + '?subject=HAERO%3A%20restablecer%20contrase%C3%B1a'">{{ contacto }}</a>
+      </p>
     </div>
   </section>
 </div>

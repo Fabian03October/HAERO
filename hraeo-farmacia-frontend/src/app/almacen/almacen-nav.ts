@@ -11,6 +11,7 @@ export const ALMACEN_MENU: ItemMenu[] = [
     hijos: [
       { etiqueta: 'Catálogo de medicamentos', routerLink: '/almacen/recepcion/catalogo' },
       { etiqueta: 'Inventario', routerLink: '/almacen/recepcion/inventario' },
+      { etiqueta: 'Inventario inicial (conteo)', routerLink: '/almacen/recepcion/conteo-inicial' },
       { etiqueta: 'Registrar entrada', routerLink: '/almacen/recepcion/entrada' },
       { etiqueta: 'Pedidos', routerLink: '/almacen/recepcion/pedidos' },
       { etiqueta: 'Pedidos cancelados', routerLink: '/almacen/recepcion/cancelar-pedido' },

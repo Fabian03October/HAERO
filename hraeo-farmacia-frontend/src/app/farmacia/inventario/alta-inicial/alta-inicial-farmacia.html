@@ -1,3 +1,7 @@
+<!-- En Farmacia la pantalla trae su barra y menú; en Almacén va dentro de Recepción, que ya los pone. -->
+@if (enAlmacen) {
+  <div class="page"><ng-container [ngTemplateOutlet]="contenido" /></div>
+} @else {
 <div class="panel">
   <app-topbar
     [nombreCompleto]="session.usuarioActual()?.nombreCompleto ?? ''"
@@ -7,11 +11,19 @@
     <app-sidebar [items]="items" />
     <main class="main">
       <div class="page">
+        <ng-container [ngTemplateOutlet]="contenido" />
+      </div>
+    </main>
+  </div>
+</div>
+}
+
+<ng-template #contenido>
         <header class="hero">
           <div>
             <p class="eyebrow">Inventario</p>
-            <h1>Inventario inicial de Farmacia</h1>
-            <p class="hero-text">Se cuenta estante por estante: primero se escanean las cajas y después se escriben las piezas. Al final se guarda todo junto, una sola vez.</p>
+            <h1>Inventario inicial de {{ nombreArea }}</h1>
+            <p class="hero-text">Se cuenta estante por estante: primero se escanean las cajas y después se escriben las {{ unidad }} (pueden quedar sin contar mientras tanto). Al final se guarda todo junto, una sola vez.</p>
           </div>
         </header>
 
@@ -30,9 +42,9 @@
           <!-- Ya guardado: no se puede volver a hacer. -->
           <section class="card cerrado">
             <p class="eyebrow">Listo</p>
-            <h2>El inventario inicial de Farmacia ya se guardó</h2>
+            <h2>El inventario inicial de {{ nombreArea }} ya se guardó</h2>
             <p>Lo guardó {{ estado()!.cerradoPor }} el {{ fechaHora(estado()!.cerradoEn) }}. Ya no se puede volver a hacer: desde ahora el inventario cambia con las recepciones, las entregas y las bajas.</p>
-            <a class="btn" routerLink="/farmacia/inventario/existencias">Ir a Existencias</a>
+            <a class="btn" [routerLink]="rutaExistencias">{{ enAlmacen ? 'Ir al inventario' : 'Ir a Existencias' }}</a>
           </section>
         } @else if (revisando()) {
           <!-- Revisar y guardar -->
@@ -45,7 +57,7 @@
             <div class="resumen">
               <span class="chip">{{ resumen().renglones }} renglones</span>
               <span class="chip">{{ resumen().claves }} claves</span>
-              <span class="chip">{{ numero(resumen().piezas) }} piezas</span>
+              <span class="chip">{{ numero(resumen().piezas) }} {{ unidad }}</span>
               <span class="chip" [class.ok]="!resumen().faltan" [class.aviso]="resumen().faltan">
                 Faltan {{ resumen().faltan }}{{ resumen().faltan ? '' : ' ✓' }}
               </span>
@@ -53,7 +65,7 @@
 
             @if (resumen().faltan) {
               <div class="aviso-bloque">
-                <strong>Faltan piezas por capturar</strong> (escribe 0 si no había). Toca un estante para terminarlo:
+                <strong>Faltan {{ unidad }} por capturar</strong> (escribe 0 si no había). Toca un estante para terminarlo:
                 <div class="acciones">
                   @for (e of resumen().estantesConFaltantes; track e.nombre) {
                     <button class="btn secondary chico" type="button" (click)="abrir(e.nombre)">{{ e.nombre || 'Sin estante' }} · faltan {{ e.total - e.contados }}</button>
@@ -66,7 +78,7 @@
                 <strong>Lotes en varios estantes</strong> (se suman al guardar):
                 <ul>
                   @for (g of resumen().repartidos; track g.llave) {
-                    <li>{{ g.medicamento }} · lote {{ g.lote }} → {{ g.partes }} = <b>{{ numero(g.total) }} piezas</b></li>
+                    <li>{{ g.medicamento }} · lote {{ g.lote }} → {{ g.partes }} = <b>{{ numero(g.total) }} {{ unidad }}</b></li>
                   }
                 </ul>
               </div>
@@ -87,11 +99,11 @@
               <!-- Confirmación dentro de la página: no se puede deshacer. -->
               <div class="confirmacion" role="alertdialog" aria-labelledby="titulo-confirmar">
                 <h3 id="titulo-confirmar">¿Guardar el inventario inicial?</h3>
-                <p>Se darán de alta <b>{{ resumen().lotesAlta }} {{ resumen().lotesAlta === 1 ? 'lote' : 'lotes' }}</b> con <b>{{ numero(resumen().piezas) }} piezas</b>.</p>
+                <p>Se darán de alta <b>{{ resumen().lotesAlta }} {{ resumen().lotesAlta === 1 ? 'lote' : 'lotes' }}</b> con <b>{{ numero(resumen().piezas) }} {{ unidad }}</b>.</p>
                 <p><b>Después ya no se podrá volver a hacer el inventario inicial.</b></p>
                 <div class="acciones derecha">
                   <button class="btn secondary" type="button" [disabled]="guardando()" (click)="confirmando.set(false)">Cancelar</button>
-                  <button class="btn peligro" type="button" [disabled]="guardando()" (click)="guardar()">{{ guardando() ? 'Guardando…' : 'Sí, guardar' }}</button>
+                  <button class="btn danger" type="button" [disabled]="guardando()" (click)="guardar()">{{ guardando() ? 'Guardando…' : 'Sí, guardar' }}</button>
                 </div>
               </div>
             }
@@ -190,7 +202,7 @@
                     }
                   </datalist>
                 </div>
-                <p class="previo">Si ya existe un estante con ese nombre, se juntan; los lotes repetidos suman sus piezas.</p>
+                <p class="previo">Si ya existe un estante con ese nombre, se juntan; los lotes repetidos suman sus {{ unidad }}.</p>
                 @if (errorRenombrar()) {
                   <p class="error-captura" role="alert">{{ errorRenombrar() }}</p>
                 }
@@ -207,7 +219,7 @@
                 <p class="ya-registrada">Mover a otro estante</p>
                 <h3 id="titulo-mover">{{ r.medicamento }}</h3>
                 <p class="datos-caja">Lote <strong>{{ r.lote }}</strong> · ahora en <strong>{{ r.ubicacion || 'Sin estante' }}</strong>
-                  @if (r.cantidad !== null) { · {{ r.cantidad }} piezas }</p>
+                  @if (r.cantidad !== null) { · {{ r.cantidad }} {{ unidad }} }</p>
                 <div class="field">
                   <label for="estante-destino">Estante correcto</label>
                   <input id="estante-destino" #campoDestino name="destino" list="estantes-conteo" autocomplete="off"
@@ -218,7 +230,7 @@
                     }
                   </datalist>
                 </div>
-                <p class="previo">Si ese estante ya tiene este mismo lote, se juntan en uno y se suman las piezas.</p>
+                <p class="previo">Si ese estante ya tiene este mismo lote, se juntan en uno y se suman las {{ unidad }}.</p>
                 @if (errorMover()) {
                   <p class="error-captura" role="alert">{{ errorMover() }}</p>
                 }
@@ -236,10 +248,10 @@
                 <h3 id="titulo-piezas">{{ r.medicamento }}</h3>
                 <p class="datos-caja"><strong>{{ r.clave }}</strong> · lote <strong>{{ r.lote }}</strong> · cad. {{ fechaCorta(r.caducidad) }}</p>
                 @if (r.cantidad !== null) {
-                  <p class="previo">Ya tiene <strong>{{ r.cantidad }}</strong> piezas{{ r.contadoPor ? ' (contó ' + r.contadoPor + ')' : '' }}. Lo que escribas reemplaza esa cantidad.</p>
+                  <p class="previo">Ya tiene <strong>{{ r.cantidad }}</strong> {{ unidad }}{{ r.contadoPor ? ' (contó ' + r.contadoPor + ')' : '' }}. Lo que escribas reemplaza esa cantidad.</p>
                 }
                 <div class="field">
-                  <label for="piezas-captura">Piezas que hay en el estante</label>
+                  <label for="piezas-captura">{{ unidadTitulo }} que hay en el estante</label>
                   <input id="piezas-captura" #campoPiezas name="piezas" type="number" min="0" step="1" inputmode="numeric"
                          autocomplete="off" [(ngModel)]="piezasCaptura" />
                 </div>
@@ -247,7 +259,7 @@
                   <p class="error-captura" role="alert">{{ errorCaptura() }}</p>
                 }
                 <div class="acciones">
-                  <button class="btn" type="submit" [disabled]="guardandoCaptura()">Guardar piezas</button>
+                  <button class="btn" type="submit" [disabled]="guardandoCaptura()">Guardar {{ unidad }}</button>
                   <button class="link" type="button" (click)="cerrarCaptura()">Cancelar</button>
                 </div>
               </form>
@@ -263,7 +275,7 @@
                     <th>Medicamento</th>
                     <th>Lote</th>
                     <th>Caducidad</th>
-                    <th class="number">Piezas</th>
+                    <th class="number">{{ unidadTitulo }}</th>
                     <th>Contó</th>
                     <th></th>
                   </tr>
@@ -286,7 +298,7 @@
                         <input class="cantidad" type="number" min="0" step="1" inputmode="numeric" data-cantidad placeholder="—"
                                [value]="valor(r)" (input)="escribir(r, $any($event.target).value)"
                                (keydown.enter)="enterCantidad($event, r)" (blur)="guardarCantidad(r)"
-                               [attr.aria-label]="'Piezas de ' + r.medicamento + ' lote ' + r.lote" />
+                               [attr.aria-label]="unidadTitulo + ' de ' + r.medicamento + ' lote ' + r.lote" />
                       </td>
                       <td>
                         @if (r.contadoPor) {
@@ -306,7 +318,7 @@
                 </tbody>
               </table>
             </div>
-            <p class="nota">Escribe las piezas y da Enter: se guarda y pasa al siguiente. Escribe 0 si no había. Lo que capturan los demás aparece solo cada 10 segundos.</p>
+            <p class="nota">Escribe las {{ unidad }} y da Enter: se guarda y pasa al siguiente. Escribe 0 si no había. Lo que capturan los demás aparece solo cada 10 segundos.</p>
           </section>
         } @else {
           <!-- Tablero de estantes -->
@@ -361,7 +373,4 @@
             </div>
           </section>
         }
-      </div>
-    </main>
-  </div>
-</div>
+</ng-template>

@@ -10,53 +10,185 @@
         <header class="hero">
           <div>
             <p class="eyebrow">Trazabilidad</p>
-            <h1>Trazabilidad de lote a paciente</h1>
-            <p class="hero-text">Dado un lote, su recorrido desde el pedido hasta los pacientes que lo recibieron; dado un expediente, los lotes que recibió el paciente. Sirve para actuar ante una alerta sanitaria o un retiro del proveedor.</p>
+            <h1>Trazabilidad de medicamentos</h1>
+            <p class="hero-text">Busca un medicamento, un lote o un paciente, o escanea la caja. El recorrido junta lo registrado en HAERO con lo que llega de Intelisis. Sirve para actuar ante una alerta sanitaria o un retiro del proveedor.</p>
           </div>
         </header>
 
         <section class="card">
-          <div class="barra">
-            <div class="filtros" role="tablist" aria-label="Buscar por">
-              <button type="button" role="tab" [class.activo]="modo() === 'LOTE'" (click)="cambiarModo('LOTE')">Por lote</button>
-              <button type="button" role="tab" [class.activo]="modo() === 'EXPEDIENTE'" (click)="cambiarModo('EXPEDIENTE')">Por expediente</button>
-              <button type="button" role="tab" [class.activo]="modo() === 'PACIENTE'" (click)="cambiarModo('PACIENTE')">Por nombre o CURP</button>
-            </div>
-            <div class="en-linea buscador">
-              <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" [placeholder]="modo() === 'LOTE' ? 'Lote o escanea la caja' : modo() === 'EXPEDIENTE' ? 'Número de expediente' : 'Nombre del paciente o CURP'" />
-              <button class="btn" type="button" [disabled]="buscando()" (click)="buscar()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
-            </div>
+          <div class="en-linea buscador">
+            <input class="buscar" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()"
+                   aria-label="Buscar" placeholder="Medicamento, clave, lote, expediente, nombre o CURP — o escanea la caja" />
+            <button class="btn" type="button" [disabled]="buscando()" (click)="buscar()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
           </div>
           @if (aviso()) {
             <p class="hint pendiente">{{ aviso() }}</p>
           }
+          @if (textoLibre(); as t) {
+            <p class="hint">¿Buscabas otra cosa?
+              <button class="link" type="button" (click)="verExpediente(t)">Buscar «{{ t }}» como expediente</button> ·
+              <button class="link" type="button" (click)="verPaciente(t)">como nombre de paciente</button> ·
+              <button class="link" type="button" (click)="verReceta(t)">como folio de receta</button>
+            </p>
+          }
+          @if (seleccion().size) {
+            <div class="seleccion" aria-live="polite">
+              <span><strong>{{ seleccion().size }}</strong> {{ seleccion().size === 1 ? 'consulta marcada' : 'consultas marcadas' }} para el reporte:</span>
+              @for (e of seleccion().values(); track e.llave) {
+                <button type="button" class="chip-lote" [attr.aria-label]="'Quitar ' + e.titulo + ' del reporte'" (click)="quitarDelReporte(e)">{{ e.titulo }} ✕</button>
+              }
+              <button class="btn" type="button" [disabled]="generandoReporte()" (click)="reporteVarios()">
+                {{ generandoReporte() ? 'Armando reporte…' : 'Reporte de lo marcado (PDF)' }}
+              </button>
+              <button class="link" type="button" (click)="limpiarSeleccion()">Quitar todos</button>
+            </div>
+          }
           <p class="privacidad">Solo Farmacia y Supervisión ven los datos de pacientes. Cada consulta queda registrada con tu usuario, la fecha y la hora.</p>
         </section>
 
-        <div class="two-columns">
+        @if (lotes(); as lista) {
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">Recorrido del lote</p>
-                <h2>Del pedido al paciente</h2>
+                <p class="eyebrow">Lotes encontrados</p>
+                <h2>Elige un lote para ver su recorrido</h2>
+                <p class="hint">Marca los lotes que quieras en un solo reporte. También puedes agregar expedientes, pacientes o recetas con «Agregar al reporte» y seguir buscando.</p>
               </div>
             </div>
-            <ol class="recorrido">
-              @for (paso of recorrido(); track paso.etapa) {
-                <li [class.hecho]="!!paso.fecha">
-                  <strong>{{ paso.etapa }}</strong>
-                  <span>{{ paso.fecha ?? 'Sin datos' }}</span>
-                  <small>{{ paso.detalle }}</small>
-                </li>
-              }
-            </ol>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="centro">Reporte</th>
+                    <th>Medicamento</th>
+                    <th>Lote</th>
+                    <th>Caducidad</th>
+                    <th class="number">Farmacia HAERO (piezas)</th>
+                    <th class="number">Intelisis almacén</th>
+                    <th class="number">Intelisis farmacia</th>
+                    <th class="centro">Registrado en</th>
+                    <th class="centro"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (l of pagLotes.visibles(); track l.clave + l.lote) {
+                    <tr [class.seleccionado]="esLoteActual(l)">
+                      <td class="centro"><input type="checkbox" [checked]="estaSeleccionado(l)" (change)="alternarSeleccion(l)" [attr.aria-label]="'Marcar lote ' + l.lote + ' para el reporte'" /></td>
+                      <td>{{ l.clave }}<small class="sub">{{ l.medicamento ?? 'Sin nombre en el catálogo' }}</small></td>
+                      <td>{{ l.lote }}@if (l.sufijos) {<small class="sub" title="Origen del recurso en Intelisis">{{ l.sufijos }}</small>}</td>
+                      <td>{{ l.caducidad ?? '—' }}</td>
+                      <td class="number">{{ l.piezasFarmacia ?? '—' }}</td>
+                      <td class="number">{{ l.existenciaAlmacenIntelisis ?? '—' }}</td>
+                      <td class="number">{{ l.existenciaFarmaciaIntelisis ?? '—' }}</td>
+                      <td class="centro">
+                        @if (l.enHaero) { <span class="fuente haero">HAERO</span> }
+                        @if (l.enIntelisis) { <span class="fuente intelisis">Intelisis</span> }
+                      </td>
+                      <td class="centro"><button class="link" type="button" (click)="verLote(l.lote, l.clave)">Ver recorrido</button></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="9" class="empty">No hay lotes con esa búsqueda.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <app-paginador [control]="pagLotes" />
+            @if (lista.length >= 300) {
+              <p class="hint">Se muestran los primeros 300 lotes; escribe la clave o el lote para acotar.</p>
+            }
           </section>
+        }
+
+        @if (modo()) {
+          <section class="card">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">{{ titulo() }}</p>
+                <h2>{{ modo() === 'RECETA' ? 'Receta y surtido' : modo() === 'LOTE' ? 'Del pedido al paciente' : 'Entregas del paciente' }}</h2>
+              </div>
+              <div class="en-linea">
+                <button class="btn secondary" type="button" [disabled]="buscando() || consultaActualAgregada()" (click)="agregarConsultaActual()">
+                  {{ consultaActualAgregada() ? 'Agregado al reporte' : 'Agregar al reporte' }}
+                </button>
+                <button class="btn secondary" type="button" [disabled]="buscando()" (click)="descargarReporte()">Descargar reporte (PDF)</button>
+              </div>
+            </div>
+            <!-- La línea de tiempo solo con datos de HAERO; lo que viene solo de Intelisis se muestra en tablas. -->
+            @if (mostrarLinea()) {
+              <ol class="recorrido">
+                @for (paso of recorrido(); track paso.etapa) {
+                  <li [class.hecho]="!!paso.fuente">
+                    <strong>{{ paso.etapa }}
+                      @if (paso.fuente) { <span class="fuente" [class.haero]="paso.fuente === 'HAERO'" [class.intelisis]="paso.fuente === 'Intelisis'">{{ paso.fuente }}</span> }
+                    </strong>
+                    @if (paso.fecha || !paso.fuente) {
+                      <span>{{ paso.fecha ?? 'Sin datos' }}</span>
+                    }
+                    <small>{{ paso.detalle }}</small>
+                  </li>
+                }
+              </ol>
+            } @else if (pasosConDatos().length) {
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Etapa</th><th>Fecha</th><th>Detalle</th><th class="centro">Origen</th></tr></thead>
+                  <tbody>
+                    @for (paso of pasosConDatos(); track paso.etapa) {
+                      <tr>
+                        <td><strong>{{ paso.etapa }}</strong></td>
+                        <td>{{ paso.fecha ?? '—' }}</td>
+                        <td class="detalle">{{ paso.detalle }}</td>
+                        <td class="centro"><span class="fuente" [class.haero]="paso.fuente === 'HAERO'" [class.intelisis]="paso.fuente === 'Intelisis'">{{ paso.fuente }}</span></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="hint">Los datos de esta búsqueda están en la tabla de entregas.</p>
+            }
+          </section>
+
+          @if (resultado()?.compras?.length) {
+            <section class="card">
+              <div class="card-heading"><div><p class="eyebrow">Intelisis</p><h2>Compras con las que llegó el lote</h2></div></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Fecha</th><th>Compra</th><th>Origen</th><th>Contrato</th><th>Proveedor</th><th class="number">Cantidad</th><th>Caducidad</th><th>Almacén</th></tr></thead>
+                  <tbody>
+                    @for (c of resultado()!.compras; track $index) {
+                      <tr>
+                        <td>{{ fechaCorta(c.fecha) }}</td><td>{{ c.compra ?? '—' }}</td><td>{{ c.origen ?? '—' }}</td><td>{{ c.contrato ?? '—' }}</td>
+                        <td class="detalle">{{ c.proveedor ?? '—' }}</td><td class="number">{{ c.cantidad }}</td><td>{{ fechaCorta(c.caducidad) }}</td><td>{{ c.almacen ?? '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          }
+
+          @if (resultado()?.existencias?.length) {
+            <section class="card">
+              <div class="card-heading"><div><p class="eyebrow">Intelisis</p><h2>Existencia hoy</h2></div></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Almacén</th><th>Tipo</th><th>Clave</th><th class="number">Cantidad</th></tr></thead>
+                  <tbody>
+                    @for (e of resultado()!.existencias; track $index) {
+                      <tr><td>{{ e.almacen }}</td><td>{{ e.tipo }}</td><td>{{ e.clave }}</td><td class="number">{{ e.cantidad }}</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          }
+        }
 
           <section class="card">
             <div class="card-heading">
               <div>
-                <p class="eyebrow">{{ modo() === 'LOTE' ? 'Pacientes que recibieron el lote' : 'Lotes que recibió el paciente' }}</p>
-
+                <p class="eyebrow">{{ modo() === 'LOTE' || !modo() ? 'Pacientes que recibieron el lote' : modo() === 'RECETA' ? 'Lo que se dio de baja para la receta' : 'Lotes que recibió · ' + titulo() }}</p>
                 <h2>Entregas</h2>
               </div>
             </div>
@@ -65,37 +197,40 @@
                 <thead>
                   <tr>
                     <th>Fecha</th>
-                    @if (modo() !== 'EXPEDIENTE') {
-                      <th>Paciente</th>
-                    }
-                    @if (modo() !== 'LOTE') {
-                      <th>Clave · lote</th>
-                    }
+                    <th>Paciente</th>
+                    <th>Clave · lote</th>
                     <th class="number">Piezas</th>
                     <th>Entregó</th>
+                    <th class="centro">Origen</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (entrega of entregas(); track entrega.folio + entrega.lote) {
+                  @for (entrega of pagEntregas.visibles(); track $index) {
                     <tr>
                       <td>{{ entrega.fecha }}<small class="sub">{{ entrega.folio }}</small></td>
-                      @if (modo() !== 'EXPEDIENTE') {
-                        <td>{{ entrega.paciente }}<small class="sub">Exp. {{ entrega.expediente }}</small></td>
-                      }
-                      @if (modo() !== 'LOTE') {
-                        <td>{{ entrega.clave }}<small class="sub">Lote {{ entrega.lote }}</small></td>
-                      }
+                      <td>
+                        <button class="link" type="button" title="Ver los lotes que recibió" (click)="verPacienteDe(entrega)">{{ entrega.paciente }}</button>
+                        <small class="sub">Exp. {{ entrega.expediente ?? '—' }}</small>
+                      </td>
+                      <td>
+                        <button class="link" type="button" title="Ver el recorrido del lote" (click)="verLote(entrega.lote, entrega.clave)">{{ entrega.lote }}</button>
+                        <small class="sub">{{ entrega.clave }}</small>
+                      </td>
                       <td class="number">{{ entrega.piezas }}</td>
                       <td>{{ entrega.despachador }}</td>
+                      <td class="centro"><span class="fuente" [class.haero]="entrega.fuente === 'HAERO'" [class.intelisis]="entrega.fuente === 'Intelisis'">{{ entrega.fuente }}</span></td>
                     </tr>
                   } @empty {
-                    <tr><td [attr.colspan]="modo() === 'PACIENTE' ? 5 : 4" class="empty">Busca {{ modo() === 'LOTE' ? 'un lote' : modo() === 'EXPEDIENTE' ? 'un expediente' : 'un paciente' }} para ver sus entregas.</td></tr>
+                    <tr><td colspan="6" class="empty">Busca un medicamento, un lote o un paciente para ver sus entregas.</td></tr>
                   }
                 </tbody>
               </table>
             </div>
+            <app-paginador [control]="pagEntregas" />
+            @if (entregas().length) {
+              <p class="hint">Las entregas desde que Farmacia usa HAERO salen de HAERO; las anteriores, de las bajas de Farmacia en Intelisis (el paciente es el nombre registrado en la baja).</p>
+            }
           </section>
-        </div>
       </div>
     </main>
   </div>

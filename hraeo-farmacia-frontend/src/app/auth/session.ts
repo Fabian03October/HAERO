@@ -31,7 +31,13 @@ export const ROL_ETIQUETA: Record<Rol, string> = {
 
 
 const SESSION_STORAGE_KEY = 'hraeo.session';
-const TOKEN_STORAGE_KEY = 'hraeo.token';
+export const TOKEN_STORAGE_KEY = 'hraeo.token';
+// Última petición al servidor (de cualquier pestaña): el servidor cierra la sesión tras 15 min sin peticiones.
+const ACTIVIDAD_STORAGE_KEY = 'hraeo.actividad';
+export const LIMITE_INACTIVIDAD_MS = 15 * 60 * 1000;
+
+// Contacto para restablecer contraseñas (temporal, mientras se define el correo oficial de soporte).
+export const CONTACTO_ADMINISTRADOR = 'egarcia.hraeo@imssbienestar.gob.mx';
 
 interface LoginResponse {
   token: string;
@@ -66,6 +72,36 @@ export class Session {
     return this.token;
   }
 
+  /** Se llama en cada petición al servidor; se comparte entre pestañas por localStorage. */
+  marcarActividad(): void {
+    try {
+      localStorage.setItem(ACTIVIDAD_STORAGE_KEY, String(Date.now()));
+    } catch {
+      // Sin almacenamiento solo se pierde el aviso previo; el servidor sigue cerrando la sesión.
+    }
+  }
+
+  /** Milisegundos desde la última petición al servidor de cualquier pestaña. */
+  inactivoDesde(): number {
+    let ultima = 0;
+    try {
+      ultima = Number(localStorage.getItem(ACTIVIDAD_STORAGE_KEY)) || 0;
+    } catch {
+      return 0;
+    }
+    return ultima ? Date.now() - ultima : 0;
+  }
+
+  /** Otra pestaña cerró la sesión (o entró con otra cuenta): se aplica aquí sin llamar al servidor. */
+  sincronizarConOtraPestana(): void {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) {
+      if (this.usuarioActual()) this.expirar('Se cerró la sesión en otra pestaña de este navegador.');
+    } else if (token !== this.token) {
+      this.restaurarSesion();
+    }
+  }
+
   async iniciarSesion(nombreUsuario: string, contrasena: string): Promise<UsuarioSesion | null> {
     try {
       const respuesta = await firstValueFrom(
@@ -85,6 +121,7 @@ export class Session {
       };
       this.usuarioActual.set(usuario);
       this.persistirSesion(usuario);
+      this.marcarActividad();
       return usuario;
     } catch (error) {
       // El backend explica el motivo (p. ej. cuenta bloqueada por intentos fallidos).

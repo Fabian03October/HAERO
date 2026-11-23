@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { PaginaError } from './shared/pagina-error/pagina-error';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
@@ -22,4 +23,9 @@ export const routes: Routes = [
     path: 'admin',
     loadChildren: () => import('./admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
+  // Páginas de error de todo el sistema.
+  { path: 'sin-acceso', component: PaginaError, data: { tipo: 'sin-acceso' } },
+  { path: 'error-sistema', component: PaginaError, data: { tipo: 'error-sistema' } },
+  { path: 'sin-conexion', component: PaginaError, data: { tipo: 'sin-conexion' } },
+  { path: '**', component: PaginaError, data: { tipo: 'no-encontrada' } },
 ];

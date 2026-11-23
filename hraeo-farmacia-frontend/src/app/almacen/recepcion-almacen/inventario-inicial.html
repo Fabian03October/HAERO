@@ -1,12 +1,9 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción</p>
   <h1>Inventario</h1>
-  <p>Existencias del almacén en HAERO. Lo que ya está en los anaqueles se da de alta escaneándolo y eligiéndolo de la existencia actual de Intelisis; no se carga ningún Excel.</p>
+  <p>Existencias del almacén en HAERO. Lo que ya está en los anaqueles se da de alta con el inventario inicial por conteo: se escanean las cajas por estante, después se capturan las cantidades y se guarda todo una sola vez.</p>
 </header>
 
-@if (altaAbierta()) {
-  <app-captura-intelisis tipo="ALTA_INICIAL" />
-}
 
 <section class="card">
   <div class="card-heading">
@@ -27,9 +24,7 @@
       (ngModelChange)="filtro.set($event)"
       placeholder="Buscar por clave, descripción, lote, ubicación o fuente"
     />
-    <button type="button" class="download-button" (click)="altaAbierta.set(!altaAbierta())">
-      {{ altaAbierta() ? 'Cerrar alta inicial' : 'Alta inicial (escanear)' }}
-    </button>
+    <a class="download-button" routerLink="/almacen/recepcion/conteo-inicial">Inventario inicial (conteo)</a>
     <button type="button" class="download-button" [disabled]="!lotesFiltrados().length" (click)="descargarInventario()">
       Descargar Excel
     </button>
@@ -70,7 +65,7 @@
             <td class="wrap">{{ lote.proveedor || '—' }}</td>
           </tr>
         } @empty {
-          <tr><td colspan="10" class="empty">{{ inventario.cargando() ? 'Cargando…' : inventario.error() || (filtro() ? 'No hay lotes que coincidan con la búsqueda.' : 'Todavía no hay nada dado de alta. Usa "Alta inicial (escanear)".') }}</td></tr>
+          <tr><td colspan="10" class="empty">{{ inventario.cargando() ? 'Cargando…' : inventario.error() || (filtro() ? 'No hay lotes que coincidan con la búsqueda.' : 'Todavía no hay nada dado de alta. Usa "Inventario inicial (conteo)".') }}</td></tr>
         }
       </tbody>
     </table>

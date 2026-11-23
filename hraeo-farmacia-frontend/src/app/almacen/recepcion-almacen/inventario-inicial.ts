@@ -1,10 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import * as XLSX from 'xlsx';
 import { InventarioAlmacen } from '../inventario-almacen';
 import { formatoCaducidad } from '../solicitudes-almacen';
 import { RotacionAlmacen } from '../rotacion-almacen';
-import { CapturaIntelisis } from './captura-intelisis/captura-intelisis';
 import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 
 // Mismo orden que la hoja del Drive; Fuente es el registro de Intelisis del que salió el lote.
@@ -12,12 +12,11 @@ const ENCABEZADOS_EXCEL = ['CLAVE', 'DESCRIPCION', 'LOTE', 'CADUCIDAD', 'CANTIDA
 
 // Recepción · Inventario (HU21). Es una página hija de Recepción, por eso no
 // incluye barra superior ni menú lateral (los pone el contenedor).
-// Diseño aprobado: ya no se carga un Excel. Lo que está en los anaqueles se da de
-// alta escaneándolo y eligiéndolo de la existencia actual de Intelisis; el Excel
-// solo se descarga.
+// Lo que está en los anaqueles se da de alta con el inventario inicial por conteo
+// (/almacen/recepcion/conteo-inicial, la misma pantalla que Farmacia); el Excel solo se descarga.
 @Component({
   selector: 'app-inventario-inicial',
-  imports: [FormsModule, CapturaIntelisis, Paginador],
+  imports: [FormsModule, RouterLink, Paginador],
   templateUrl: './inventario-inicial.html',
   styleUrl: './inventario-inicial.css',
 })
@@ -28,8 +27,6 @@ export class InventarioInicial {
   protected readonly inventario = inject(InventarioAlmacen);
   protected readonly rotacion = inject(RotacionAlmacen);
   protected readonly formatoFecha = formatoCaducidad;
-
-  readonly altaAbierta = signal(false);
 
   readonly filtro = signal('');
   readonly lotesFiltrados = computed(() => {

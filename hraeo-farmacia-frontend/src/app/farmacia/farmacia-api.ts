@@ -30,6 +30,9 @@ export interface LoteFarmacia {
 
 // HU25: conteo del inventario inicial (V41). Primero se registran los códigos y lotes de cada
 // estante, luego se capturan las piezas y al final se guarda todo junto, una sola vez.
+// Área del conteo inicial: Almacén cuenta cajas y Farmacia piezas.
+export type AreaConteo = 'almacen' | 'farmacia';
+
 export interface RenglonConteo {
   id: number;
   codigo: string;
@@ -324,6 +327,23 @@ export interface PasoRecorrido {
   etapa: string;
   fecha: string | null;
   detalle: string;
+  // De dónde salió el dato; null si no hay registro.
+  fuente: 'HAERO' | 'Intelisis' | null;
+}
+
+// Lote de un medicamento con lo que saben HAERO e Intelisis (existencias en sus unidades).
+export interface LoteTrazable {
+  clave: string;
+  medicamento: string | null;
+  lote: string;
+  // Sufijos de Intelisis (origen del recurso: SCC, UNOPS, FONSABI...).
+  sufijos: string | null;
+  caducidad: string | null;
+  piezasFarmacia: number | null;
+  existenciaAlmacenIntelisis: number | null;
+  existenciaFarmaciaIntelisis: number | null;
+  enHaero: boolean;
+  enIntelisis: boolean;
 }
 
 export interface EntregaPaciente {
@@ -335,13 +355,39 @@ export interface EntregaPaciente {
   lote: string;
   piezas: number;
   despachador: string;
+  // HAERO (entrega registrada en HAERO) o Intelisis (baja de Farmacia anterior a HAERO).
+  fuente: 'HAERO' | 'Intelisis';
 }
 
 export interface Trazabilidad {
-  modo: 'LOTE' | 'EXPEDIENTE';
+  modo: 'LOTE' | 'EXPEDIENTE' | 'CURP' | 'NOMBRE' | 'RECETA';
   valor: string;
   recorrido: PasoRecorrido[];
   entregas: EntregaPaciente[];
+  // Aviso de la consulta (p. ej. Intelisis no respondió); null si todo bien.
+  aviso: string | null;
+  // Solo por lote: compras de Intelisis con las que llegó y existencia de hoy en Intelisis.
+  compras: CompraTrazabilidad[];
+  existencias: ExistenciaTrazabilidad[];
+}
+
+export interface CompraTrazabilidad {
+  fecha: string | null;
+  compra: string | null;
+  origen: string | null;
+  contrato: number | null;
+  proveedor: string | null;
+  clave: string;
+  cantidad: number;
+  caducidad: string | null;
+  almacen: string | null;
+}
+
+export interface ExistenciaTrazabilidad {
+  almacen: string;
+  tipo: 'Almacén' | 'Farmacia';
+  clave: string;
+  cantidad: number;
 }
 
 // Quimioterapia (com.example.backend.farmacia.dto.QuimioterapiaDtos). Sin lote, sale el FEFO.
@@ -526,40 +572,41 @@ export class FarmaciaApi {
   }
 
   // ---------- Inventario inicial por conteo (HU25) ----------
-  conteoInicial(): Observable<EstadoConteo> {
-    return this.http.get<EstadoConteo>(`${this.base}/conteo-inicial`, this.cabeceras());
+  // El mismo conteo sirve a Almacén (en cajas) y a Farmacia (en piezas); cada rol solo puede usar el suyo.
+  conteoInicial(area: AreaConteo = 'farmacia'): Observable<EstadoConteo> {
+    return this.http.get<EstadoConteo>(`${API_BASE_URL}/${area}/conteo-inicial`, this.cabeceras());
   }
 
   /** Pasa el renglón a otro estante ('' = sin estante); si ahí ya estaba el lote, se juntan y se suman las piezas. */
-  moverEnConteo(id: number, ubicacion: string): Observable<RenglonConteo> {
-    return this.http.put<RenglonConteo>(`${this.base}/conteo-inicial/renglones/${id}/ubicacion`, { ubicacion }, this.cabeceras());
+  moverEnConteo(id: number, ubicacion: string, area: AreaConteo = 'farmacia'): Observable<RenglonConteo> {
+    return this.http.put<RenglonConteo>(`${API_BASE_URL}/${area}/conteo-inicial/renglones/${id}/ubicacion`, { ubicacion }, this.cabeceras());
   }
 
   /** Cambia el nombre de un estante ('' = sin estante); los lotes que ya estén en el nuevo se juntan. */
-  renombrarEstante(actual: string, nuevo: string): Observable<EstadoConteo> {
-    return this.http.put<EstadoConteo>(`${this.base}/conteo-inicial/estantes`, { actual, nuevo }, this.cabeceras());
+  renombrarEstante(actual: string, nuevo: string, area: AreaConteo = 'farmacia'): Observable<EstadoConteo> {
+    return this.http.put<EstadoConteo>(`${API_BASE_URL}/${area}/conteo-inicial/estantes`, { actual, nuevo }, this.cabeceras());
   }
 
-  lotesParaConteo(clave: string): Observable<LoteIntelisisConteo[]> {
-    return this.http.get<LoteIntelisisConteo[]>(`${this.base}/conteo-inicial/lotes`, { ...this.cabeceras(), params: { clave } });
+  lotesParaConteo(clave: string, area: AreaConteo = 'farmacia'): Observable<LoteIntelisisConteo[]> {
+    return this.http.get<LoteIntelisisConteo[]>(`${API_BASE_URL}/${area}/conteo-inicial/lotes`, { ...this.cabeceras(), params: { clave } });
   }
 
   /** Escanear otra vez el mismo lote en el mismo estante no lo duplica: regresa el mismo renglón. */
-  registrarEnConteo(nuevo: NuevoRenglonConteo): Observable<RenglonConteo> {
-    return this.http.post<RenglonConteo>(`${this.base}/conteo-inicial/renglones`, nuevo, this.cabeceras());
+  registrarEnConteo(nuevo: NuevoRenglonConteo, area: AreaConteo = 'farmacia'): Observable<RenglonConteo> {
+    return this.http.post<RenglonConteo>(`${API_BASE_URL}/${area}/conteo-inicial/renglones`, nuevo, this.cabeceras());
   }
 
-  contarRenglon(id: number, cantidad: number): Observable<RenglonConteo> {
-    return this.http.put<RenglonConteo>(`${this.base}/conteo-inicial/renglones/${id}/cantidad`, { cantidad }, this.cabeceras());
+  contarRenglon(id: number, cantidad: number, area: AreaConteo = 'farmacia'): Observable<RenglonConteo> {
+    return this.http.put<RenglonConteo>(`${API_BASE_URL}/${area}/conteo-inicial/renglones/${id}/cantidad`, { cantidad }, this.cabeceras());
   }
 
-  quitarDelConteo(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.base}/conteo-inicial/renglones/${id}`, this.cabeceras());
+  quitarDelConteo(id: number, area: AreaConteo = 'farmacia'): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/${area}/conteo-inicial/renglones/${id}`, this.cabeceras());
   }
 
   /** Da de alta todo el conteo (todo o nada) y cierra el inventario inicial para siempre. */
-  guardarInventarioInicial(): Observable<EstadoConteo> {
-    return this.http.post<EstadoConteo>(`${this.base}/conteo-inicial/cerrar`, {}, this.cabeceras());
+  guardarInventarioInicial(area: AreaConteo = 'farmacia'): Observable<EstadoConteo> {
+    return this.http.post<EstadoConteo>(`${API_BASE_URL}/${area}/conteo-inicial/cerrar`, {}, this.cabeceras());
   }
 
   // ---------- Recepción (HU26) ----------
@@ -719,13 +766,24 @@ export class FarmaciaApi {
   }
 
   // ---------- Trazabilidad (HU33) ----------
-  trazabilidadPorLote(lote: string): Observable<Trazabilidad> {
-    return this.http.get<Trazabilidad>(`${this.base}/trazabilidad`, { ...this.cabeceras(), params: { lote } });
+  trazabilidadPorLote(lote: string, clave?: string): Observable<Trazabilidad> {
+    const params: Record<string, string> = clave ? { lote, clave } : { lote };
+    return this.http.get<Trazabilidad>(`${this.base}/trazabilidad`, { ...this.cabeceras(), params });
+  }
+
+  /** Lotes de un medicamento (clave o nombre) o de un número de lote, en HAERO y en Intelisis. */
+  trazabilidadLotes(q: string): Observable<LoteTrazable[]> {
+    return this.http.get<LoteTrazable[]>(`${this.base}/trazabilidad/lotes`, { ...this.cabeceras(), params: { q } });
   }
 
   /** Por nombre del paciente o por su CURP. */
   trazabilidadPorPaciente(paciente: string): Observable<Trazabilidad> {
     return this.http.get<Trazabilidad>(`${this.base}/trazabilidad`, { ...this.cabeceras(), params: { paciente } });
+  }
+
+  /** Por folio de receta de Intelisis: la receta y lo que Farmacia le dio al paciente para surtirla. */
+  trazabilidadPorReceta(receta: string): Observable<Trazabilidad> {
+    return this.http.get<Trazabilidad>(`${this.base}/trazabilidad`, { ...this.cabeceras(), params: { receta } });
   }
 
   trazabilidadPorExpediente(expediente: string): Observable<Trazabilidad> {

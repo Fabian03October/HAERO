@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { Rol, RUTA_POR_ROL, Session } from './session';
+import { Rol, Session } from './session';
 import { PoliticasUso } from './politicas';
 
 // Validación solo en el cliente (oculta menú y protege rutas para mejorar la
@@ -26,7 +26,7 @@ export const roleGuard: CanActivateFn = (route) => {
 
   const rolesPermitidos = route.data['roles'] as Rol[] | undefined;
   if (rolesPermitidos && !rolesPermitidos.includes(usuario.rol)) {
-    return router.parseUrl(RUTA_POR_ROL[usuario.rol]);
+    return router.parseUrl('/sin-acceso');
   }
 
   return true;

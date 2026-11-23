@@ -2,12 +2,20 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { MovimientoSalida, TIPO_SALIDA_TEXTO, formatoCaducidad } from '../../solicitudes-almacen';
 
-const GUINDA: [number, number, number] = [97, 18, 50];
-const DORADO: [number, number, number] = [165, 127, 44];
-const GRIS: [number, number, number] = [111, 114, 113];
-const MARGEN = 16;
+export const GUINDA: [number, number, number] = [97, 18, 50];
+export const DORADO: [number, number, number] = [165, 127, 44];
+export const GRIS: [number, number, number] = [111, 114, 113];
+export const MARGEN = 16;
 
-type Documento = jsPDF & { lastAutoTable: { finalY: number } };
+export type Documento = jsPDF & { lastAutoTable: { finalY: number } };
+
+// Estilo de las tablas de los reportes (guinda y dorado), para que todos se vean igual.
+export const ESTILO_TABLA = {
+  theme: 'grid' as const,
+  styles: { fontSize: 8.5, cellPadding: 2, lineColor: [228, 221, 211] as [number, number, number], lineWidth: 0.2, textColor: [43, 43, 43] as [number, number, number] },
+  headStyles: { fillColor: [97, 18, 50] as [number, number, number], textColor: 255, fontStyle: 'bold' as const },
+  alternateRowStyles: { fillColor: [250, 248, 245] as [number, number, number] },
+};
 
 /**
  * Comprobante en PDF de las salidas elegidas. Cada salida a Farmacia se agrupa con
@@ -114,7 +122,8 @@ function encabezado(doc: Documento, salida: MovimientoSalida, logo?: string): nu
   return encabezadoBase(doc, 'Comprobante de salida de Almacén', referencia(salida), TIPO_SALIDA_TEXTO[salida.tipo], logo);
 }
 
-function encabezadoBase(doc: Documento, titulo: string, folio: string, tipo: string, logo?: string): number {
+/** Encabezado común de los reportes: logo, título, folio y tipo, con la franja guinda y dorada. */
+export function encabezadoBase(doc: Documento, titulo: string, folio: string, tipo: string, logo?: string): number {
   const ancho = doc.internal.pageSize.getWidth();
   let x = MARGEN;
   if (logo) {
@@ -181,7 +190,7 @@ function datosMovimiento(doc: Documento, salida: MovimientoSalida, y: number): n
   return bloqueDatos(doc, 'Datos del movimiento', y, filas);
 }
 
-function bloqueDatos(doc: Documento, titulo: string, y: number, filas: [string, string][]): number {
+export function bloqueDatos(doc: Documento, titulo: string, y: number, filas: [string, string][]): number {
   subtitulo(doc, titulo, y);
   autoTable(doc, {
     startY: y + 3,
@@ -285,7 +294,7 @@ function firmas(doc: Documento, grupo: MovimientoSalida[], y: number, logo?: str
   });
 }
 
-function pies(doc: Documento, generado: Date, generadoPor: string): void {
+export function pies(doc: Documento, generado: Date, generadoPor: string): void {
   const paginas = doc.getNumberOfPages();
   const ancho = doc.internal.pageSize.getWidth();
   const alto = doc.internal.pageSize.getHeight();
@@ -301,7 +310,7 @@ function pies(doc: Documento, generado: Date, generadoPor: string): void {
   }
 }
 
-function subtitulo(doc: Documento, texto: string, y: number): void {
+export function subtitulo(doc: Documento, texto: string, y: number): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(...GUINDA);
