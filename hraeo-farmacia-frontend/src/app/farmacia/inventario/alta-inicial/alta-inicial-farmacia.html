@@ -102,6 +102,7 @@
             <div class="estante-cabeza">
               <button class="link volver" type="button" (click)="volver()">← Estantes</button>
               <h2>{{ estante() ? 'Estante ' + estante() : 'Sin estante' }}</h2>
+              <button class="link" type="button" (click)="abrirRenombrar()">{{ estante() ? 'Cambiar nombre' : 'Ponerle estante' }}</button>
               <span class="contador-estante">{{ contadosEstante() }} de {{ renglonesDelEstante().length }} contados</span>
             </div>
 
@@ -120,19 +121,45 @@
                 <p [class]="'resultado-escaneo ' + u.tipo" role="status">{{ u.texto }}</p>
               }
               @if (pendiente(); as caja) {
-                <form class="manual" (ngSubmit)="agregarManual()">
-                  <span class="manual-codigo">Código <code>{{ caja.codigo }}</code></span>
-                  <div class="field">
-                    <label for="lote-manual">Lote</label>
-                    <input id="lote-manual" #campoLote name="lote" [(ngModel)]="loteManual" [readonly]="caja.loteDelCodigo" autocomplete="off" />
-                  </div>
-                  <div class="field">
-                    <label for="caducidad-manual">Caducidad (mes y año)</label>
-                    <input id="caducidad-manual" name="caducidad" type="month" [(ngModel)]="mesManual" />
-                  </div>
-                  <button class="btn" type="submit">Agregar</button>
+                <div class="pide-clave">
+                  <span>Caja <code>{{ caja.codigo }}</code>
+                    @if (claveCaja(); as c) { · <strong>{{ c.clave }}</strong> {{ c.nombre }}
+                      <button class="link" type="button" (click)="cambiarClaveDeLaCaja()">Cambiar</button> }
+                  </span>
+                  @if (buscandoClave()) {
+                    <span class="manual-codigo">Buscando el código…</span>
+                  } @else if (!claveCaja()) {
+                    <span>¿De qué medicamento es?</span>
+                    <app-buscador-medicamento [soloDadasDeAlta]="false" (elegido)="claveElegidaParaCaja($event)" />
+                  } @else if (lotesCaja() === null) {
+                    <span class="manual-codigo">Leyendo los lotes de Intelisis…</span>
+                  } @else if (!escribirAMano()) {
+                    <span>Toca el lote de la caja (lotes con existencia en Intelisis):</span>
+                    <div class="lotes-intelisis">
+                      @for (l of lotesCaja(); track l.lote) {
+                        <button class="btn secondary chico" type="button" (click)="elegirLote(l)">
+                          <strong>{{ l.lote }}</strong> · cad. {{ fechaCorta(l.caducidad) }} · {{ l.piezas | number: '1.0-0' }} pz
+                        </button>
+                      }
+                    </div>
+                    <button class="link" type="button" (click)="aMano()">No está en la lista: escribir lote y caducidad</button>
+                  }
+                  @if (claveCaja() && escribirAMano()) {
+                    <form class="manual" (ngSubmit)="agregarManual()">
+                      <div class="field">
+                        <label for="lote-manual">Lote</label>
+                        <input id="lote-manual" #campoLote name="lote" [(ngModel)]="loteManual" [readonly]="caja.loteDelCodigo" autocomplete="off" />
+                      </div>
+                      <div class="field">
+                        <label for="caducidad-manual">Caducidad</label>
+                        <input id="caducidad-manual" name="caducidad" type="text" inputmode="numeric" autocomplete="off"
+                               placeholder="31/12/2027 o 12/2027" [(ngModel)]="caducidadManual" />
+                      </div>
+                      <button class="btn" type="submit">Agregar</button>
+                    </form>
+                  }
                   <button class="link" type="button" (click)="cancelarCaja()">Cancelar</button>
-                </form>
+                </div>
               }
               @if (porClave(); as caja) {
                 <div class="pide-clave">
@@ -145,6 +172,85 @@
             </div>
             @if (camaraAbierta()) {
               <app-escaner-camara [continuo]="true" (leido)="codigoDesdeCamara($event)" (cerrar)="camaraAbierta.set(false)" />
+            }
+            @if (renombrando()) {
+              <div class="velo" (click)="cerrarRenombrar()"></div>
+              <form class="ventana-piezas" role="dialog" aria-modal="true" aria-labelledby="titulo-renombrar"
+                    (ngSubmit)="renombrar()" (keydown.escape)="cerrarRenombrar()">
+                <p class="ya-registrada">Cambiar nombre del estante</p>
+                <h3 id="titulo-renombrar">{{ estante() || 'Sin estante' }}</h3>
+                <p class="datos-caja">{{ renglonesDelEstante().length }} renglones pasan al nombre nuevo.</p>
+                <div class="field">
+                  <label for="nombre-estante">Nombre nuevo</label>
+                  <input id="nombre-estante" #campoRenombrar name="nombre" maxlength="40" list="estantes-renombrar" autocomplete="off"
+                         [(ngModel)]="nombreEstanteNuevo" />
+                  <datalist id="estantes-renombrar">
+                    @for (e of estantes(); track e.nombre) {
+                      @if (e.nombre && e.nombre !== estante()) { <option [value]="e.nombre"></option> }
+                    }
+                  </datalist>
+                </div>
+                <p class="previo">Si ya existe un estante con ese nombre, se juntan; los lotes repetidos suman sus piezas.</p>
+                @if (errorRenombrar()) {
+                  <p class="error-captura" role="alert">{{ errorRenombrar() }}</p>
+                }
+                <div class="acciones">
+                  <button class="btn" type="submit">Guardar nombre</button>
+                  <button class="link" type="button" (click)="cerrarRenombrar()">Cancelar</button>
+                </div>
+              </form>
+            }
+            @if (moviendo(); as r) {
+              <div class="velo" (click)="cerrarMover()"></div>
+              <form class="ventana-piezas" role="dialog" aria-modal="true" aria-labelledby="titulo-mover"
+                    (ngSubmit)="mover()" (keydown.escape)="cerrarMover()">
+                <p class="ya-registrada">Mover a otro estante</p>
+                <h3 id="titulo-mover">{{ r.medicamento }}</h3>
+                <p class="datos-caja">Lote <strong>{{ r.lote }}</strong> · ahora en <strong>{{ r.ubicacion || 'Sin estante' }}</strong>
+                  @if (r.cantidad !== null) { · {{ r.cantidad }} piezas }</p>
+                <div class="field">
+                  <label for="estante-destino">Estante correcto</label>
+                  <input id="estante-destino" #campoDestino name="destino" list="estantes-conteo" autocomplete="off"
+                         placeholder="Escribe o elige el estante" [(ngModel)]="estanteDestino" />
+                  <datalist id="estantes-conteo">
+                    @for (e of estantes(); track e.nombre) {
+                      @if (e.nombre && e.nombre !== (r.ubicacion ?? '')) { <option [value]="e.nombre"></option> }
+                    }
+                  </datalist>
+                </div>
+                <p class="previo">Si ese estante ya tiene este mismo lote, se juntan en uno y se suman las piezas.</p>
+                @if (errorMover()) {
+                  <p class="error-captura" role="alert">{{ errorMover() }}</p>
+                }
+                <div class="acciones">
+                  <button class="btn" type="submit">Mover</button>
+                  <button class="link" type="button" (click)="cerrarMover()">Cancelar</button>
+                </div>
+              </form>
+            }
+            @if (capturando(); as r) {
+              <div class="velo" (click)="cerrarCaptura()"></div>
+              <form class="ventana-piezas" role="dialog" aria-modal="true" aria-labelledby="titulo-piezas"
+                    (ngSubmit)="guardarCaptura()" (keydown.escape)="cerrarCaptura()">
+                <p class="ya-registrada">Esta caja ya está registrada en este estante</p>
+                <h3 id="titulo-piezas">{{ r.medicamento }}</h3>
+                <p class="datos-caja"><strong>{{ r.clave }}</strong> · lote <strong>{{ r.lote }}</strong> · cad. {{ fechaCorta(r.caducidad) }}</p>
+                @if (r.cantidad !== null) {
+                  <p class="previo">Ya tiene <strong>{{ r.cantidad }}</strong> piezas{{ r.contadoPor ? ' (contó ' + r.contadoPor + ')' : '' }}. Lo que escribas reemplaza esa cantidad.</p>
+                }
+                <div class="field">
+                  <label for="piezas-captura">Piezas que hay en el estante</label>
+                  <input id="piezas-captura" #campoPiezas name="piezas" type="number" min="0" step="1" inputmode="numeric"
+                         autocomplete="off" [(ngModel)]="piezasCaptura" />
+                </div>
+                @if (errorCaptura()) {
+                  <p class="error-captura" role="alert">{{ errorCaptura() }}</p>
+                }
+                <div class="acciones">
+                  <button class="btn" type="submit" [disabled]="guardandoCaptura()">Guardar piezas</button>
+                  <button class="link" type="button" (click)="cerrarCaptura()">Cancelar</button>
+                </div>
+              </form>
             }
 
             @if (avisoTabla()) {
@@ -171,7 +277,7 @@
                       </td>
                       <td>{{ r.lote }}</td>
                       <td>
-                        {{ mesAnio(r.caducidad) }}
+                        {{ fechaCorta(r.caducidad) }}
                         @if (esVencido(r)) {
                           <span class="pill danger">Vencido</span>
                         }
@@ -189,7 +295,10 @@
                           <span class="conto falta">— falta</span>
                         }
                       </td>
-                      <td><button class="btn-quitar" type="button" (click)="quitar(r)">Quitar</button></td>
+                      <td class="acciones-renglon">
+                        <button class="btn-quitar" type="button" (click)="abrirMover(r)">Mover</button>
+                        <button class="btn-quitar" type="button" (click)="quitar(r)">Quitar</button>
+                      </td>
                     </tr>
                   } @empty {
                     <tr><td colspan="6" class="empty">Escanea la primera caja de este estante.</td></tr>

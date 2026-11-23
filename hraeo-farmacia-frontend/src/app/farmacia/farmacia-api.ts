@@ -60,6 +60,13 @@ export interface EstadoConteo {
 }
 
 // Caja escaneada. La clave solo se manda cuando el backend dijo que el código es nuevo (404).
+// Lote que Intelisis tiene en existencia de una clave (Almacén y Farmacia juntos), para elegirlo.
+export interface LoteIntelisisConteo {
+  lote: string;
+  caducidad: string;
+  piezas: number;
+}
+
 export interface NuevoRenglonConteo {
   codigo: string;
   clave?: string;
@@ -521,6 +528,20 @@ export class FarmaciaApi {
   // ---------- Inventario inicial por conteo (HU25) ----------
   conteoInicial(): Observable<EstadoConteo> {
     return this.http.get<EstadoConteo>(`${this.base}/conteo-inicial`, this.cabeceras());
+  }
+
+  /** Pasa el renglón a otro estante ('' = sin estante); si ahí ya estaba el lote, se juntan y se suman las piezas. */
+  moverEnConteo(id: number, ubicacion: string): Observable<RenglonConteo> {
+    return this.http.put<RenglonConteo>(`${this.base}/conteo-inicial/renglones/${id}/ubicacion`, { ubicacion }, this.cabeceras());
+  }
+
+  /** Cambia el nombre de un estante ('' = sin estante); los lotes que ya estén en el nuevo se juntan. */
+  renombrarEstante(actual: string, nuevo: string): Observable<EstadoConteo> {
+    return this.http.put<EstadoConteo>(`${this.base}/conteo-inicial/estantes`, { actual, nuevo }, this.cabeceras());
+  }
+
+  lotesParaConteo(clave: string): Observable<LoteIntelisisConteo[]> {
+    return this.http.get<LoteIntelisisConteo[]>(`${this.base}/conteo-inicial/lotes`, { ...this.cabeceras(), params: { clave } });
   }
 
   /** Escanear otra vez el mismo lote en el mismo estante no lo duplica: regresa el mismo renglón. */

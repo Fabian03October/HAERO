@@ -787,6 +787,32 @@ export class AlmacenApi {
 
 // Las cajas traen solo mes y año (AAAA-MM); el backend guarda una fecha completa,
 // así que se usa el último día de ese mes. Si ya trae día, se deja igual.
+/**
+ * Caducidad escrita a mano, con o sin día: "31/12/2027", "12/2027", "2027-12-31", "2027-12",
+ * también con punto o guion y año de dos dígitos. Sin día se toma el último día del mes.
+ * Regresa AAAA-MM-DD, o null si no es una fecha real.
+ */
+export function leerCaducidad(texto: string): string | null {
+  const t = texto.trim();
+  let dia: number | null = null;
+  let mes: number;
+  let anio: number;
+  let m: RegExpMatchArray | null;
+  if ((m = t.match(/^(\d{4})[-/.](\d{1,2})(?:[-/.](\d{1,2}))?$/))) {
+    [anio, mes, dia] = [Number(m[1]), Number(m[2]), m[3] ? Number(m[3]) : null];
+  } else if ((m = t.match(/^(?:(\d{1,2})[-/.])?(\d{1,2})[-/.](\d{2}|\d{4})$/))) {
+    [dia, mes, anio] = [m[1] ? Number(m[1]) : null, Number(m[2]), Number(m[3])];
+    if (anio < 100) anio += 2000;
+  } else {
+    return null;
+  }
+  if (mes < 1 || mes > 12) return null;
+  const ultimo = new Date(anio, mes, 0).getDate();
+  if (dia === null) dia = ultimo;
+  if (dia < 1 || dia > ultimo) return null;
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
 export function ultimoDiaDelMes(fecha: string): string {
   if (fecha.length > 7) return fecha;
   const [anio, mes] = fecha.split('-').map(Number);

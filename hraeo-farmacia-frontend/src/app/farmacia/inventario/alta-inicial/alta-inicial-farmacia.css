@@ -81,6 +81,25 @@ tr.falta .cantidad { border-color: #d19a3e; }
 .aviso-bloque { display: grid; gap: 8px; margin-bottom: 10px; padding: 11px 14px; border: 1px solid #f0d9a8; border-radius: 10px; background: #fff4e0; color: #6b4600; font-size: 13px; }
 .aviso-bloque ul { margin: 0; padding-left: 18px; }
 .btn.chico { padding: 6px 12px; font-size: 13px; }
+.lotes-intelisis { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Ventana para poner las piezas de una caja que ya estaba registrada. */
+.velo { position: fixed; inset: 0; z-index: 40; background: rgb(30 20 25 / 45%); }
+.ventana-piezas {
+  position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 32px)); padding: 20px 22px; border-radius: 12px; border-top: 5px solid #611232;
+  background: #fff; box-shadow: 0 18px 40px rgb(60 40 20 / 25%); display: grid; gap: 8px;
+}
+.ventana-piezas h3 { margin: 0; color: #611232; }
+.ventana-piezas p { margin: 0; font-size: 14px; }
+.ventana-piezas .ya-registrada { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #a57f2c; }
+.ventana-piezas .previo { padding: 6px 10px; border-radius: 6px; background: #fff4e0; color: #8a5a00; }
+.ventana-piezas input { font-size: 22px; font-weight: 700; }
+.ventana-piezas .error-captura { color: #b3261e; font-weight: 600; }
+.ventana-piezas .acciones { display: flex; gap: 12px; align-items: center; }
+.acciones-renglon { white-space: nowrap; }
+.acciones-renglon .btn-quitar + .btn-quitar { margin-left: 6px; }
+.lotes-intelisis .btn { font-weight: 400; text-align: left; }
 .btn.grande { padding: 12px 26px; font-size: 15px; }
 .btn.peligro { background: #b3261e; }
 .centro { display: flex; justify-content: center; margin-top: 16px; }

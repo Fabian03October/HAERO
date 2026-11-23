@@ -29,6 +29,12 @@ public class ConteoInicialController {
         return ResponseEntity.ok(servicio.estado(area(request)));
     }
 
+    /** Lotes de una clave que Intelisis tiene en existencia, para elegir lote y caducidad. */
+    @GetMapping("/lotes")
+    public ResponseEntity<java.util.List<ServicioConteoInicial.LoteIntelisis>> lotes(@RequestParam String clave) {
+        return ResponseEntity.ok(servicio.lotesIntelisis(clave));
+    }
+
     @PostMapping("/renglones")
     public ResponseEntity<ServicioConteoInicial.Renglon> agregar(@RequestBody ServicioConteoInicial.NuevoRenglon nuevo,
                                                                  HttpServletRequest request, Authentication authentication) {
@@ -39,6 +45,26 @@ public class ConteoInicialController {
     public ResponseEntity<ServicioConteoInicial.Renglon> cantidad(@PathVariable long id, @RequestBody Cantidad cantidad,
                                                                   HttpServletRequest request, Authentication authentication) {
         return ResponseEntity.ok(servicio.capturarCantidad(area(request), id, cantidad.cantidad(), authentication.getName()));
+    }
+
+    public record Ubicacion(String ubicacion) {
+    }
+
+    /** Pasa el renglón a otro estante; si ahí ya estaba el mismo lote, se juntan y se suman las piezas. */
+    @PutMapping("/renglones/{id}/ubicacion")
+    public ResponseEntity<ServicioConteoInicial.Renglon> mover(@PathVariable long id, @RequestBody Ubicacion ubicacion,
+                                                               HttpServletRequest request, Authentication authentication) {
+        return ResponseEntity.ok(servicio.mover(area(request), id, ubicacion.ubicacion(), authentication.getName()));
+    }
+
+    public record CambioEstante(String actual, String nuevo) {
+    }
+
+    /** Cambia el nombre de un estante (todos sus renglones). Body: { actual, nuevo }; "" o null = sin estante. */
+    @PutMapping("/estantes")
+    public ResponseEntity<ServicioConteoInicial.Estado> renombrarEstante(@RequestBody CambioEstante cambio,
+                                                                         HttpServletRequest request, Authentication authentication) {
+        return ResponseEntity.ok(servicio.renombrarEstante(area(request), cambio.actual(), cambio.nuevo(), authentication.getName()));
     }
 
     @DeleteMapping("/renglones/{id}")

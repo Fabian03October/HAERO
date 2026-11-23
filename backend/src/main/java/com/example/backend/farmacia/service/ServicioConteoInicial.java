@@ -44,13 +44,16 @@ public class ServicioConteoInicial {
     private final ServicioRecepcion recepcion;
     private final ServicioRegistrosIntelisis registrosIntelisis;
     private final ServicioInventarioFarmacia farmacia;
+    private final String almacenPrincipal;
 
     public ServicioConteoInicial(JdbcTemplate haero, ServicioRecepcion recepcion, ServicioRegistrosIntelisis registrosIntelisis,
-                                 ServicioInventarioFarmacia farmacia) {
+                                 ServicioInventarioFarmacia farmacia,
+                                 @org.springframework.beans.factory.annotation.Value("${intelisis.almacenes:25301,25301-C}") String almacenes) {
         this.haero = haero;
         this.recepcion = recepcion;
         this.registrosIntelisis = registrosIntelisis;
         this.farmacia = farmacia;
+        this.almacenPrincipal = almacenes.split(",")[0].trim();
     }
 
     /** Cantidad: cajas en Almacén, piezas en Farmacia; null mientras no la capturan. */
@@ -65,6 +68,32 @@ public class ServicioConteoInicial {
 
     /** Lo que se escanea: el código, el lote y el anaquel. La clave solo si el código es nuevo. */
     public record NuevoRenglon(String codigo, String clave, String lote, LocalDate caducidad, String ubicacion) {
+    }
+
+    /** Lote que Intelisis tiene en existencia, para elegirlo en vez de escribir lote y caducidad. */
+    public record LoteIntelisis(String lote, LocalDate caducidad, java.math.BigDecimal piezas) {
+    }
+
+    /**
+     * Lotes con existencia y caducidad de una clave en el almacén de medicamentos de Intelisis (la copia
+     * que llena la sincronización). Almacén y Farmacia son el mismo inventario en Intelisis, así que
+     * salen los de los dos. Piezas: la clave "-1" ya viene en piezas; la base, en cajas.
+     */
+    public List<LoteIntelisis> lotesIntelisis(String clave) {
+        String limpia = ServicioInventarioFarmacia.texto(clave);
+        if (limpia == null) {
+            throw malo("Falta la clave del medicamento");
+        }
+        return haero.query("""
+                SELECT e.serie_lote, MIN(e.fecha_caducidad) AS caducidad,
+                       SUM(CASE WHEN e.articulo LIKE '%-1' THEN e.existencia ELSE e.existencia * COALESCE(m.piezas_por_caja, 1) END) AS piezas
+                FROM intelisis_existencia_lote e
+                LEFT JOIN medicamento m ON m.clave = e.clave_base
+                WHERE e.clave_base = ? AND e.almacen = ? AND e.existencia > 0 AND e.fecha_caducidad IS NOT NULL
+                GROUP BY e.serie_lote
+                ORDER BY MIN(e.fecha_caducidad), e.serie_lote
+                """, (rs, n) -> new LoteIntelisis(rs.getString(1).trim(), rs.getDate(2).toLocalDate(), rs.getBigDecimal(3)),
+                limpia, almacenPrincipal);
     }
 
     private static final String SELECT_RENGLON = """
@@ -188,6 +217,63 @@ public class ServicioConteoInicial {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo");
         }
         return renglon(id);
+    }
+
+    /**
+     * Pasa un renglón a otro estante (se registró en el que no era). Si en ese estante ya estaba el
+     * mismo lote, se juntan en uno y se suman las piezas contadas.
+     */
+    @Transactional
+    public Renglon mover(String area, long id, String ubicacionNueva, String nombreUsuario) {
+        exigirAbierto(area);
+        String destino = ServicioInventarioFarmacia.texto(ubicacionNueva);
+        if (destino == null && ALMACEN.equals(area)) {
+            throw malo("Indica el anaquel o la ubicación");
+        }
+        if (destino != null && destino.length() > 40) {
+            throw malo("La ubicación puede tener hasta 40 caracteres");
+        }
+        List<Renglon> encontrado = haero.query(SELECT_RENGLON + " WHERE r.id = ? AND r.area = ?", ServicioConteoInicial::renglon, id, area);
+        if (encontrado.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo");
+        }
+        Renglon origen = encontrado.get(0);
+        Long otro = idDe(area, origen.clave(), origen.lote(), destino);
+        if (otro == null) {
+            haero.update("UPDATE conteo_inicial_renglon SET ubicacion = ? WHERE id = ?", destino, id);
+            return renglon(id);
+        }
+        if (otro == id) {
+            return origen;
+        }
+        Renglon ya = renglon(otro);
+        if (origen.cantidad() != null || ya.cantidad() != null) {
+            int suma = (origen.cantidad() == null ? 0 : origen.cantidad()) + (ya.cantidad() == null ? 0 : ya.cantidad());
+            haero.update("UPDATE conteo_inicial_renglon SET cantidad = ?, contado_por = ?, contado_en = ? WHERE id = ?",
+                    suma, farmacia.usuario(nombreUsuario).getId(), Timestamp.valueOf(LocalDateTime.now()), otro);
+        }
+        haero.update("DELETE FROM conteo_inicial_renglon WHERE id = ?", id);
+        return renglon(otro);
+    }
+
+    /**
+     * Cambia el nombre de un estante: todos sus renglones pasan al nombre nuevo. Si ya existe un estante
+     * con ese nombre y tiene alguno de los mismos lotes, se juntan y se suman las piezas (igual que mover).
+     */
+    @Transactional
+    public Estado renombrarEstante(String area, String actual, String nuevo, String nombreUsuario) {
+        exigirAbierto(area);
+        String de = ServicioInventarioFarmacia.texto(actual);
+        List<Long> ids = haero.queryForList("""
+                SELECT id FROM conteo_inicial_renglon WHERE area = ? AND (ubicacion = ? OR (ubicacion IS NULL AND ? IS NULL))
+                """, Long.class, area, de, de);
+        if (ids.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese estante no tiene renglones en el conteo");
+        }
+        for (Long id : ids) {
+            mover(area, id, nuevo, nombreUsuario);
+        }
+        return estado(area);
     }
 
     @Transactional

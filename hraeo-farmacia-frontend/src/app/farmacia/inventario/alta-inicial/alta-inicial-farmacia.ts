@@ -1,5 +1,6 @@
 import { Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
@@ -8,10 +9,10 @@ import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../../../shared/gs1';
 import { pitido } from '../../../shared/pitido';
-import { Medicamento, mensajeDeError, ultimoDiaDelMes } from '../../../almacen/almacen-api';
+import { Medicamento, leerCaducidad, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
-import { EstadoConteo, FarmaciaApi, NuevoRenglonConteo, RenglonConteo } from '../../farmacia-api';
+import { EstadoConteo, FarmaciaApi, LoteIntelisisConteo, NuevoRenglonConteo, RenglonConteo } from '../../farmacia-api';
 import { InventarioInicialEstado } from './inventario-inicial-estado';
 
 // Cada cuánto se vuelve a pedir el conteo para ver lo que capturan los demás.
@@ -37,7 +38,7 @@ interface CajaPendiente {
 // servidor (varias personas a la vez) y al final se guarda junto, una sola vez.
 @Component({
   selector: 'app-alta-inicial-farmacia',
-  imports: [FormsModule, RouterLink, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
+  imports: [FormsModule, RouterLink, DecimalPipe, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
   templateUrl: './alta-inicial-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './alta-inicial-farmacia.css'],
 })
@@ -69,7 +70,29 @@ export class AltaInicialFarmacia {
   readonly ultimoId = signal<number | null>(null);
   readonly pendiente = signal<CajaPendiente | null>(null);
   loteManual = '';
-  mesManual = '';
+  caducidadManual = '';
+  // Caja sin lote y caducidad en el código: su clave (sale del código o se elige) y los lotes
+  // que Intelisis tiene de esa clave, para tocar uno en vez de escribirlo.
+  readonly claveCaja = signal<{ clave: string; nombre: string } | null>(null);
+  readonly lotesCaja = signal<LoteIntelisisConteo[] | null>(null);
+  readonly buscandoClave = signal(false);
+  readonly escribirAMano = signal(false);
+  // Caja que ya estaba registrada en el estante: ventana para escribir sus piezas.
+  readonly capturando = signal<RenglonConteo | null>(null);
+  piezasCaptura = '';
+  readonly errorCaptura = signal('');
+  readonly guardandoCaptura = signal(false);
+  private readonly campoPiezas = viewChild<ElementRef<HTMLInputElement>>('campoPiezas');
+  // Renglón que se registró en el estante que no era: ventana para pasarlo a otro.
+  readonly moviendo = signal<RenglonConteo | null>(null);
+  estanteDestino = '';
+  readonly errorMover = signal('');
+  private readonly campoDestino = viewChild<ElementRef<HTMLInputElement>>('campoDestino');
+  // Cambiar el nombre del estante abierto.
+  readonly renombrando = signal(false);
+  nombreEstanteNuevo = '';
+  readonly errorRenombrar = signal('');
+  private readonly campoRenombrar = viewChild<ElementRef<HTMLInputElement>>('campoRenombrar');
   // Código nuevo: se elige la clave y se vuelve a mandar la misma caja.
   readonly porClave = signal<NuevoRenglonConteo | null>(null);
   private readonly campoCodigo = viewChild<ElementRef<HTMLInputElement>>('campoCodigo');
@@ -230,11 +253,83 @@ export class AltaInicialFarmacia {
       this.registrar({ codigo, lote: gs1.lote, caducidad: gs1.caducidad });
       return;
     }
-    // Sin lote o sin caducidad en el código: se escriben a mano.
+    // Ya registrada en este estante (un solo lote con ese código): directo a poner sus piezas.
+    const mismas = this.renglonesDelEstante().filter((r) => r.codigo === codigo);
+    if (mismas.length === 1) {
+      this.abrirCaptura(mismas[0]);
+      return;
+    }
+    // Sin lote o sin caducidad en el código: se elige de los lotes de Intelisis de su clave.
     this.loteManual = gs1?.lote ?? '';
-    this.mesManual = '';
+    this.caducidadManual = '';
+    this.claveCaja.set(null);
+    this.lotesCaja.set(null);
+    this.escribirAMano.set(false);
     this.pendiente.set({ codigo, loteDelCodigo: !!gs1?.lote });
-    this.avisar('Este código no trae lote y caducidad: escríbelos y da Agregar.', 'aviso');
+    // Si el código ya se conoce, la clave sale sola; si no, se elige una vez. Primero en el propio
+    // conteo: ahí se guarda el código al registrarlo, y al catálogo pasa hasta guardar el inventario.
+    const enConteo = this.renglones().find((r) => r.codigo === codigo);
+    if (enConteo) {
+      this.usarClaveDeLaCaja(enConteo.clave, enConteo.medicamento);
+      return;
+    }
+    this.buscandoClave.set(true);
+    this.api.codigoMedicamento(codigo).subscribe({
+      next: (c) => {
+        this.buscandoClave.set(false);
+        this.usarClaveDeLaCaja(c.clave, c.nombre);
+      },
+      error: () => {
+        this.buscandoClave.set(false);
+        this.avisar('Código nuevo: elige de qué medicamento es la caja.', 'aviso');
+      },
+    });
+  }
+
+  claveElegidaParaCaja(medicamento: Medicamento): void {
+    this.usarClaveDeLaCaja(medicamento.clave, medicamento.nombreGenerico);
+  }
+
+  private usarClaveDeLaCaja(clave: string, nombre: string): void {
+    this.claveCaja.set({ clave, nombre });
+    this.lotesCaja.set(null);
+    this.api.lotesParaConteo(clave).subscribe({
+      next: (lotes) => {
+        this.lotesCaja.set(lotes);
+        // Si el código trajo el lote y está en Intelisis, se registra sin preguntar.
+        const leido = this.loteManual.trim().toUpperCase();
+        const delCodigo = leido ? lotes.filter((l) => l.lote.toUpperCase() === leido || l.lote.toUpperCase().startsWith(leido + ' ')) : [];
+        if (delCodigo.length === 1) return this.elegirLote(delCodigo[0]);
+        if (!lotes.length) {
+          this.escribirAMano.set(true);
+          this.avisar(`Intelisis no tiene lotes en existencia de ${clave}: escribe el lote y la caducidad.`, 'aviso');
+          setTimeout(() => this.campoLote()?.nativeElement.focus());
+          return;
+        }
+        this.avisar('Toca el lote de la caja.', 'aviso');
+      },
+      error: (error: HttpErrorResponse) => {
+        this.escribirAMano.set(true);
+        this.avisar(mensajeDeError(error, 'No se pudieron leer los lotes de Intelisis: escribe el lote y la caducidad.'), 'error');
+      },
+    });
+  }
+
+  elegirLote(lote: LoteIntelisisConteo): void {
+    const caja = this.pendiente();
+    const clave = this.claveCaja()?.clave;
+    if (!caja || !clave) return;
+    this.registrar({ codigo: caja.codigo, clave, lote: lote.lote, caducidad: lote.caducidad });
+  }
+
+  cambiarClaveDeLaCaja(): void {
+    this.claveCaja.set(null);
+    this.lotesCaja.set(null);
+    this.escribirAMano.set(false);
+  }
+
+  aMano(): void {
+    this.escribirAMano.set(true);
     setTimeout(() => this.campoLote()?.nativeElement.focus());
   }
 
@@ -247,11 +342,16 @@ export class AltaInicialFarmacia {
     const caja = this.pendiente();
     if (!caja) return;
     const lote = this.loteManual.trim();
-    if (!lote || !this.mesManual) {
+    if (!lote || !this.caducidadManual.trim()) {
       this.avisar('Falta el lote o la caducidad de la caja.', 'error');
       return;
     }
-    this.registrar({ codigo: caja.codigo, lote, caducidad: ultimoDiaDelMes(this.mesManual) });
+    const caducidad = leerCaducidad(this.caducidadManual);
+    if (!caducidad) {
+      this.avisar('No se entiende la caducidad: escríbela como 31/12/2027, o 12/2027 si la caja no trae día.', 'error');
+      return;
+    }
+    this.registrar({ codigo: caja.codigo, clave: this.claveCaja()?.clave, lote, caducidad });
   }
 
   elegirClave(medicamento: Medicamento): void {
@@ -275,7 +375,8 @@ export class AltaInicialFarmacia {
         this.ponerRenglon(renglon);
         this.ultimoId.set(renglon.id);
         if (yaEstaba.has(renglon.id)) {
-          this.avisar(`${renglon.medicamento} · lote ${renglon.lote} ya estaba registrado en este estante.`, 'aviso');
+          this.abrirCaptura(renglon);
+          return;
         } else {
           this.avisar(`✓ ${renglon.medicamento} · lote ${renglon.lote}`, 'ok');
         }
@@ -355,6 +456,141 @@ export class AltaInicialFarmacia {
     });
   }
 
+  // ---------- Ventana de piezas (caja que ya estaba registrada) ----------
+  abrirCaptura(renglon: RenglonConteo): void {
+    this.limpiarEscaneo();
+    this.camaraAbierta.set(false);
+    this.ultimoId.set(renglon.id);
+    this.piezasCaptura = renglon.cantidad === null ? '' : String(renglon.cantidad);
+    this.errorCaptura.set('');
+    this.capturando.set(renglon);
+    setTimeout(() => {
+      this.campoPiezas()?.nativeElement.focus();
+      this.campoPiezas()?.nativeElement.select();
+    });
+  }
+
+  cerrarCaptura(): void {
+    this.capturando.set(null);
+    this.enfocarEscaner();
+  }
+
+  guardarCaptura(): void {
+    const renglon = this.capturando();
+    if (!renglon || this.guardandoCaptura()) return;
+    const cantidad = Number(this.piezasCaptura.trim());
+    if (this.piezasCaptura.trim() === '' || !Number.isInteger(cantidad) || cantidad < 0) {
+      this.errorCaptura.set('Escribe las piezas con un número entero (0 si no había).');
+      return;
+    }
+    this.guardandoCaptura.set(true);
+    this.api.contarRenglon(renglon.id, cantidad).subscribe({
+      next: (actualizado) => {
+        this.guardandoCaptura.set(false);
+        this.ponerRenglon(actualizado);
+        this.capturando.set(null);
+        this.avisar(`✓ ${actualizado.medicamento} · lote ${actualizado.lote}: ${cantidad} piezas`, 'ok');
+        this.enfocarEscaner();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.guardandoCaptura.set(false);
+        if (error.status === 409) {
+          this.capturando.set(null);
+          return this.yaGuardado(error);
+        }
+        this.errorCaptura.set(mensajeDeError(error, 'No se guardaron las piezas.'));
+      },
+    });
+  }
+
+  // ---------- Cambiar el nombre del estante ----------
+  abrirRenombrar(): void {
+    this.nombreEstanteNuevo = this.estante() ?? '';
+    this.errorRenombrar.set('');
+    this.renombrando.set(true);
+    setTimeout(() => this.campoRenombrar()?.nativeElement.select());
+  }
+
+  cerrarRenombrar(): void {
+    this.renombrando.set(false);
+    this.enfocarEscaner();
+  }
+
+  renombrar(): void {
+    const actual = this.estante();
+    if (actual === null) return;
+    const nuevo = this.nombreEstanteNuevo.trim();
+    if (!nuevo) {
+      this.errorRenombrar.set('Escribe el nombre del estante.');
+      return;
+    }
+    if (nuevo === actual) return this.cerrarRenombrar();
+    const yaExiste = this.estantes().some((e) => e.nombre === nuevo);
+    // Estante recién creado y todavía sin cajas: solo vive en esta pantalla.
+    if (!this.renglonesDelEstante().length) {
+      this.estantesNuevos.update((lista) => lista.filter((n) => n !== actual).concat(yaExiste ? [] : [nuevo]));
+      this.estante.set(nuevo);
+      return this.cerrarRenombrar();
+    }
+    this.api.renombrarEstante(actual, nuevo).subscribe({
+      next: (estado) => {
+        this.estado.set(estado);
+        this.estantesNuevos.update((lista) => lista.filter((n) => n !== actual && n !== nuevo));
+        this.estante.set(nuevo);
+        this.renombrando.set(false);
+        this.avisar(yaExiste ? `Se juntó con el estante ${nuevo}; los lotes repetidos sumaron sus piezas.` : `El estante ahora se llama ${nuevo}.`, 'ok');
+        this.enfocarEscaner();
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 409) {
+          this.renombrando.set(false);
+          return this.yaGuardado(error);
+        }
+        this.errorRenombrar.set(mensajeDeError(error, 'No se pudo cambiar el nombre del estante.'));
+      },
+    });
+  }
+
+  // ---------- Mover a otro estante ----------
+  abrirMover(renglon: RenglonConteo): void {
+    this.estanteDestino = '';
+    this.errorMover.set('');
+    this.moviendo.set(renglon);
+    setTimeout(() => this.campoDestino()?.nativeElement.focus());
+  }
+
+  cerrarMover(): void {
+    this.moviendo.set(null);
+  }
+
+  mover(): void {
+    const renglon = this.moviendo();
+    if (!renglon) return;
+    const destino = this.estanteDestino.trim();
+    if (destino === (renglon.ubicacion ?? '')) {
+      this.errorMover.set('Ya está en ese estante; escribe otro.');
+      return;
+    }
+    this.api.moverEnConteo(renglon.id, destino).subscribe({
+      next: (resultado) => {
+        // Si en el destino ya estaba el lote, el backend juntó los dos y borró este.
+        this.estado.update((e) => e && { ...e, renglones: e.renglones.filter((r) => r.id !== renglon.id) });
+        this.ponerRenglon(resultado);
+        this.moviendo.set(null);
+        const juntado = resultado.id !== renglon.id ? ' (ya estaba ahí: se juntaron y se sumaron las piezas)' : '';
+        this.avisoTabla.set('');
+        this.avisar(`${renglon.medicamento} · lote ${renglon.lote} pasó a ${destino || 'Sin estante'}${juntado}.`, 'ok');
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 409) {
+          this.moviendo.set(null);
+          return this.yaGuardado(error);
+        }
+        this.errorMover.set(mensajeDeError(error, 'No se pudo mover el renglón.'));
+      },
+    });
+  }
+
   // ---------- Guardar ----------
   guardar(): void {
     if (this.guardando()) return;
@@ -378,8 +614,9 @@ export class AltaInicialFarmacia {
   }
 
   // ---------- Formato ----------
-  mesAnio(fecha: string): string {
-    return `${fecha.slice(5, 7)}/${fecha.slice(0, 4)}`;
+  // AAAA-MM-DD → DD/MM/AAAA.
+  fechaCorta(fecha: string): string {
+    return `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}/${fecha.slice(0, 4)}`;
   }
 
   fechaHora(valor: string | null): string {
@@ -427,6 +664,9 @@ export class AltaInicialFarmacia {
     this.codigoEscaneado = '';
     this.pendiente.set(null);
     this.porClave.set(null);
+    this.claveCaja.set(null);
+    this.lotesCaja.set(null);
+    this.escribirAMano.set(false);
     this.ultimo.set(null);
   }
 
