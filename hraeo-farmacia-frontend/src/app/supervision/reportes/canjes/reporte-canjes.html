@@ -37,7 +37,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (canje of filas(); track canje.loteNuevoId) {
+        @for (canje of pagFilas.visibles(); track canje.loteNuevoId) {
           <tr>
             <td><strong>{{ fechaCorta(canje.fecha) || '—' }}</strong><small>{{ canje.usuario || '—' }}</small></td>
             <td><strong>{{ canje.clave }}</strong><small>{{ canje.nombreGenerico }}</small></td>
@@ -59,4 +59,5 @@
       </tbody>
     </table>
   </div>
+    <app-paginador [control]="pagFilas" />
 </section>

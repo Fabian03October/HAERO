@@ -94,7 +94,7 @@
   display: block;
   height: 2px;
   border-radius: 2px;
-  background: #fff;
+  background: var(--color-card);
 }
 
 /* Tabletas y celulares: el menú se abre con ☰ y Políticas / Mi contraseña pasan al menú. */

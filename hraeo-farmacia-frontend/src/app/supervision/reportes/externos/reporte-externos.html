@@ -84,7 +84,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (item of filas(); track $index) {
+        @for (item of pagFilas.visibles(); track $index) {
           <tr>
             <td><strong>{{ fechaCorta(item.fecha) }}</strong><small>{{ item.usuario || '—' }}</small></td>
             <td>
@@ -100,4 +100,5 @@
       </tbody>
     </table>
   </div>
+    <app-paginador [control]="pagFilas" />
 </section>

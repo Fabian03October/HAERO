@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -25,11 +26,14 @@ function hoyMenos(dias: number): string {
 // restableció la contraseña de cada cuenta. Solo consulta; nadie la edita ni la borra.
 @Component({
   selector: 'app-bitacora-usuarios',
-  imports: [Topbar, Sidebar, FormsModule, DatePipe],
+  imports: [Paginador, Topbar, Sidebar, FormsModule, DatePipe],
   templateUrl: './bitacora-usuarios.html',
   styleUrls: ['../gestion-usuarios/gestion-usuarios.css', './bitacora-usuarios.css'],
 })
 export class BitacoraUsuarios {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagRegistros = new Paginacion(() => this.registros());
+
   private readonly usuariosApi = inject(UsuariosApi);
 
   protected readonly session = inject(Session);

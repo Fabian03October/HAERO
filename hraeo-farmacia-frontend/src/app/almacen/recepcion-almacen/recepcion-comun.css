@@ -4,56 +4,56 @@
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #a57f2c;
+  color: var(--color-dorado);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.screen-heading h1 { margin: 0 0 6px; color: #611232; font-size: 28px; }
-.screen-heading p:last-child { margin: 0; color: #6f7271; font-size: 14px; }
-h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
+.screen-heading h1 { margin: 0 0 6px; color: var(--color-guinda); font-size: 28px; }
+.screen-heading p:last-child { margin: 0; color: var(--color-text-muted); font-size: 14px; }
+h2 { margin: 0 0 5px; color: var(--color-guinda); font-size: 18px; }
 
 .message { padding: 12px 16px; border: 1px solid; border-radius: 10px; font-size: 13px; }
-.message.info { border-color: #cfe3ee; background: #edf7fb; color: #25627b; }
-.message.success { border-color: #cbe8d9; background: #edf9f3; color: #176a4b; }
-.message.error { border-color: #f1cdc8; background: #fff1ef; color: #98423b; }
+.message.info { border-color: #cfe3ee; background: #edf7fb; color: var(--color-info-text); }
+.message.success { border-color: #cbe8d9; background: var(--color-success-bg-soft); color: var(--color-success-strong); }
+.message.error { border-color: #f1cdc8; background: var(--color-danger-bg); color: #98423b; }
 
 .card {
   padding: 22px;
-  border: 1px solid #e4ddd3;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--color-card);
   box-shadow: 0 10px 26px rgb(60 40 20 / 5%);
 }
 
 .card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .counters { display: flex; flex-wrap: wrap; gap: 8px; }
-.counters span { padding: 4px 10px; border-radius: 999px; background: #f6e9ed; color: #9f2241; font-size: 12px; font-weight: 800; }
-.card-help { margin: 0; color: #6f7271; font-size: 13px; line-height: 1.5; }
+.counters span { padding: 4px 10px; border-radius: 999px; background: var(--color-guinda-suave); color: var(--color-guinda-medio); font-size: 12px; font-weight: 800; }
+.card-help { margin: 0; color: var(--color-text-muted); font-size: 13px; line-height: 1.5; }
 
 .two-columns { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 18px; align-items: start; }
 
 .entry-form { display: grid; gap: 14px; }
-.entry-form label { display: grid; gap: 6px; color: #4a4a4a; font-size: 12px; font-weight: 700; }
+.entry-form label { display: grid; gap: 6px; color: var(--color-text-secundario); font-size: 12px; font-weight: 700; }
 
 .entry-form input,
 .entry-form select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd4c8;
+  border: 1px solid var(--color-border-campo);
   border-radius: 10px;
-  background: #fdfcfa;
-  color: #2b2b2b;
+  background: var(--color-bg-tenue);
+  color: var(--color-text);
   font: inherit;
   font-size: 13px;
   outline: 0;
 }
 
 .entry-form input:focus,
-.entry-form select:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
-.entry-form input[readonly] { background: #f5f2ed; color: #6f7271; }
+.entry-form select:focus { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
+.entry-form input[readonly] { background: var(--color-chip-bg); color: var(--color-text-muted); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .primary-button,
@@ -62,7 +62,7 @@ h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
   padding: 10px 22px;
   border: 0;
   border-radius: 10px;
-  background: #9f2241;
+  background: var(--color-guinda-medio);
   color: #fff;
   font: inherit;
   font-size: 13px;
@@ -76,10 +76,10 @@ h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
 .primary-button:disabled, .danger-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .status { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
-.status.pendiente { background: #fff8ec; color: #9a651c; }
-.status.parcial { background: #edf7fb; color: #25627b; }
-.status.recibido { background: #edf9f3; color: #176a4b; }
-.status.cancelado { background: #fff1ef; color: #a9463e; }
+.status.pendiente { background: var(--color-warn-bg-soft); color: var(--color-warn-strong); }
+.status.parcial { background: #edf7fb; color: var(--color-info-text); }
+.status.recibido { background: var(--color-success-bg-soft); color: var(--color-success-strong); }
+.status.cancelado { background: var(--color-danger-bg); color: var(--color-danger-text); }
 
 @media (max-width: 860px) {
   .two-columns { grid-template-columns: minmax(0, 1fr); }
@@ -91,4 +91,4 @@ h2 { margin: 0 0 5px; color: #611232; font-size: 18px; }
 }
 
 /* HU40: solicitudes cerradas sin surtir. */
-.status.cancelada, .status.rechazada { background: #f1f0ee; color: #6f7271; }
+.status.cancelada, .status.rechazada { background: #f1f0ee; color: var(--color-text-muted); }

@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../shared/paginador/paginador';
 import { Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -7,7 +8,8 @@ import { ItemMenu, Sidebar } from '../shared/sidebar/sidebar';
 import { mensajeDeError } from '../almacen/almacen-api';
 import { EscanerCamara } from '../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../shared/gs1';
-import { FARMACIA_MENU } from '../farmacia/farmacia-nav';
+import { FARMACIA_MENU } from '../farmacia/farmacia-nav';
+
 import { MarcaSeguridad } from '../shared/marca-seguridad/marca-seguridad';
 import {
   AreaHospitalizacion,
@@ -40,11 +42,14 @@ type FiltroCamas = '' | 'OCUPADA' | 'LIBRE' | 'NOVEDADES';
 // abrir el detalle de una cama queda registrado.
 @Component({
   selector: 'app-hospitalizacion',
-  imports: [MarcaSeguridad, FormsModule, Topbar, Sidebar, EscanerCamara],
+  imports: [Paginador, MarcaSeguridad, FormsModule, Topbar, Sidebar, EscanerCamara],
   templateUrl: './hospitalizacion.html',
   styleUrls: ['../farmacia/panel-farmacia/panel-farmacia.css', '../farmacia/farmacia-comun.css', './hospitalizacion.css'],
 })
 export class Hospitalizacion {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagHojas = new Paginacion(() => this.hojasFiltradas());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   private readonly api = inject(HospitalizacionApi);

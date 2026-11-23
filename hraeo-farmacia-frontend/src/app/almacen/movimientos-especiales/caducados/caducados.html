@@ -102,7 +102,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (lote of movimientos.caducados(); track lote.loteId) {
+        @for (lote of pagCaducados.visibles(); track lote.loteId) {
           <tr>
             <td><strong>{{ lote.clave }}</strong><small>{{ lote.nombreGenerico }}</small></td>
             <td>{{ lote.numeroLote }}</td>
@@ -121,4 +121,5 @@
       </tbody>
     </table>
   </div>
+    <app-paginador [control]="pagCaducados" />
 </section>

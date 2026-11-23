@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -12,11 +13,14 @@ import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 // marcadas se descargan como comprobante en PDF (quién pidió, quién despachó y cuándo).
 @Component({
   selector: 'app-salidas-registradas',
-  imports: [FormsModule, DatePipe],
+  imports: [Paginador, FormsModule, DatePipe],
   templateUrl: './salidas-registradas.html',
   styleUrls: ['../../recepcion-almacen/recepcion-comun.css', '../despacho-comun.css', './salidas-registradas.css'],
 })
 export class SalidasRegistradas {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagSalidas = new Paginacion(() => this.salidas());
+
   protected readonly solicitudes = inject(SolicitudesAlmacen);
   private readonly session = inject(Session);
   private readonly notificaciones = inject(Notificaciones);

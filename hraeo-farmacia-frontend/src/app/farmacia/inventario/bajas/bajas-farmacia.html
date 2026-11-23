@@ -60,7 +60,7 @@
                     <tr><th>Fecha</th><th>Clave</th><th>Lote</th><th class="number">Piezas</th><th>Motivo</th><th>Registró</th></tr>
                   </thead>
                   <tbody>
-                    @for (baja of registradas(); track baja.id) {
+                    @for (baja of pagRegistradas.visibles(); track baja.id) {
                       <tr>
                         <td>{{ fecha(baja.fecha) }}</td>
                         <td><strong>{{ baja.clave }}</strong></td>
@@ -75,6 +75,7 @@
                   </tbody>
                 </table>
               </div>
+                <app-paginador [control]="pagRegistradas" />
               <p class="nota">{{ piezasRegistradas().toLocaleString('es-MX') }} piezas dadas de baja. Base del reporte de mermas (Iteración 4).</p>
             }
           </section>

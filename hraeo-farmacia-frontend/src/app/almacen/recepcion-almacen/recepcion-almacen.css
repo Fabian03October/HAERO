@@ -14,7 +14,7 @@
   flex-grow: 1;
   min-width: 0;
   padding: 30px 38px 48px;
-  background: #f6f3ee;
+  background: var(--color-bg);
 }
 
 .reception-page {

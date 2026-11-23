@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MovimientosEspecialesAlmacen } from '../../../almacen/movimientos-especiales-almacen';
@@ -8,11 +9,14 @@ import { descargarExcel, enRango, fechaCorta } from '../reporte';
 // mermas"). Lotes apartados en caducados, con cuándo y quién los apartó. Solo lectura.
 @Component({
   selector: 'app-reporte-mermas',
-  imports: [FormsModule],
+  imports: [Paginador, FormsModule],
   templateUrl: './reporte-mermas.html',
   styleUrls: ['../../../almacen/recepcion-almacen/recepcion-comun.css', '../../../almacen/despacho/despacho-comun.css', '../reportes.css'],
 })
 export class ReporteMermas {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagFilas = new Paginacion(() => this.filas());
+
   protected readonly movimientos = inject(MovimientosEspecialesAlmacen);
   protected readonly formatoCaducidad = formatoCaducidad;
   protected readonly fechaCorta = fechaCorta;

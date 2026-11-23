@@ -44,7 +44,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (receta of recetasFiltradas(); track receta.folio) {
+                  @for (receta of pagRecetas.visibles(); track receta.folio) {
                     <tr class="fila" [class.elegida]="seleccionada()?.folio === receta.folio" (click)="seleccionada.set(receta)">
                       <td><strong>{{ receta.folio }}</strong></td>
                       <td>{{ receta.paciente }}<small class="sub">Exp. {{ receta.expediente }}</small></td>
@@ -58,6 +58,7 @@
                 </tbody>
               </table>
             </div>
+              <app-paginador [control]="pagRecetas" />
           </section>
 
           <div class="lateral">

@@ -364,7 +364,7 @@
                       <tr><th>Cama</th><th>Paciente</th><th>Expediente</th><th>Medicamentos</th><th class="number">Piezas</th><th></th></tr>
                     </thead>
                     <tbody>
-                      @for (h of hojasFiltradas(); track h.folio) {
+                      @for (h of pagHojas.visibles(); track h.folio) {
                         <tr>
                           <td><strong>{{ h.cama }}</strong></td>
                           <td>{{ h.paciente }}</td>
@@ -385,6 +385,7 @@
                     </tbody>
                   </table>
                 </div>
+                  <app-paginador [control]="pagHojas" />
               } @else if (vista() === 'CAMAS') {
                 <div class="camas">
                   @for (cama of camasFiltradas(); track cama.espacio) {

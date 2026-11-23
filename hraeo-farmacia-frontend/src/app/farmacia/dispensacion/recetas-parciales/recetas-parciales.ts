@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -6,7 +7,8 @@ import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
-import { ClaveReceta, FarmaciaApi, Receta } from '../../farmacia-api';
+import { ClaveReceta, FarmaciaApi, Receta } from '../../farmacia-api';
+
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 type EstadoReceta = 'PARCIAL' | 'NO_DISPENSADA';
@@ -16,11 +18,14 @@ type RecetaPendiente = Receta & { estado: EstadoReceta };
 // pendiente o sin surtir, con lo entregado y lo pendiente de cada clave.
 @Component({
   selector: 'app-recetas-parciales',
-  imports: [MarcaSeguridad, FormsModule, RouterLink, Topbar, Sidebar],
+  imports: [Paginador, MarcaSeguridad, FormsModule, RouterLink, Topbar, Sidebar],
   templateUrl: './recetas-parciales.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './recetas-parciales.css'],
 })
 export class RecetasParciales {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagRecetas = new Paginacion(() => this.recetasFiltradas());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;

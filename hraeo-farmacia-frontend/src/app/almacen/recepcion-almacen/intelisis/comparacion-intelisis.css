@@ -5,16 +5,16 @@
 
 td small { display: block; }
 td small.nombre { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
-.unidad { color: #8c8a86; font-size: 11px; font-weight: 600; }
+.unidad { color: var(--color-text-tenue); font-size: 11px; font-weight: 600; }
 
-.mas-intelisis { color: #25627b; }
-.mas-haero { color: #9a651c; }
-.cuadra { color: #176a4b; font-size: 12px; font-weight: 800; }
+.mas-intelisis { color: var(--color-info-text); }
+.mas-haero { color: var(--color-warn-strong); }
+.cuadra { color: var(--color-success-strong); font-size: 12px; font-weight: 800; }
 
 .pill { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
-.pill.en_ambos { background: #edf9f3; color: #176a4b; }
-.pill.solo_haero { background: #fff8ec; color: #9a651c; }
-.pill.solo_intelisis { background: #edf7fb; color: #25627b; }
+.pill.en_ambos { background: var(--color-success-bg-soft); color: var(--color-success-strong); }
+.pill.solo_haero { background: var(--color-warn-bg-soft); color: var(--color-warn-strong); }
+.pill.solo_intelisis { background: #edf7fb; color: var(--color-info-text); }
 
 @media (max-width: 640px) {
   .sync-card .card-heading { flex-direction: column; align-items: stretch; }

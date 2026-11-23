@@ -153,7 +153,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (item of expedientes(); track item.id) {
+          @for (item of pagExpedientes.visibles(); track item.id) {
             <tr class="fila-expediente" (click)="verDetalle(item)">
               <td>
                 <button type="button" class="folio-link" (click)="$event.stopPropagation(); verDetalle(item)">{{ folio(item) }}</button>
@@ -188,6 +188,7 @@
         </tbody>
       </table>
     </div>
+      <app-paginador [control]="pagExpedientes" />
   </section>
 </div>
 

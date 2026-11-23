@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { InventarioAlmacen } from '../../inventario-almacen';
@@ -8,11 +9,14 @@ import { SolicitudesAlmacen, formatoCaducidad } from '../../solicitudes-almacen'
 // pero solo se mueven cuando el despachador confirma (CA4).
 @Component({
   selector: 'app-caducados',
-  imports: [DatePipe],
+  imports: [Paginador, DatePipe],
   templateUrl: './caducados.html',
   styleUrls: ['../../recepcion-almacen/recepcion-comun.css', '../../despacho/despacho-comun.css', '../movimientos-comun.css', './caducados.css'],
 })
 export class Caducados {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagCaducados = new Paginacion(() => this.movimientos.caducados());
+
   protected readonly movimientos = inject(MovimientosEspecialesAlmacen);
   private readonly inventario = inject(InventarioAlmacen);
   private readonly solicitudes = inject(SolicitudesAlmacen);

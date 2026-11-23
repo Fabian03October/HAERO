@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MovimientoExterno, MovimientosEspecialesAlmacen, SentidoExterno, TipoExterno } from '../../../almacen/movimientos-especiales-almacen';
@@ -8,11 +9,14 @@ import { descargarExcel, enRango, fechaCorta } from '../reporte';
 // traspasos a Farmacia). Préstamos y transferencias, con un resumen por institución.
 @Component({
   selector: 'app-reporte-externos',
-  imports: [FormsModule],
+  imports: [Paginador, FormsModule],
   templateUrl: './reporte-externos.html',
   styleUrls: ['../../../almacen/recepcion-almacen/recepcion-comun.css', '../../../almacen/despacho/despacho-comun.css', '../reportes.css'],
 })
 export class ReporteExternos {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagFilas = new Paginacion(() => this.filas());
+
   protected readonly movimientos = inject(MovimientosEspecialesAlmacen);
   protected readonly fechaCorta = fechaCorta;
 

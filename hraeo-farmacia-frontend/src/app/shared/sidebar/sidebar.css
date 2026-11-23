@@ -68,7 +68,7 @@
   padding: 1px 7px;
   border-radius: 999px;
   background: rgb(255 255 255 / 12%);
-  color: #f4ebd5;
+  color: var(--color-dorado-suave);
   font-size: 10px;
   font-weight: 600;
 }
@@ -181,7 +181,7 @@
 }
 
 .subitem.active::before {
-  background: #fff;
+  background: var(--color-card);
 }
 
 .backdrop,

@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
@@ -12,11 +13,14 @@ import { Baja, FarmaciaApi, LoteFarmacia, MotivoBaja } from '../../farmacia-api'
 // que en la HU19, el sistema sugiere los vencidos pero nunca los da de baja solo.
 @Component({
   selector: 'app-bajas-farmacia',
-  imports: [FormsModule, Topbar, Sidebar],
+  imports: [Paginador, FormsModule, Topbar, Sidebar],
   templateUrl: './bajas-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css'],
 })
 export class BajasFarmacia {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagRegistradas = new Paginacion(() => this.registradas());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;

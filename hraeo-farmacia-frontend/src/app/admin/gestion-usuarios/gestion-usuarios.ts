@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
@@ -9,11 +10,14 @@ import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 
 @Component({
   selector: 'app-gestion-usuarios',
-  imports: [RouterLink, Topbar, Sidebar],
+  imports: [Paginador, RouterLink, Topbar, Sidebar],
   templateUrl: './gestion-usuarios.html',
   styleUrl: './gestion-usuarios.css',
 })
 export class GestionUsuarios {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagUsuarios = new Paginacion(() => this.usuarios());
+
   private readonly usuariosApi = inject(UsuariosApi);
   private readonly notificaciones = inject(Notificaciones);
 

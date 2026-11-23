@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -16,7 +17,7 @@ import { Notificaciones } from '../../shared/notificaciones/notificaciones';
 // La clave se elige del catálogo de medicamentos; el backend la vuelve a validar al guardar.
 @Component({
   selector: 'app-solicitudes-farmacia',
-  imports: [FormsModule, DatePipe, Topbar, Sidebar],
+  imports: [Paginador, FormsModule, DatePipe, Topbar, Sidebar],
   templateUrl: './solicitudes-farmacia.html',
   styleUrls: [
     '../../almacen/recepcion-almacen/recepcion-almacen.css',
@@ -26,6 +27,9 @@ import { Notificaciones } from '../../shared/notificaciones/notificaciones';
   ],
 })
 export class SolicitudesFarmacia {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagSolicitudes = new Paginacion(() => this.solicitudesFiltradas());
+
   protected readonly session = inject(Session);
   private readonly notificaciones = inject(Notificaciones);
   private readonly api = inject(AlmacenApi);

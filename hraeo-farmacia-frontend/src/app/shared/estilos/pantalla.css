@@ -1,0 +1,86 @@
+/*
+ * Marco común de las pantallas con barra superior y menú lateral (Almacén, Farmacia y las
+ * que reutilizan su estilo): panel, encabezado (hero), indicadores (kpi), tarjetas, tablas y
+ * etiquetas. Lo importan panel-almacen.css y panel-farmacia.css; cada uno agrega solo lo suyo.
+ * No va en styles.css a propósito: así no cambia el login, administración ni las hojas impresas.
+ */
+@import './tablas.css';
+
+.panel { display: flex; flex-direction: column; min-height: 100dvh; }
+.shell { display: flex; flex-grow: 1; min-height: 0; }
+.main { flex-grow: 1; min-width: 0; padding: 28px 36px 48px; background: var(--color-bg); }
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; max-width: 1280px; margin: 0 auto; }
+
+h2 { margin: 0; color: var(--color-guinda); font-size: 18px; }
+.eyebrow { margin: 0 0 6px; color: var(--color-dorado); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* Encabezado de la pantalla */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 26px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-card);
+}
+.hero h1 { margin: 4px 0 6px; color: var(--color-guinda); font-size: clamp(24px, 3vw, 30px); }
+.hero-date { margin: 0; color: var(--color-text-muted); font-size: 12px; }
+.hero-text { max-width: 560px; margin: 0; color: var(--color-text-muted); font-size: 14px; }
+
+/* Indicadores */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kpi {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-card);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.12s;
+}
+.kpi:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgb(60 40 20 / 8%); }
+.kpi-title { display: flex; align-items: center; color: var(--color-text-secundario); font-size: 13px; font-weight: 700; }
+.kpi-title::before { content: ''; flex-shrink: 0; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--color-guinda-medio); }
+.kpi.success .kpi-title::before { background: #1e5b4f; }
+.kpi.warning .kpi-title::before { background: var(--color-warn-accent); }
+.kpi.danger .kpi-title::before { background: #c95e55; }
+.kpi strong { color: var(--color-guinda); font-size: 30px; line-height: 1.1; }
+.kpi small { color: var(--color-text-muted); font-size: 12px; }
+
+/* Tarjetas */
+.two-columns { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
+.card { padding: 22px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-card); box-shadow: 0 10px 26px rgb(60 40 20 / 5%); }
+.card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.card-link { flex-shrink: 0; color: var(--color-dorado); font-size: 12px; font-weight: 800; text-decoration: none; }
+.card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; color: var(--color-text-muted); font-size: 12px; }
+.card-foot .btn:disabled { opacity: 0.45; cursor: default; filter: none; }
+
+.empty-box { margin: 0; padding: 18px; color: var(--color-text-tenue); font-size: 13px; text-align: center; }
+
+/* Etiquetas de estado */
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--color-chip-bg); color: var(--color-text-muted); font-size: 11px; font-weight: 700; }
+.pill.success { background: var(--color-dorado-suave); color: #7a5b17; }
+.pill.warning { margin-left: 4px; background: #fff3e2; color: var(--color-warn-strong); }
+.pill.danger { background: var(--color-error-bg); color: var(--color-error-text); }
+
+/* Listas de pendientes del Inicio */
+.order-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.order-list li { display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--color-bg-suave); }
+.order-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--color-text-secundario); }
+.order-top strong { color: var(--color-guinda); }
+.order-list small { color: var(--color-text-muted); font-size: 12px; }
+
+@media (max-width: 1000px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .two-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .main { padding: 18px 14px 32px; }
+  .hero { flex-direction: column; align-items: flex-start; padding: 22px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+}

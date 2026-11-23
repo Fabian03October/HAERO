@@ -1,15 +1,12 @@
+/* Tablas comunes del sistema; aquí solo lo propio de esta página. */
+@import '../../shared/estilos/tablas.css';
+
 /* Estilos compartidos por las páginas de Despacho. Se cargan junto con
    recepcion-comun.css para que ambos módulos se vean igual. */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; color: #4a4a4a; font-size: 12px; }
-th, td { padding: 11px 10px; border-top: 1px solid #efebe4; text-align: left; white-space: nowrap; }
-th { color: #6f7271; font-size: 10px; text-transform: uppercase; }
-td strong { display: block; color: #2b2b2b; }
-td small { color: #8c8a86; font-size: 11px; }
-.number { text-align: right; }
-.empty { color: #8c8a86; text-align: center; }
+/* En estas tablas la negrita va en su propio renglón (con el detalle en <small> abajo). */
+td strong { display: block; }
 
-.status.atendida { background: #edf9f3; color: #176a4b; }
+.status.atendida { background: var(--color-success-bg-soft); color: var(--color-success-strong); }
 
 .tag {
   display: inline-block;
@@ -20,7 +17,7 @@ td small { color: #8c8a86; font-size: 11px; }
   letter-spacing: 0.04em;
 }
 
-.tag.fefo { background: #f4ebd5; color: #7a5b17; }
+.tag.fefo { background: var(--color-dorado-suave); color: #7a5b17; }
 .tag.bloqueado { background: #f3f1ee; color: #7d7a75; }
 
 .filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
@@ -30,17 +27,17 @@ td small { color: #8c8a86; font-size: 11px; }
 .filters select {
   width: 100%;
   padding: 9px 12px;
-  border: 1px solid #ddd4c8;
+  border: 1px solid var(--color-border-campo);
   border-radius: 10px;
-  background: #fdfcfa;
-  color: #2b2b2b;
+  background: var(--color-bg-tenue);
+  color: var(--color-text);
   font: inherit;
   font-size: 13px;
   outline: 0;
 }
 
 .filters input:focus,
-.filters select:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.filters select:focus { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
 
 @media (max-width: 640px) {
   .filters { grid-template-columns: minmax(0, 1fr); }

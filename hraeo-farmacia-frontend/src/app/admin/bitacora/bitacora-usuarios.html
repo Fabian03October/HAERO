@@ -48,7 +48,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (r of registros(); track r.id) {
+                @for (r of pagRegistros.visibles(); track r.id) {
                   <tr>
                     <td class="fecha">{{ r.fecha | date: 'dd/MM/yyyy HH:mm' }}</td>
                     <td><span class="accion" [attr.data-accion]="r.accion">{{ accionEtiqueta[r.accion] }}</span></td>
@@ -64,6 +64,7 @@
               </tbody>
             </table>
           </div>
+            <app-paginador [control]="pagRegistros" />
         }
       </div>
     </div>

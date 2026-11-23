@@ -25,6 +25,24 @@
   --color-success-bg: #e8f5ea;
   --color-success-text: #1c7c3c;
   --color-danger-link: #c0392b;
+  /* Neutros de apoyo (antes escritos a mano en cada pantalla). */
+  --color-border-campo: #ddd4c8;
+  --color-text-secundario: #4a4a4a;
+  --color-text-tenue: #8c8a86;
+  --color-bg-suave: #faf8f4;
+  --color-linea: #efebe4;
+  /* Tonos de estado de etiquetas y avisos (aviso, peligro, éxito, información). */
+  --color-guinda-borde: #f3dde4;
+  --color-bg-tenue: #fdfcfa;
+  --color-chip-bg: #f5f2ed;
+  --color-warn-strong: #9a651c;
+  --color-warn-accent: #d19a3e;
+  --color-warn-bg-soft: #fff8ec;
+  --color-danger-text: #a9463e;
+  --color-danger-bg: #fff1ef;
+  --color-success-strong: #176a4b;
+  --color-success-bg-soft: #edf9f3;
+  --color-info-text: #25627b;
 }
 
 * {
@@ -75,6 +93,12 @@ a {
 .btn.block {
   display: block;
   width: 100%;
+}
+
+/* Acción que no se puede deshacer (dar de baja, guardar el inventario inicial). */
+.btn.danger {
+  background: var(--color-error-text);
+  color: #fff;
 }
 
 /* Campos de formulario */

@@ -45,7 +45,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (lote of filas(); track lote.loteId) {
+        @for (lote of pagFilas.visibles(); track lote.loteId) {
           <tr>
             <td><strong>{{ lote.clave }}</strong><small>{{ lote.nombreGenerico }}</small></td>
             <td>{{ lote.numeroLote }}</td>
@@ -61,4 +61,5 @@
       </tbody>
     </table>
   </div>
+    <app-paginador [control]="pagFilas" />
 </section>

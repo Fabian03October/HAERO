@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
@@ -13,11 +14,14 @@ import { CorteDia, EstadoDia, FarmaciaApi, RenglonResumen, RenglonVerificacion, 
 // HAERO no escribe en Intelisis: la baja por volumen la captura una persona con este resumen.
 @Component({
   selector: 'app-baja-intelisis',
-  imports: [FormsModule, Topbar, Sidebar],
+  imports: [Paginador, FormsModule, Topbar, Sidebar],
   templateUrl: './baja-intelisis.html',
   styleUrls: ['../panel-farmacia/panel-farmacia.css', '../farmacia-comun.css'],
 })
 export class BajaIntelisis {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagBajas = new Paginacion(() => this.bajas());
+
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;

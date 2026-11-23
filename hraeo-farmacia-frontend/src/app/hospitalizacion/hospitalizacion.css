@@ -2,12 +2,12 @@
    Libre = verde, ocupada = guinda, novedades = punto dorado. */
 
 .hero-hosp { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.lectura { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #e4ddd3; border-radius: 12px; background: #faf8f4; font-size: 12px; }
-.lectura strong { display: block; color: #2b2b2b; font-size: 13px; }
-.lectura small { color: #6f7271; }
+.lectura { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg-suave); font-size: 12px; }
+.lectura strong { display: block; color: var(--color-text); font-size: 13px; }
+.lectura small { color: var(--color-text-muted); }
 .punto { width: 10px; height: 10px; border-radius: 50%; background: #c9c3b9; }
-.punto.ok { background: #1c7c3c; box-shadow: 0 0 0 3px #e8f5ea; }
-.punto.mal { background: #b3261e; box-shadow: 0 0 0 3px #fdecea; }
+.punto.ok { background: var(--color-success-text); box-shadow: 0 0 0 3px var(--color-success-bg); }
+.punto.mal { background: var(--color-error-text); box-shadow: 0 0 0 3px var(--color-error-bg); }
 
 /* Áreas */
 .areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
@@ -16,20 +16,20 @@
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border: 1px solid #e4ddd3;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
-  color: #2b2b2b;
+  background: var(--color-card);
+  color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 .area:hover { border-color: #d6c7b8; box-shadow: 0 8px 18px rgb(60 40 20 / 6%); }
-.area.activa { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
-.area-nombre { padding-right: 22px; font-size: 13px; font-weight: 800; color: #611232; }
-.area-cifras { color: #6f7271; font-size: 12px; }
-.barra-ocupacion { height: 5px; overflow: hidden; border-radius: 999px; background: #e8f5ea; }
-.barra-ocupacion span { display: block; height: 100%; border-radius: 999px; background: #9f2241; }
+.area.activa { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
+.area-nombre { padding-right: 22px; font-size: 13px; font-weight: 800; color: var(--color-guinda); }
+.area-cifras { color: var(--color-text-muted); font-size: 12px; }
+.barra-ocupacion { height: 5px; overflow: hidden; border-radius: 999px; background: var(--color-success-bg); }
+.barra-ocupacion span { display: block; height: 100%; border-radius: 999px; background: var(--color-guinda-medio); }
 
 /* Aviso de novedades */
 .aviso {
@@ -39,7 +39,7 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #d19a3e;
+  background: var(--color-warn-accent);
   color: #fff;
   font-size: 11px;
   font-weight: 800;
@@ -51,12 +51,12 @@
 .hosp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 18px; align-items: start; }
 .lateral-hosp { position: sticky; top: 16px; max-height: calc(100dvh - 32px); overflow-y: auto; }
 
-.leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 12px; color: #6f7271; font-size: 12px; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 12px; color: var(--color-text-muted); font-size: 12px; }
 .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
 .muestra { width: 14px; height: 14px; border-radius: 4px; }
-.muestra.libre { border: 2px solid #1c7c3c; background: #e8f5ea; }
-.muestra.ocupada { border: 2px solid #9f2241; background: #f6e9ed; }
-.muestra.novedad { border-radius: 50%; background: #d19a3e; }
+.muestra.libre { border: 2px solid var(--color-success-text); background: var(--color-success-bg); }
+.muestra.ocupada { border: 2px solid var(--color-guinda-medio); background: var(--color-guinda-suave); }
+.muestra.novedad { border-radius: 50%; background: var(--color-warn-accent); }
 
 /* Tarjetas de cama */
 .camas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -74,38 +74,38 @@
   transition: transform 0.1s, box-shadow 0.1s;
 }
 .cama:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgb(60 40 20 / 8%); }
-.cama.libre { border-color: #b9dfc2; background: #f1faf3; color: #1c7c3c; }
-.cama.ocupada { border-color: #e8c9d2; background: #fbf4f6; color: #4a4a4a; }
-.cama.elegida { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.cama.libre { border-color: #b9dfc2; background: #f1faf3; color: var(--color-success-text); }
+.cama.ocupada { border-color: var(--color-info-border); background: #fbf4f6; color: var(--color-text-secundario); }
+.cama.elegida { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
 .cama-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .cama-cabecera strong { overflow: hidden; color: inherit; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.cama.ocupada .cama-cabecera strong { color: #611232; }
+.cama.ocupada .cama-cabecera strong { color: var(--color-guinda); }
 .cama-icono { font-size: 22px; line-height: 1.2; }
 .cama-paciente { overflow: hidden; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.cama small { color: #6f7271; font-size: 11px; }
-.cama .mas { color: #9a651c; font-weight: 700; }
+.cama small { color: var(--color-text-muted); font-size: 11px; }
+.cama .mas { color: var(--color-warn-strong); font-weight: 700; }
 .en-linea-aviso { box-shadow: none; }
 
 /* Detalle */
-.paciente-hosp { display: grid; gap: 2px; margin-bottom: 12px; padding: 12px; border-radius: 10px; background: #f6e9ed; }
-.paciente-hosp strong { color: #611232; font-size: 14px; }
-.paciente-hosp small { color: #6f7271; font-size: 12px; }
-.subtitulo { margin: 14px 0 8px; color: #611232; font-size: 13px; }
+.paciente-hosp { display: grid; gap: 2px; margin-bottom: 12px; padding: 12px; border-radius: 10px; background: var(--color-guinda-suave); }
+.paciente-hosp strong { color: var(--color-guinda); font-size: 14px; }
+.paciente-hosp small { color: var(--color-text-muted); font-size: 12px; }
+.subtitulo { margin: 14px 0 8px; color: var(--color-guinda); font-size: 13px; }
 .meds { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.meds li { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid #efebe4; border-radius: 8px; font-size: 12px; }
-.meds li small { color: #8c8a86; font-size: 11px; }
-.meds li.suspendido span { color: #8c8a86; text-decoration: line-through; }
+.meds li { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--color-linea); border-radius: 8px; font-size: 12px; }
+.meds li small { color: var(--color-text-tenue); font-size: 11px; }
+.meds li.suspendido span { color: var(--color-text-tenue); text-decoration: line-through; }
 
 /* Línea de tiempo de actualizaciones */
 .linea { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.evento { display: grid; gap: 2px; padding: 8px 10px 8px 12px; border-left: 4px solid #c9c3b9; border-radius: 6px; background: #faf8f4; font-size: 12px; }
+.evento { display: grid; gap: 2px; padding: 8px 10px 8px 12px; border-left: 4px solid #c9c3b9; border-radius: 6px; background: var(--color-bg-suave); font-size: 12px; }
 .lateral-hosp .card-heading + .linea .evento { cursor: pointer; }
-.evento small { color: #8c8a86; font-size: 11px; }
+.evento small { color: var(--color-text-tenue); font-size: 11px; }
 .evento-tipo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
-.evento.INGRESO { border-left-color: #9f2241; }
-.evento.EGRESO { border-left-color: #1c7c3c; }
-.evento.CAMBIO_CAMA { border-left-color: #6f7271; }
-.evento.MEDICAMENTO_NUEVO { border-left-color: #d19a3e; }
+.evento.INGRESO { border-left-color: var(--color-guinda-medio); }
+.evento.EGRESO { border-left-color: var(--color-success-text); }
+.evento.CAMBIO_CAMA { border-left-color: var(--color-text-muted); }
+.evento.MEDICAMENTO_NUEVO { border-left-color: var(--color-warn-accent); }
 .evento.MEDICAMENTO_SUSPENDIDO { border-left-color: #c95e55; }
 .evento.visto { opacity: 0.6; }
 
@@ -122,38 +122,38 @@
 }
 
 /* Carrito del día */
-.avance { display: grid; gap: 6px; margin-bottom: 14px; color: #6f7271; font-size: 13px; }
-.avance strong { color: #611232; }
+.avance { display: grid; gap: 6px; margin-bottom: 14px; color: var(--color-text-muted); font-size: 13px; }
+.avance strong { color: var(--color-guinda); }
 .avance-barra { height: 8px; }
-.avance-barra span { background: #1c7c3c; }
-.confirmar { display: grid; gap: 10px; margin: 0 0 14px; padding: 14px; border: 2px solid #d19a3e; border-radius: 12px; background: #fffaf0; }
+.avance-barra span { background: var(--color-success-text); }
+.confirmar { display: grid; gap: 10px; margin: 0 0 14px; padding: 14px; border: 2px solid var(--color-warn-accent); border-radius: 12px; background: #fffaf0; }
 .confirmar-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.confirmar-cabecera strong { color: #611232; font-size: 14px; }
+.confirmar-cabecera strong { color: var(--color-guinda); font-size: 14px; }
 .candidatos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.candidato { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid #e4ddd3; border-radius: 10px; background: #fff; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
-.candidato strong { color: #611232; }
-.candidato small { color: #6f7271; }
-.candidato.elegido { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.candidato { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-card); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.candidato strong { color: var(--color-guinda); }
+.candidato small { color: var(--color-text-muted); }
+.candidato.elegido { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
 .confirmar-piezas { align-items: center; font-size: 13px; }
-.confirmar-piezas label { color: #6f7271; font-weight: 700; }
-.confirmar-piezas input { flex-grow: 0; width: 90px; padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 8px; font: inherit; }
-.check { display: inline-flex; align-items: center; gap: 6px; color: #4a4a4a; font-size: 13px; }
+.confirmar-piezas label { color: var(--color-text-muted); font-weight: 700; }
+.confirmar-piezas input { flex-grow: 0; width: 90px; padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 8px; font: inherit; }
+.check { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secundario); font-size: 13px; }
 
 .carrito { display: grid; gap: 10px; }
-.carrito-cama { border: 1px solid #efebe4; border-radius: 12px; overflow: hidden; }
-.carrito-cama-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 8px 12px; background: #f6e9ed; font-size: 13px; }
-.carrito-cama-cabecera strong { color: #611232; }
-.carrito-cama-cabecera small { color: #6f7271; }
+.carrito-cama { border: 1px solid var(--color-linea); border-radius: 12px; overflow: hidden; }
+.carrito-cama-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 8px 12px; background: var(--color-guinda-suave); font-size: 13px; }
+.carrito-cama-cabecera strong { color: var(--color-guinda); }
+.carrito-cama-cabecera small { color: var(--color-text-muted); }
 .carrito-cama ul { margin: 0; padding: 0; list-style: none; }
 .linea-carrito { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid #f3efe9; font-size: 12px; }
 .linea-nombre { min-width: 0; }
-.linea-cifras { color: #4a4a4a; font-weight: 800; }
-.estado-linea { justify-self: start; padding: 2px 8px; border-radius: 999px; background: #f5f2ed; color: #6f7271; font-size: 11px; font-weight: 700; }
-.linea-carrito.PENDIENTE .estado-linea { background: #fff3e2; color: #9a651c; }
-.linea-carrito.PARCIAL .estado-linea { background: #f4ebd5; color: #7a5b17; }
-.linea-carrito.SURTIDO .estado-linea { background: #e8f5ea; color: #1c7c3c; }
-.linea-carrito.SURTIDO .linea-nombre { color: #8c8a86; }
-.linea-carrito.SUSPENDIDO .linea-nombre { color: #8c8a86; text-decoration: line-through; }
+.linea-cifras { color: var(--color-text-secundario); font-weight: 800; }
+.estado-linea { justify-self: start; padding: 2px 8px; border-radius: 999px; background: var(--color-chip-bg); color: var(--color-text-muted); font-size: 11px; font-weight: 700; }
+.linea-carrito.PENDIENTE .estado-linea { background: #fff3e2; color: var(--color-warn-strong); }
+.linea-carrito.PARCIAL .estado-linea { background: var(--color-dorado-suave); color: #7a5b17; }
+.linea-carrito.SURTIDO .estado-linea { background: var(--color-success-bg); color: var(--color-success-text); }
+.linea-carrito.SURTIDO .linea-nombre { color: var(--color-text-tenue); }
+.linea-carrito.SUSPENDIDO .linea-nombre { color: var(--color-text-tenue); text-decoration: line-through; }
 .linea-carrito.sin-clave { opacity: 0.65; }
 
 @media (max-width: 640px) {
@@ -162,26 +162,26 @@
 }
 
 .avance-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.despues { display: grid; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid #f0d9a8; border-left: 5px solid #d19a3e; border-radius: 12px; background: #fff8ec; font-size: 12px; }
-.despues > strong { color: #8a5a00; font-size: 13px; }
+.despues { display: grid; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--color-warn-border); border-left: 5px solid var(--color-warn-accent); border-radius: 12px; background: var(--color-warn-bg-soft); font-size: 12px; }
+.despues > strong { color: var(--color-warn-text); font-size: 13px; }
 .despues-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pill-nuevo, .pill-cancelado, .pill-ayer, .pill-revisar { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-.pill-nuevo { background: #f4ebd5; color: #7a5b17; }
-.pill-cancelado { background: #fdecea; color: #b3261e; }
-.pill-ayer { background: #b3261e; color: #fff; }
-.pill-revisar { background: #fff4e0; color: #8a5a00; }
+.pill-nuevo { background: var(--color-dorado-suave); color: #7a5b17; }
+.pill-cancelado { background: var(--color-error-bg); color: var(--color-error-text); }
+.pill-ayer { background: var(--color-error-text); color: #fff; }
+.pill-revisar { background: var(--color-warn-bg); color: var(--color-warn-text); }
 
 /* Despachar carrito: pasos 1 indicaciones, 2 surtir, 3 finalizar. */
 .pasos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
-.pasos button { padding: 8px 14px; border: 1px solid #d8d2c8; border-radius: 999px; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-.pasos button.activo { border-color: #9f2241; background: #9f2241; color: #fff; }
+.pasos button { padding: 8px 14px; border: 1px solid #d8d2c8; border-radius: 999px; background: var(--color-card); font: inherit; font-weight: 700; cursor: pointer; }
+.pasos button.activo { border-color: var(--color-guinda-medio); background: var(--color-guinda-medio); color: #fff; }
 .acciones-paso { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .solo-impresion { display: none; }
 
 /* Impresión del carrito: solo el formato, sin menús, áreas ni botones. */
 @media print {
   :host ::ng-deep app-topbar, :host ::ng-deep app-sidebar { display: none !important; }
-  .main { padding: 0; background: #fff; }
+  .main { padding: 0; background: var(--color-card); }
   .hero, .areas, .lateral-hosp, .no-imprimir, .barra, .leyenda, .privacidad, .confirmar { display: none !important; }
   .hosp { display: block; }
   .card { padding: 0; border: 0; box-shadow: none; }
@@ -196,17 +196,17 @@
   .firmas span { display: block; height: 36px; border-bottom: 1px solid #000; margin-bottom: 4px; }
 }
 
-.despues.cancelados { border-color: #f3c2be; border-left-color: #b3261e; background: #fdecea; }
-.despues.cancelados > strong { color: #b3261e; }
+.despues.cancelados { border-color: var(--color-error-border); border-left-color: var(--color-error-text); background: var(--color-error-bg); }
+.despues.cancelados > strong { color: var(--color-error-text); }
 .carrito-cama-cabecera .imprimir-cama { margin-left: auto; }
-.cancelado-texto { color: #b3261e; font-weight: 700; }
-.link.danger { color: #c0392b; }
+.cancelado-texto { color: var(--color-error-text); font-weight: 700; }
+.link.danger { color: var(--color-danger-link); }
 .EVENTO_MODIFICADO, .evento.MEDICAMENTO_MODIFICADO { border-left-color: #6f5bd1; }
 
 /* HU42: elegir de qué medicamento es una caja con código nuevo. */
-.codigo-nuevo { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px solid #f0d9a8; border-radius: 10px; background: #fff8ec; }
-.filtro-codigo-nuevo { padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; }
+.codigo-nuevo { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px solid var(--color-warn-border); border-radius: 10px; background: var(--color-warn-bg-soft); }
+.filtro-codigo-nuevo { padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 7px; font: inherit; }
 .opciones-codigo { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; max-height: 260px; overflow-y: auto; }
-.opciones-codigo button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid #e4ddd3; border-radius: 8px; background: #fff; font: inherit; cursor: pointer; }
-.opciones-codigo button:hover, .opciones-codigo button:focus-visible { border-color: #9f2241; }
-.opciones-codigo small { color: #6f7271; }
+.opciones-codigo button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-card); font: inherit; cursor: pointer; }
+.opciones-codigo button:hover, .opciones-codigo button:focus-visible { border-color: var(--color-guinda-medio); }
+.opciones-codigo small { color: var(--color-text-muted); }

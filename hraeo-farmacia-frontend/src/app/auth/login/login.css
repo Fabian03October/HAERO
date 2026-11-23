@@ -2,7 +2,7 @@
 .login-page {
   display: flex;
   min-height: 100dvh;
-  background: #fff;
+  background: var(--color-card);
 }
 
 .login-brand {

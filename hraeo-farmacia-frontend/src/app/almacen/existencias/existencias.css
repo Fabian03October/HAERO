@@ -1,9 +1,9 @@
 td[rowspan] { vertical-align: top; }
 tr:not(.group-start) td { border-top-style: dashed; border-top-color: #f3efe9; }
-.origin { display: block; color: #25627b; font-size: 11px; }
+.origin { display: block; color: var(--color-info-text); font-size: 11px; }
 a.status { text-decoration: none; }
-.total { color: #2b2b2b; font-weight: 800; }
-tr.expired td { color: #a9463e; }
+.total { color: var(--color-text); font-weight: 800; }
+tr.expired td { color: var(--color-danger-text); }
 .card-help { margin-top: 14px; }
 
 .link-button {
@@ -11,7 +11,7 @@ tr.expired td { color: #a9463e; }
   padding: 0;
   border: 0;
   background: none;
-  color: #9f2241;
+  color: var(--color-guinda-medio);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -21,31 +21,31 @@ tr.expired td { color: #a9463e; }
 .acciones { white-space: nowrap; }
 .acciones .link-button:first-child { margin-left: 0; }
 
-.captura { display: grid; gap: 12px; margin-bottom: 16px; padding: 16px; border: 1px solid #e8c9d2; border-radius: 10px; background: #fcf4f6; }
+.captura { display: grid; gap: 12px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--color-info-border); border-radius: 10px; background: #fcf4f6; }
 .captura-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .captura-cabecera > div { display: grid; gap: 2px; }
-.captura-cabecera small { color: #6f7271; }
+.captura-cabecera small { color: var(--color-text-muted); }
 .captura-campos { display: flex; flex-wrap: wrap; gap: 12px; }
-.captura-campos label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: #4a4a4a; min-width: 0; }
+.captura-campos label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--color-text-secundario); min-width: 0; }
 .captura-campos label.ancho { flex: 1 1 240px; }
-.captura-campos input, .captura-campos select { padding: 8px 10px; border: 1px solid #ddd4c8; border-radius: 7px; font: inherit; font-weight: 400; background: #fff; }
-.captura-aviso { margin: 0; color: #8a5a00; font-size: 13px; }
+.captura-campos input, .captura-campos select { padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 7px; font: inherit; font-weight: 400; background: var(--color-card); }
+.captura-aviso { margin: 0; color: var(--color-warn-text); font-size: 13px; }
 .captura .primary-button { justify-self: start; }
 
 /* Inventario general: activos y caducados. */
 .inventario-general { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.2fr); gap: 14px; margin-bottom: 18px; }
-.resumen-inv { display: grid; gap: 2px; padding: 14px 16px; border: 1px solid #e4ddd3; border-radius: 12px; background: #fff; font: inherit; text-align: left; }
+.resumen-inv { display: grid; gap: 2px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-card); font: inherit; text-align: left; }
 button.resumen-inv { cursor: pointer; }
 button.resumen-inv:hover { border-color: #c9a9b3; }
-.resumen-inv.active { border-color: #9f2241; box-shadow: inset 0 -3px 0 #9f2241; }
-.resumen-inv strong { color: #611232; font-size: 26px; line-height: 1.1; }
-.resumen-inv small { color: #6f7271; font-size: 12px; }
-.resumen-inv.caducados strong { color: #a9463e; }
-.resumen-inv.caducados.active { border-color: #a9463e; box-shadow: inset 0 -3px 0 #a9463e; }
-.resumen-inv.total { background: #faf8f4; }
+.resumen-inv.active { border-color: var(--color-guinda-medio); box-shadow: inset 0 -3px 0 var(--color-guinda-medio); }
+.resumen-inv strong { color: var(--color-guinda); font-size: 26px; line-height: 1.1; }
+.resumen-inv small { color: var(--color-text-muted); font-size: 12px; }
+.resumen-inv.caducados strong { color: var(--color-danger-text); }
+.resumen-inv.caducados.active { border-color: var(--color-danger-text); box-shadow: inset 0 -3px 0 var(--color-danger-text); }
+.resumen-inv.total { background: var(--color-bg-suave); }
 .reportes { display: grid; align-content: start; gap: 6px; padding: 14px 16px; border: 1px dashed #d8cfc3; border-radius: 12px; }
 .reportes .link-button { justify-self: start; margin-left: 0; }
-.subtitulo { margin: 18px 0 8px; color: #611232; font-size: 14px; }
+.subtitulo { margin: 18px 0 8px; color: var(--color-guinda); font-size: 14px; }
 td small { display: block; }
 
 @media (max-width: 900px) {

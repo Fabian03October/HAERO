@@ -65,7 +65,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (salida of salidas(); track $index) {
+          @for (salida of pagSalidas.visibles(); track $index) {
             <tr [class.elegida]="elegidas().has(salida.id)">
               <td class="check">
                 <input type="checkbox" [checked]="elegidas().has(salida.id)" (change)="alternar(salida)" [attr.aria-label]="'Marcar salida ' + salida.folio + ' del lote ' + salida.lote" />
@@ -98,6 +98,7 @@
         </tbody>
       </table>
     </div>
+      <app-paginador [control]="pagSalidas" />
   } @else {
     <!-- Fuera de la tabla para que en celular no quede cortado. -->
     <div class="empty-day">

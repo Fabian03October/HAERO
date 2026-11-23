@@ -6,15 +6,15 @@
 
 .scanner-control button {
   width: 44px;
-  border: 1px solid #9f2241;
+  border: 1px solid var(--color-guinda-medio);
   border-radius: 10px;
-  background: #fff;
-  color: #9f2241;
+  background: var(--color-card);
+  color: var(--color-guinda-medio);
   font-size: 18px;
   cursor: pointer;
 }
 
-.scanner-control button:hover { background: #f6e9ed; }
+.scanner-control button:hover { background: var(--color-guinda-suave); }
 
 .pedido-resumen {
   display: flex;
@@ -25,7 +25,7 @@
   padding: 10px 14px;
   border-radius: 10px;
   background: #f8f5f0;
-  color: #4a4a4a;
+  color: var(--color-text-secundario);
   font-size: 12px;
 }
 
@@ -38,7 +38,7 @@
   border: 1px solid #cfe3ee;
   border-radius: 10px;
   background: #edf7fb;
-  color: #25627b;
+  color: var(--color-info-text);
   font-size: 12px;
 }
 .gs1 strong { color: #1b4a5c; }
@@ -51,14 +51,14 @@
   height: 20px;
   margin-right: 4px;
   border-radius: 50%;
-  background: #9f2241;
+  background: var(--color-guinda-medio);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
 }
 
 .bloque { display: grid; gap: 10px; }
-.titulo-paso { margin: 0; color: #2b2b2b; font-size: 13px; font-weight: 700; }
+.titulo-paso { margin: 0; color: var(--color-text); font-size: 13px; font-weight: 700; }
 
 .resumen-medicamento { flex: 1 1 300px; line-height: 1.4; }
 
@@ -75,7 +75,7 @@
   color: #6b5317;
   font-size: 12px;
 }
-.mantener { display: flex; gap: 8px; align-items: center; color: #4a4a4a; font-size: 12px; font-weight: 600; }
+.mantener { display: flex; gap: 8px; align-items: center; color: var(--color-text-secundario); font-size: 12px; font-weight: 600; }
 .mantener input { width: auto; }
 
 /* Buscador del medicamento de un código nuevo: nombre y presentación completos. */
@@ -91,28 +91,28 @@
   border-radius: 10px;
   list-style: none;
 }
-.medicamentos li + li { border-top: 1px solid #efebe4; }
+.medicamentos li + li { border-top: 1px solid var(--color-linea); }
 .medicamento {
   display: grid;
   gap: 2px;
   width: 100%;
   padding: 7px 12px;
   border: 0;
-  background: #fff;
-  color: #2b2b2b;
+  background: var(--color-card);
+  color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 .medicamento:hover, .medicamento:focus-visible { background: #fbf3f5; outline: 0; }
 .medicamento-cabeza { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-.medicamento-cabeza strong { color: #611232; font-size: 12px; }
+.medicamento-cabeza strong { color: var(--color-guinda); font-size: 12px; }
 .medicamento-nombre { font-size: 12px; line-height: 1.3; }
-.medicamento-presentacion { color: #6f7271; font-size: 11px; line-height: 1.3; }
+.medicamento-presentacion { color: var(--color-text-muted); font-size: 11px; line-height: 1.3; }
 .medicamentos .sin-registros { border: 0; }
 .etiqueta { padding: 1px 7px; border-radius: 999px; background: #f2eee8; color: #6f6c68; font-size: 9px; font-weight: 800; }
-.etiqueta.alta { background: #edf9f3; color: #176a4b; }
-.etiqueta.baja { background: #fff1ef; color: #a9463e; }
+.etiqueta.alta { background: var(--color-success-bg-soft); color: var(--color-success-strong); }
+.etiqueta.baja { background: var(--color-danger-bg); color: var(--color-danger-text); }
 
 /* Búsqueda y filtros de los registros de Intelisis. */
 .registros-herramientas { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -120,32 +120,32 @@
   flex: 1 1 260px;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #ddd4c8;
+  border: 1px solid var(--color-border-campo);
   border-radius: 10px;
-  background: #fdfcfa;
+  background: var(--color-bg-tenue);
   font: inherit;
   font-size: 13px;
   outline: 0;
 }
-.buscar-registro:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.buscar-registro:focus { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
 .filtros { display: flex; flex-wrap: wrap; gap: 6px; }
 .filtros button {
   padding: 7px 12px;
-  border: 1px solid #ddd4c8;
+  border: 1px solid var(--color-border-campo);
   border-radius: 999px;
-  background: #fff;
-  color: #4a4a4a;
+  background: var(--color-card);
+  color: var(--color-text-secundario);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 .filtros button span { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #f2eee8; font-size: 11px; }
-.filtros button.activo { border-color: #9f2241; background: #9f2241; color: #fff; }
+.filtros button.activo { border-color: var(--color-guinda-medio); background: var(--color-guinda-medio); color: #fff; }
 .filtros button.activo span { background: rgb(255 255 255 / 22%); }
 
 .registros { display: grid; gap: 6px; max-height: 340px; margin: 0; padding: 2px; overflow-y: auto; list-style: none; }
-.sin-registros { padding: 14px; border: 1px dashed #ddd4c8; border-radius: 10px; color: #6f7271; font-size: 13px; text-align: center; }
+.sin-registros { padding: 14px; border: 1px dashed var(--color-border-campo); border-radius: 10px; color: var(--color-text-muted); font-size: 13px; text-align: center; }
 
 /* Tarjeta de un registro: lote y cantidad arriba, el resto en una cuadrícula. */
 .registro {
@@ -156,23 +156,23 @@
   border: 1px solid #e4ddd2;
   border-left: 4px solid #e4ddd2;
   border-radius: 12px;
-  background: #fff;
-  color: #2b2b2b;
+  background: var(--color-card);
+  color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.registro:hover:not(:disabled) { border-color: #9f2241; }
-.registro.elegido { border-color: #9f2241; border-left-color: #9f2241; background: #fbf3f5; box-shadow: 0 0 0 2px #f3dde4; }
+.registro:hover:not(:disabled) { border-color: var(--color-guinda-medio); }
+.registro.elegido { border-color: var(--color-guinda-medio); border-left-color: var(--color-guinda-medio); background: #fbf3f5; box-shadow: 0 0 0 2px var(--color-guinda-borde); }
 .registro.bloqueado { border-left-color: #d9a29b; background: #faf8f5; color: #6f6c68; cursor: not-allowed; }
 
 .registro-cabeza { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: flex-end; }
 .registro-lote { display: grid; gap: 1px; }
 .registro-lote strong { font-size: 14px; word-break: break-all; }
-.registro-cantidad { margin-left: auto; color: #4a4a4a; font-size: 11px; text-align: right; }
-.registro-cantidad strong { color: #2b2b2b; font-size: 15px; }
+.registro-cantidad { margin-left: auto; color: var(--color-text-secundario); font-size: 11px; text-align: right; }
+.registro-cantidad strong { color: var(--color-text); font-size: 15px; }
 .registro-cantidad small { display: block; }
-.marca-elegido { padding: 3px 10px; border-radius: 999px; background: #9f2241; color: #fff; font-size: 11px; font-weight: 800; }
+.marca-elegido { padding: 3px 10px; border-radius: 999px; background: var(--color-guinda-medio); color: #fff; font-size: 11px; font-weight: 800; }
 
 .registro-datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 14px; }
 .dato { display: grid; gap: 0; min-width: 0; }
@@ -180,10 +180,10 @@
 .dato strong { font-size: 12px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .registro small { color: #8a8782; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .registro-cantidad small { text-transform: none; letter-spacing: 0; font-weight: 600; }
-.caducidad.vencido { color: #a9463e; }
-.caducidad.pronto { color: #9a651c; }
+.caducidad.vencido { color: var(--color-danger-text); }
+.caducidad.pronto { color: var(--color-warn-strong); }
 
-.registro .motivo { padding: 5px 9px; border-radius: 8px; background: #fff1ef; color: #9b443c; font-size: 11px; font-weight: 700; }
+.registro .motivo { padding: 5px 9px; border-radius: 8px; background: var(--color-danger-bg); color: #9b443c; font-size: 11px; font-weight: 700; }
 
 .diferencia { color: #9b443c; }
 
@@ -192,7 +192,7 @@
 .link-add, .link-remove {
   border: 0;
   background: none;
-  color: #9f2241;
+  color: var(--color-guinda-medio);
   font: inherit;
   font-size: 13px;
   font-weight: 700;

@@ -1,3 +1,4 @@
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -47,12 +48,15 @@ const CUMPLE_ESTATUS: Record<Exclude<FiltroEstatus, ''>, (estatus: EstatusExpedi
 // - Transferencia (esqueleto): documento de envío al crearla y de recepción para confirmarla.
 @Component({
   selector: 'app-movimientos-externos',
-  imports: [FormsModule, DatePipe],
+  imports: [Paginador, FormsModule, DatePipe],
   templateUrl: './movimientos-externos.html',
   styleUrls: ['../../recepcion-almacen/recepcion-comun.css', '../../despacho/despacho-comun.css', '../movimientos-comun.css', './movimientos-externos.css'],
   host: { '(document:keydown.escape)': 'cerrarDetalle()' },
 })
 export class MovimientosExternos {
+  // Por páginas: la lista crece con el tiempo.
+  readonly pagExpedientes = new Paginacion(() => this.expedientes());
+
   protected readonly movimientos = inject(MovimientosEspecialesAlmacen);
   protected readonly solicitudes = inject(SolicitudesAlmacen);
   private readonly inventario = inject(InventarioAlmacen);

@@ -1,4 +1,4 @@
-.counters span.danger { background: #fff1ef; color: #b64f47; }
+.counters span.danger { background: var(--color-danger-bg); color: #b64f47; }
 
 .cancel-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 
@@ -6,27 +6,27 @@
   display: grid;
   gap: 3px;
   padding: 12px 14px;
-  border: 1px solid #efebe4;
+  border: 1px solid var(--color-linea);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-card);
   font-size: 12px;
 }
 
 .cancel-list strong { color: #9b443c; }
 .cancel-list span,
-.cancel-list small { color: #6f7271; }
+.cancel-list small { color: var(--color-text-muted); }
 
 .buscador {
   width: 100%;
   max-width: 420px;
   padding: 10px 12px;
-  border: 1px solid #ddd4c8;
+  border: 1px solid var(--color-border-campo);
   border-radius: 10px;
-  background: #fdfcfa;
-  color: #2b2b2b;
+  background: var(--color-bg-tenue);
+  color: var(--color-text);
   font: inherit;
   font-size: 13px;
   outline: 0;
 }
-.buscador:focus { border-color: #9f2241; box-shadow: 0 0 0 3px #f3dde4; }
+.buscador:focus { border-color: var(--color-guinda-medio); box-shadow: 0 0 0 3px var(--color-guinda-borde); }
 .lista-scroll { max-height: 520px; overflow-y: auto; }

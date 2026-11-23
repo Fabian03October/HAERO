@@ -123,7 +123,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (solicitud of solicitudesFiltradas(); track solicitud.id) {
+                  @for (solicitud of pagSolicitudes.visibles(); track solicitud.id) {
                     <tr [class.mia]="esMia(solicitud)">
                       <td>
                         <strong>{{ solicitud.pedidoId ? folioPedido(solicitud.pedidoId) : folio(solicitud.id) }}</strong>
@@ -158,6 +158,7 @@
                 </tbody>
               </table>
             </div>
+              <app-paginador [control]="pagSolicitudes" />
           </section>
         </div>
       </div>
