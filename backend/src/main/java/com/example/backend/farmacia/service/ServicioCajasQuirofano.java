@@ -1,5 +1,15 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.farmacia.entity.QuirofanoCaja;
+import com.example.backend.farmacia.entity.QuirofanoCajaContenido;
+import com.example.backend.farmacia.entity.QuirofanoCajaEvento;
+import com.example.backend.farmacia.entity.QuirofanoCajaPieza;
+import com.example.backend.farmacia.entity.QuirofanoVale;
+import com.example.backend.farmacia.entity.QuirofanoValeIndicacion;
+import com.example.backend.farmacia.entity.QuirofanoValePartida;
+import com.example.backend.farmacia.entity.QuirofanoValeUso;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import com.example.backend.almacen.entity.CodigoBarras;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.usuarios.entity.Usuario;
@@ -76,17 +86,19 @@ public class ServicioCajasQuirofano {
     private static final int VALES_EN_RESPUESTA = 10;
 
     private final JdbcTemplate haero;
+    private final EntityManager em;
     private final ServicioInventarioFarmacia inventario;
     private final LoteFarmaciaRepository loteFarmaciaRepository;
     private final RecetaRepository recetaRepository;
     private final EntregaRepository entregaRepository;
 
-    public ServicioCajasQuirofano(JdbcTemplate haero,
+    public ServicioCajasQuirofano(JdbcTemplate haero, EntityManager em,
                                   ServicioInventarioFarmacia inventario,
                                   LoteFarmaciaRepository loteFarmaciaRepository,
                                   RecetaRepository recetaRepository,
                                   EntregaRepository entregaRepository) {
         this.haero = haero;
+        this.em = em;
         this.inventario = inventario;
         this.loteFarmaciaRepository = loteFarmaciaRepository;
         this.recetaRepository = recetaRepository;
@@ -219,12 +231,19 @@ public class ServicioCajasQuirofano {
         }
         // Sin código propio se usa CAJA-001…; mientras se sabe el id lleva uno temporal.
         String temporal = codigo != null ? codigo : "T-" + UUID.randomUUID().toString().substring(0, 16);
-        Long id = haero.queryForObject("""
-                INSERT INTO quirofano_caja (codigo, nombre, servicio, creada_en, usuario_id) OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?)
-                """, Long.class, temporal, nombre, servicio, ahora(), usuario.getId());
+        QuirofanoCaja nueva = new QuirofanoCaja();
+        nueva.setCodigo(temporal);
+        nueva.setNombre(nombre);
+        nueva.setServicio(servicio);
+        nueva.setActiva(true);
+        nueva.setCreadaEn(LocalDateTime.now());
+        nueva.setUsuario(usuario);
+        guardar(nueva);
+        Long id = nueva.getId();
         if (codigo == null) {
             codigo = String.format("CAJA-%03d", id);
-            haero.update("UPDATE quirofano_caja SET codigo = ? WHERE id = ?", codigo, id);
+            nueva.setCodigo(codigo);
+            em.flush();
         }
         guardarContenido(id, contenido);
         evento(id, "ALTA", "Listado: " + resumen(contenido), usuario);
@@ -256,9 +275,12 @@ public class ServicioCajasQuirofano {
                         + " (lote " + pieza.lote + "). Sácalas primero para quitarla del listado");
             }
         }
-        haero.update("UPDATE quirofano_caja SET nombre = ?, servicio = ? WHERE id = ?", nombre, servicio, caja.id);
+        QuirofanoCaja editada = em.find(QuirofanoCaja.class, caja.id);
+        editada.setNombre(nombre);
+        editada.setServicio(servicio);
+        em.flush();
         if (cambioListado) {
-            haero.update("DELETE FROM quirofano_caja_contenido WHERE caja_id = ?", caja.id);
+            em.createQuery("DELETE FROM QuirofanoCajaContenido c WHERE c.cajaId = :caja").setParameter("caja", caja.id).executeUpdate();
             guardarContenido(caja.id, nuevo);
             evento(caja.id, "CAMBIO_LISTADO", justificacion + " · antes: " + resumen(new ArrayList<>(anterior.values()))
                     + " · ahora: " + resumen(nuevo), usuario);
@@ -271,8 +293,8 @@ public class ServicioCajasQuirofano {
             for (Contenido c : nuevo) {
                 Contenido antes = anterior.get(c.clave);
                 if (antes != null && !Objects.equals(antes.descripcion, c.descripcion)) {
-                    haero.update("UPDATE quirofano_caja_contenido SET descripcion = ? WHERE caja_id = ? AND medicamento_clave = ?",
-                            c.descripcion, caja.id, c.clave);
+                    em.createQuery("UPDATE QuirofanoCajaContenido c SET c.descripcion = :descripcion WHERE c.cajaId = :caja AND c.medicamentoClave = :clave")
+                            .setParameter("descripcion", c.descripcion).setParameter("caja", caja.id).setParameter("clave", c.clave).executeUpdate();
                     renombrados.add(c.clave + ": " + antes.mostrado() + " → " + c.mostrado());
                 }
             }
@@ -303,7 +325,7 @@ public class ServicioCajasQuirofano {
             inventario.mover(lote, MOVIMIENTO_CAJA, pieza.piezas, caja.id, usuario);
             regresadas.add(pieza.clave + " lote " + pieza.lote + " (" + pieza.piezas + ")");
         }
-        haero.update("UPDATE quirofano_caja SET activa = 0 WHERE id = ?", caja.id);
+        em.find(QuirofanoCaja.class, caja.id).setActiva(false);
         evento(caja.id, "BAJA", motivo + (regresadas.isEmpty() ? " · estaba vacía"
                 : " · regresó al estante: " + String.join(", ", regresadas)), usuario);
     }
@@ -314,13 +336,12 @@ public class ServicioCajasQuirofano {
         Usuario usuario = inventario.usuario(nombreUsuario);
         String limpio = obligatorio(codigo, "Indica el código de la caja").toUpperCase(Locale.ROOT);
         String motivo = motivo(request, "Escribe por qué se vuelve a usar la caja");
-        List<Long> ids = haero.queryForList("SELECT id FROM quirofano_caja WITH (UPDLOCK, ROWLOCK) WHERE codigo = ? AND activa = 0",
-                Long.class, limpio);
-        if (ids.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una caja dada de baja con el código " + limpio);
-        }
-        haero.update("UPDATE quirofano_caja SET activa = 1 WHERE id = ?", ids.get(0));
-        evento(ids.get(0), "REACTIVADA", motivo, usuario);
+        // Candado de la caja: dos personas no la reactivan a la vez.
+        QuirofanoCaja deBaja = em.createQuery("SELECT c FROM QuirofanoCaja c WHERE c.codigo = :codigo AND c.activa = false", QuirofanoCaja.class)
+                .setParameter("codigo", limpio).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList().stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una caja dada de baja con el código " + limpio));
+        deBaja.setActiva(true);
+        evento(deBaja.getId(), "REACTIVADA", motivo, usuario);
         return detalle(limpio);
     }
 
@@ -484,16 +505,26 @@ public class ServicioCajasQuirofano {
                 deRedFria.addAll(tomarDelEstante(caja.id, renglon.clave(), null, renglon.cantidad(), usuario));
             }
         }
-        Long valeId = haero.queryForObject("""
-                INSERT INTO quirofano_vale (caja_id, turno, sala, medico, medico_usuario, entregado_en, entregado_por)
-                OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, Long.class, caja.id, turno, sala, medico, medicoUsuario, ahora(), usuario.getId());
+        QuirofanoVale vale = new QuirofanoVale();
+        vale.setCaja(em.getReference(QuirofanoCaja.class, caja.id));
+        vale.setTurno(turno);
+        vale.setSala(sala);
+        vale.setMedico(medico);
+        vale.setMedicoUsuario(medicoUsuario);
+        vale.setEntregadoEn(LocalDateTime.now());
+        vale.setEntregadoPor(usuario);
+        guardar(vale);
         // Columna "Surtido" del vale: lo que sale ahora en la caja (con lo de red fría).
         int orden = 0;
         for (RenglonCaja renglon : actual.renglones()) {
-            haero.update("INSERT INTO quirofano_vale_partida (vale_id, medicamento_clave, surtido, orden) VALUES (?, ?, ?, ?)",
-                    valeId, renglon.clave(), renglon.aparte() ? renglon.cantidad() : renglon.tiene(), orden++);
+            QuirofanoValePartida partida = new QuirofanoValePartida();
+            partida.setValeId(vale.getId());
+            partida.setMedicamentoClave(renglon.clave());
+            partida.setSurtido(renglon.aparte() ? renglon.cantidad() : renglon.tiene());
+            partida.setOrden(orden++);
+            em.persist(partida);
         }
+        em.flush();
         evento(caja.id, "ENTREGA", "A " + medico + " · " + sala + " · turno " + turno.toLowerCase(Locale.ROOT).replace('_', ' ')
                 + (deRedFria.isEmpty() ? "" : " · red fría aparte: " + String.join(", ", deRedFria)), usuario);
         return detalle(caja.codigo);
@@ -613,10 +644,14 @@ public class ServicioCajasQuirofano {
                 sumarPieza(caja.id, partida.getLote().getId(), -partida.getPiezas());
             }
             for (Map.Entry<String, Integer> usada : paciente.piezas.entrySet()) {
-                haero.update("""
-                        INSERT INTO quirofano_vale_uso (vale_id, paciente_expediente, paciente_nombre, medicamento_clave, piezas, entrega_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """, valeId, paciente.expediente, paciente.nombre, usada.getKey(), usada.getValue(), entrega.getId());
+                QuirofanoValeUso uso = new QuirofanoValeUso();
+                uso.setVale(em.getReference(QuirofanoVale.class, valeId));
+                uso.setPacienteExpediente(paciente.expediente);
+                uso.setPacienteNombre(paciente.nombre);
+                uso.setMedicamento(em.getReference(Medicamento.class, usada.getKey()));
+                uso.setPiezas(usada.getValue());
+                uso.setEntrega(entrega);
+                guardar(uso);
             }
         }
 
@@ -627,8 +662,12 @@ public class ServicioCajasQuirofano {
             if (nombrePdf.length() > 255) {
                 nombrePdf = nombrePdf.substring(nombrePdf.length() - 255);
             }
-            haero.update("INSERT INTO quirofano_vale_indicacion (vale_id, paciente_expediente, documento_nombre, documento) VALUES (?, ?, ?, ?)",
-                    valeId, paciente.expediente, nombrePdf, leerPdf(archivo));
+            QuirofanoValeIndicacion indicacion = new QuirofanoValeIndicacion();
+            indicacion.setValeId(valeId);
+            indicacion.setPacienteExpediente(paciente.expediente);
+            indicacion.setDocumentoNombre(nombrePdf);
+            indicacion.setDocumento(leerPdf(archivo));
+            guardar(indicacion);
         }
 
         // Lo de red fría que no se usó regresa al refrigerador (estante de Farmacia): no se queda en la caja.
@@ -645,8 +684,10 @@ public class ServicioCajasQuirofano {
             }
         }
 
-        haero.update("UPDATE quirofano_vale SET recibido_en = ?, recibido_por = ?, justificacion = ? WHERE id = ?",
-                ahora(), usuario.getId(), justificacion, valeId);
+        // JPQL directo: no se carga el vale (podría traer un PDF) solo para marcarlo recibido.
+        em.createQuery("UPDATE QuirofanoVale v SET v.recibidoEn = :en, v.recibidoPor = :por, v.justificacion = :justificacion WHERE v.id = :id")
+                .setParameter("en", LocalDateTime.now()).setParameter("por", usuario).setParameter("justificacion", justificacion)
+                .setParameter("id", valeId).executeUpdate();
         int total = usadasPorClave.values().stream().mapToInt(Integer::intValue).sum();
         evento(caja.id, "DEVOLUCION", (total == 0 ? "Regresó completa"
                 : "Utilizado: " + total + " piezas en " + pacientes.size() + " paciente(s) · " + justificacion)
@@ -732,9 +773,15 @@ public class ServicioCajasQuirofano {
     }
 
     private void sumarPieza(Long cajaId, Long loteId, int piezas) {
-        if (haero.update("UPDATE quirofano_caja_pieza SET piezas = piezas + ? WHERE caja_id = ? AND farmacia_lote_id = ?",
-                piezas, cajaId, loteId) == 0) {
-            haero.update("INSERT INTO quirofano_caja_pieza (caja_id, farmacia_lote_id, piezas) VALUES (?, ?, ?)", cajaId, loteId, piezas);
+        // Suma atómica en la base (piezas = piezas + n): dos operaciones a la vez no se pisan.
+        int cambiadas = em.createQuery("UPDATE QuirofanoCajaPieza p SET p.piezas = p.piezas + :piezas WHERE p.cajaId = :caja AND p.farmaciaLoteId = :lote")
+                .setParameter("piezas", piezas).setParameter("caja", cajaId).setParameter("lote", loteId).executeUpdate();
+        if (cambiadas == 0) {
+            QuirofanoCajaPieza nueva = new QuirofanoCajaPieza();
+            nueva.setCajaId(cajaId);
+            nueva.setFarmaciaLoteId(loteId);
+            nueva.setPiezas(piezas);
+            guardar(nueva);
         }
     }
 
@@ -815,9 +862,16 @@ public class ServicioCajasQuirofano {
     private void guardarContenido(Long cajaId, List<Contenido> contenido) {
         int orden = 0;
         for (Contenido item : contenido) {
-            haero.update("INSERT INTO quirofano_caja_contenido (caja_id, medicamento_clave, cantidad, orden, aparte, descripcion) VALUES (?, ?, ?, ?, ?, ?)",
-                    cajaId, item.clave, item.cantidad, orden++, item.aparte, item.descripcion);
+            QuirofanoCajaContenido renglon = new QuirofanoCajaContenido();
+            renglon.setCajaId(cajaId);
+            renglon.setMedicamentoClave(item.clave);
+            renglon.setCantidad(item.cantidad);
+            renglon.setOrden(orden++);
+            renglon.setAparte(item.aparte);
+            renglon.setDescripcion(item.descripcion);
+            em.persist(renglon);
         }
+        em.flush();
     }
 
     private boolean esRedFria(String clave) {
@@ -832,8 +886,13 @@ public class ServicioCajasQuirofano {
 
     private void evento(Long cajaId, String accion, String detalle, Usuario usuario) {
         String texto = detalle != null && detalle.length() > 1000 ? detalle.substring(0, 1000) : detalle;
-        haero.update("INSERT INTO quirofano_caja_evento (caja_id, accion, detalle, fecha, usuario_id) VALUES (?, ?, ?, ?, ?)",
-                cajaId, accion, texto, ahora(), usuario.getId());
+        QuirofanoCajaEvento evento = new QuirofanoCajaEvento();
+        evento.setCaja(em.getReference(QuirofanoCaja.class, cajaId));
+        evento.setAccion(accion);
+        evento.setDetalle(texto);
+        evento.setFecha(LocalDateTime.now());
+        evento.setUsuario(usuario);
+        guardar(evento);
     }
 
     private static String resumen(List<Contenido> contenido) {
@@ -849,9 +908,12 @@ public class ServicioCajasQuirofano {
     }
 
     // La fecha sale de la aplicación: el SQL Server puede correr en otra zona horaria.
-    private static Timestamp ahora() {
-        return Timestamp.valueOf(LocalDateTime.now());
+    /** Guarda y escribe ya en la base: las lecturas de este servicio son SQL y deben ver lo recién guardado. */
+    private void guardar(Object entidad) {
+        em.persist(entidad);
+        em.flush();
     }
+
 
     private static LocalDateTime fecha(Object valor) {
         return valor instanceof Timestamp t ? t.toLocalDateTime() : null;

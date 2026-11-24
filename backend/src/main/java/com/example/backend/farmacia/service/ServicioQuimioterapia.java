@@ -1,5 +1,14 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.almacen.entity.Medicamento;
+import com.example.backend.farmacia.entity.Entrega;
+import com.example.backend.farmacia.entity.QuimioConsulta;
+import com.example.backend.farmacia.entity.QuimioPreparacion;
+import com.example.backend.farmacia.entity.QuimioRenglon;
+import com.example.backend.farmacia.repository.QuimioConsultaRepository;
+import com.example.backend.farmacia.repository.QuimioPreparacionRepository;
+import com.example.backend.farmacia.repository.QuimioRenglonRepository;
+import jakarta.persistence.EntityManager;
 import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.intelisis.ConexionIntelisis;
 import com.example.backend.farmacia.dto.CajaEntregaRequest;
@@ -81,19 +90,28 @@ public class ServicioQuimioterapia {
     private static final int MAXIMO_CLAVES_SUGERIDAS = 6;
 
     private final JdbcTemplate haero;
+    private final QuimioConsultaRepository consultas;
+    private final QuimioPreparacionRepository preparaciones;
+    private final QuimioRenglonRepository renglonesQuimio;
+    private final EntityManager em;
     private final ServicioEntregas servicioEntregas;
     private final ServicioPacientesIntelisis pacientesIntelisis;
     private final ServicioInventarioFarmacia inventario;
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionQuimio sincronizacion;
 
-    public ServicioQuimioterapia(JdbcTemplate haero,
+    public ServicioQuimioterapia(JdbcTemplate haero, QuimioConsultaRepository consultas, QuimioPreparacionRepository preparaciones,
+                                 QuimioRenglonRepository renglonesQuimio, EntityManager em,
                                  ServicioEntregas servicioEntregas,
                                  ServicioPacientesIntelisis pacientesIntelisis,
                                  ServicioInventarioFarmacia inventario,
                                  ConexionIntelisis conexion,
                                  ServicioSincronizacionQuimio sincronizacion) {
         this.haero = haero;
+        this.consultas = consultas;
+        this.preparaciones = preparaciones;
+        this.renglonesQuimio = renglonesQuimio;
+        this.em = em;
         this.servicioEntregas = servicioEntregas;
         this.pacientesIntelisis = pacientesIntelisis;
         this.inventario = inventario;
@@ -300,8 +318,11 @@ public class ServicioQuimioterapia {
                 (rs, n) -> new SolicitudQuimioDetalle(solicitud(rs), rs.getString(11), rs.getString(12), null, null), numero);
         SolicitudQuimioDetalle encontrada = copia.isEmpty() ? deIntelisis(numero) : copia.get(0);
         // Quién vio los datos de qué paciente.
-        haero.update("INSERT INTO quimio_consulta (usuario_id, folio, fecha) VALUES (?, ?, ?)",
-                usuario.getId(), numero, Timestamp.valueOf(LocalDateTime.now()));
+        QuimioConsulta consulta = new QuimioConsulta();
+        consulta.setUsuario(usuario);
+        consulta.setFolio(numero);
+        consulta.setFecha(LocalDateTime.now());
+        consultas.save(consulta);
 
         QuimioResponse anterior = cicloAnterior(encontrada.solicitud().expediente());
         Set<String> usadasAntes = new HashSet<>();
@@ -412,6 +433,10 @@ public class ServicioQuimioterapia {
                     h.soloSiNoHay(), h.siNoHayDe(), h.solucion(), h.veces()));
         }
         return resultado;
+    }
+
+    private Medicamento medicamento(String clave) {
+        return clave == null ? null : em.getReference(Medicamento.class, clave);
     }
 
     private static int numeroDeFolio(String folio) {
@@ -648,27 +673,53 @@ public class ServicioQuimioterapia {
         });
         entrega.setClaves(claves);
         entrega.setCajas(cajas);
+        // Sin piezas surtidas no hay entrega, y la preparación la necesita (entrega_id es obligatorio).
+        if (cajas.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Marca al menos un medicamento como surtido para registrar la quimioterapia");
+        }
         EntregaResponse registrada = servicioEntregas.registrar(entrega, nombreUsuario);
 
         String nota = ServicioInventarioFarmacia.texto(request.notaMedico());
         if (nota != null && nota.length() > 2000) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nota del médico no puede pasar de 2000 caracteres");
         }
-        Long id = haero.queryForObject("""
-                INSERT INTO quimio_preparacion (folio_solicitud, sesion, expediente_solicitud, nombre_solicitud, paciente_expediente, paciente_nombre,
-                    paciente_curp, expediente_corregido, justificacion_paciente, sin_intelisis, nota_medico, entrega_id, surtio_id, verifico_id, fecha)
-                OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, Long.class, folio, sesion, expedienteSolicitud, nombreSolicitud, paciente.getExpediente(), paciente.getNombre(),
-                paciente.getCurp(), corregido, justificacion, sinIntelisis, nota, registrada.getId(), surtio.getId(), null,
-                Timestamp.valueOf(LocalDateTime.now()));
+        QuimioPreparacion preparacion = new QuimioPreparacion();
+        preparacion.setFolioSolicitud(folio);
+        preparacion.setSesion(sesion);
+        preparacion.setExpedienteSolicitud(expedienteSolicitud);
+        preparacion.setNombreSolicitud(nombreSolicitud);
+        preparacion.setPacienteExpediente(paciente.getExpediente());
+        preparacion.setPacienteNombre(paciente.getNombre());
+        preparacion.setPacienteCurp(paciente.getCurp());
+        preparacion.setExpedienteCorregido(corregido);
+        preparacion.setJustificacionPaciente(justificacion);
+        preparacion.setSinIntelisis(sinIntelisis);
+        preparacion.setNotaMedico(nota);
+        preparacion.setEntrega(em.getReference(Entrega.class, registrada.getId()));
+        preparacion.setSurtio(surtio);
+        preparacion.setFecha(LocalDateTime.now());
+        preparaciones.save(preparacion);
         for (Object[] fila : filas) {
-            haero.update("""
-                    INSERT INTO quimio_renglon (preparacion_id, texto_medico, clave_indicada, clave_alternativa, clave_surtida, dosis, piezas,
-                        motivo_alternativa, dosis_cantidad, dosis_unidad, contenido_por_pieza, destino_sobrante, no_surtido, motivo_no_surtido)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, id, fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[6], fila[7], fila[8], fila[9], fila[10],
-                    fila[11], fila[12]);
+            QuimioRenglon r = new QuimioRenglon();
+            r.setPreparacion(preparacion);
+            r.setTextoMedico((String) fila[0]);
+            r.setClaveIndicada(medicamento((String) fila[1]));
+            r.setClaveAlternativa(medicamento((String) fila[2]));
+            r.setClaveSurtida(medicamento((String) fila[3]));
+            r.setDosis((String) fila[4]);
+            r.setPiezas((Integer) fila[5]);
+            r.setMotivoAlternativa((String) fila[6]);
+            r.setDosisCantidad((BigDecimal) fila[7]);
+            r.setDosisUnidad((String) fila[8]);
+            r.setContenidoPorPieza((BigDecimal) fila[9]);
+            r.setDestinoSobrante((String) fila[10]);
+            r.setNoSurtido((Boolean) fila[11]);
+            r.setMotivoNoSurtido((String) fila[12]);
+            renglonesQuimio.save(r);
         }
+        // El detalle se arma con SQL: se escribe ya lo guardado para que lo vea.
+        renglonesQuimio.flush();
+        Long id = preparacion.getId();
         return detalle(id, registrada.getPartidas());
     }
 

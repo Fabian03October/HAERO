@@ -56,4 +56,19 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
               AND EXISTS (SELECT 1 FROM FarmaciaHojaBaja h WHERE h.receta = e.receta AND h.central = :central)
             """)
     int asignarBajaVolumen(Integer folio, String central);
+
+    // ---------- Baja por volumen del carrito de Hospitalización (hojas del día y del área) ----------
+
+    @Query("""
+            SELECT COUNT(e) FROM Entrega e WHERE e.bajaVolumenFolio IS NULL
+              AND EXISTS (SELECT 1 FROM FarmaciaHojaBaja h WHERE h.receta = e.receta AND h.dia = :dia AND h.central = :central)
+            """)
+    long sinBajaConHojaDelDia(java.time.LocalDate dia, String central);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE Entrega e SET e.bajaVolumenFolio = :folio WHERE e.bajaVolumenFolio IS NULL
+              AND EXISTS (SELECT 1 FROM FarmaciaHojaBaja h WHERE h.receta = e.receta AND h.dia = :dia AND h.central = :central)
+            """)
+    int asignarBajaVolumenDelDia(Integer folio, java.time.LocalDate dia, String central);
 }

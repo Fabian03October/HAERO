@@ -1,5 +1,9 @@
 package com.example.backend.hospitalizacion;
 
+import com.example.backend.hospitalizacion.entity.HospConsulta;
+import com.example.backend.hospitalizacion.entity.HospVisto;
+import com.example.backend.hospitalizacion.repository.HospConsultaRepository;
+import com.example.backend.hospitalizacion.repository.HospVistoRepository;
 import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.hospitalizacion.dto.AreaHospitalizacion;
 import com.example.backend.hospitalizacion.dto.CamaHospitalizacion;
@@ -69,6 +73,8 @@ public class ServicioHospitalizacion {
             Map.entry("CE-DIAL", "Diálisis"));
 
     private final JdbcTemplate haero;
+    private final HospConsultaRepository consultas;
+    private final HospVistoRepository vistos;
     private final UsuarioRepository usuarioRepository;
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionHospitalizacion sincronizacion;
@@ -77,12 +83,16 @@ public class ServicioHospitalizacion {
     private final List<String> areasOcultas;
 
     public ServicioHospitalizacion(JdbcTemplate haero,
+                                   HospConsultaRepository consultas,
+                                   HospVistoRepository vistos,
                                    UsuarioRepository usuarioRepository,
                                    ConexionIntelisis conexion,
                                    ServicioSincronizacionHospitalizacion sincronizacion,
                                    @Value("${hospitalizacion.version-politicas:${politicas.version:1.0}}") String versionPoliticas,
                                    @Value("${hospitalizacion.areas-ocultas:CE-HEMO,CE-HEMOD,CE-DIAL,CE-ONCO,CE-Qx,CE-RECU}") List<String> areasOcultas) {
         this.haero = haero;
+        this.consultas = consultas;
+        this.vistos = vistos;
         this.usuarioRepository = usuarioRepository;
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
@@ -124,8 +134,11 @@ public class ServicioHospitalizacion {
         CamaHospitalizacion cama = foto(usuario).camas().stream().filter(c -> c.getEspacio().equals(espacio)).findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No existe la cama " + espacio));
         // Quién vio los datos de qué paciente (CA de privacidad).
-        haero.update("INSERT INTO hosp_consulta (usuario_id, espacio, fecha) VALUES (?, ?, ?)",
-                usuario.getId(), espacio, Timestamp.valueOf(LocalDateTime.now()));
+        HospConsulta consulta = new HospConsulta();
+        consulta.setUsuario(usuario);
+        consulta.setEspacio(espacio);
+        consulta.setFecha(LocalDateTime.now());
+        consultas.save(consulta);
 
         List<DetallePaciente> pacientes = new ArrayList<>();
         Timestamp suspendidosDesde = Timestamp.valueOf(LocalDateTime.now().minus(SUSPENDIDOS_EN_DETALLE));
@@ -163,11 +176,14 @@ public class ServicioHospitalizacion {
     /** Apaga el aviso de la cama para este usuario. */
     public void marcarVisto(String espacio, String nombreUsuario) {
         Usuario usuario = autorizado(nombreUsuario);
-        Timestamp ahora = Timestamp.valueOf(LocalDateTime.now());
-        int cambiados = haero.update("UPDATE hosp_visto SET visto_hasta = ? WHERE usuario_id = ? AND espacio = ?", ahora, usuario.getId(), espacio);
-        if (cambiados == 0) {
-            haero.update("INSERT INTO hosp_visto (usuario_id, espacio, visto_hasta) VALUES (?, ?, ?)", usuario.getId(), espacio, ahora);
-        }
+        HospVisto visto = vistos.findById(new HospVisto.Llave(usuario.getId(), espacio)).orElseGet(() -> {
+            HospVisto nuevo = new HospVisto();
+            nuevo.setUsuarioId(usuario.getId());
+            nuevo.setEspacio(espacio);
+            return nuevo;
+        });
+        visto.setVistoHasta(LocalDateTime.now());
+        vistos.save(visto);
     }
 
     // ---------- Novedades ----------

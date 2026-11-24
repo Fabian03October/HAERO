@@ -7,7 +7,14 @@ import com.example.backend.farmacia.dto.LineaCarrito;
 import com.example.backend.farmacia.dto.MedicamentoHojaResponse;
 import com.example.backend.farmacia.dto.MedicoHojaResponse;
 import com.example.backend.farmacia.dto.PartidaBajaResponse;
+import com.example.backend.farmacia.entity.FarmaciaBajaVolumen;
+import com.example.backend.farmacia.entity.FarmaciaHojaBaja;
+import com.example.backend.farmacia.repository.EntregaRepository;
+import com.example.backend.farmacia.repository.FarmaciaBajaVolumenRepository;
+import com.example.backend.farmacia.repository.FarmaciaHojaBajaRepository;
+import com.example.backend.farmacia.repository.RecetaRepository;
 import com.example.backend.hospitalizacion.ServicioSincronizacionHospitalizacion;
+import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.intelisis.ConexionIntelisis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,17 +61,27 @@ public class ServicioHojasCarrito {
     private final ConexionIntelisis conexion;
     private final ServicioCarrito carrito;
     private final ServicioInventarioFarmacia inventario;
+    private final RecetaRepository recetas;
+    private final EntregaRepository entregas;
+    private final FarmaciaHojaBajaRepository hojasBaja;
+    private final FarmaciaBajaVolumenRepository bajasVolumen;
     // Empresa y sucursal de Farmacia en Intelisis: su ArtCosto es el que usa el "Consumo Farmacia".
     private final String empresa;
     private final int sucursal;
 
     public ServicioHojasCarrito(JdbcTemplate haero, ConexionIntelisis conexion, ServicioCarrito carrito, ServicioInventarioFarmacia inventario,
+                                RecetaRepository recetas, EntregaRepository entregas, FarmaciaHojaBajaRepository hojasBaja,
+                                FarmaciaBajaVolumenRepository bajasVolumen,
                                 @org.springframework.beans.factory.annotation.Value("${intelisis.empresa:NBR}") String empresa,
                                 @org.springframework.beans.factory.annotation.Value("${intelisis.sucursal:0}") int sucursal) {
         this.haero = haero;
         this.conexion = conexion;
         this.carrito = carrito;
         this.inventario = inventario;
+        this.recetas = recetas;
+        this.entregas = entregas;
+        this.hojasBaja = hojasBaja;
+        this.bajasVolumen = bajasVolumen;
         this.empresa = empresa;
         this.sucursal = sucursal;
     }
@@ -257,40 +274,45 @@ public class ServicioHojasCarrito {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Se cancelaron medicamentos que ya están en el carrito ("
                     + String.join("; ", cancelados) + "). Sácalos del carrito o confirma para terminar así.");
         }
-        long usuario = inventario.usuario(nombreUsuario).getId();
+        Usuario usuario = inventario.usuario(nombreUsuario);
         LocalDate hoy = LocalDate.now();
-        Timestamp ahora = Timestamp.valueOf(LocalDateTime.now());
+        LocalDateTime ahora = LocalDateTime.now();
         for (var cama : actual.getCamas()) {
             boolean conSurtido = cama.getLineas().stream().mapToInt(LineaCarrito::getEntregadas).sum() > 0;
             if (!conSurtido) {
                 continue;
             }
-            Long receta = haero.queryForList("SELECT id FROM farmacia_receta WHERE folio = ?", Long.class,
-                    ServicioCarrito.folio(hoy, cama.getIdIngreso())).stream().findFirst().orElse(null);
-            if (receta != null && haero.queryForObject("SELECT COUNT(*) FROM farmacia_hoja_baja WHERE receta_id = ?", Integer.class, receta) == 0) {
-                haero.update("INSERT INTO farmacia_hoja_baja (receta_id, dia, central, espacio, fecha, usuario_id) VALUES (?, ?, ?, ?, ?, ?)",
-                        receta, java.sql.Date.valueOf(hoy), central, cama.getEspacio(), ahora, usuario);
-            }
+            recetas.findByFolioIgnoreCase(ServicioCarrito.folio(hoy, cama.getIdIngreso()))
+                    .filter(receta -> !hojasBaja.existsByRecetaId(receta.getId()))
+                    .ifPresent(receta -> {
+                        FarmaciaHojaBaja hoja = new FarmaciaHojaBaja();
+                        hoja.setReceta(receta);
+                        hoja.setDia(hoy);
+                        hoja.setCentral(central);
+                        hoja.setEspacio(cama.getEspacio());
+                        hoja.setFecha(ahora);
+                        hoja.setUsuario(usuario);
+                        hojasBaja.save(hoja);
+                    });
         }
         carrito.registrarCierre(central, usuario);
+        hojasBaja.flush();
 
-        String sinBaja = "FROM farmacia_entrega e JOIN farmacia_hoja_baja h ON h.receta_id = e.receta_id "
-                + "WHERE h.dia = ? AND h.central = ? AND e.baja_volumen_folio IS NULL";
-        if (haero.queryForObject("SELECT COUNT(*) " + sinBaja, Integer.class, java.sql.Date.valueOf(hoy), central) == 0) {
+        if (entregas.sinBajaConHojaDelDia(hoy, central) == 0) {
             return List.of();
         }
         // Una baja por área y día: lo de urgencia se suma a la del día (mismo folio).
-        Integer existente = haero.queryForList("SELECT TOP 1 folio FROM farmacia_baja_volumen WHERE dia = ? AND central = ? ORDER BY folio",
-                Integer.class, java.sql.Date.valueOf(hoy), central).stream().findFirst().orElse(null);
-        int folio;
-        if (existente != null) {
-            folio = existente;
-            haero.update("UPDATE farmacia_baja_volumen SET fecha = ?, usuario_id = ? WHERE folio = ?", ahora, usuario, folio);
-        } else {
-            folio = haero.queryForObject("INSERT INTO farmacia_baja_volumen (dia, central, fecha, usuario_id) OUTPUT INSERTED.folio VALUES (?, ?, ?, ?)",
-                    Integer.class, java.sql.Date.valueOf(hoy), central, ahora, usuario);
-        }
-        haero.update("UPDATE e SET baja_volumen_folio = ? " + sinBaja, folio, java.sql.Date.valueOf(hoy), central);
+        FarmaciaBajaVolumen baja = bajasVolumen.findFirstByDiaAndCentralOrderByFolio(hoy, central).orElseGet(() -> {
+            FarmaciaBajaVolumen nueva = new FarmaciaBajaVolumen();
+            nueva.setDia(hoy);
+            nueva.setCentral(central);
+            return nueva;
+        });
+        baja.setFecha(ahora);
+        baja.setUsuario(usuario);
+        bajasVolumen.saveAndFlush(baja);
+        int folio = baja.getFolio();
+        entregas.asignarBajaVolumenDelDia(folio, hoy, central);
         return bajasVolumen(central, hoy, folio);
     }
 

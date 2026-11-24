@@ -8,16 +8,21 @@ import com.example.backend.farmacia.dto.AltaInicialRequest;
 import com.example.backend.farmacia.dto.PartidaAltaInicial;
 import com.example.backend.almacen.service.ServicioRecepcion;
 import com.example.backend.almacen.service.ServicioRegistrosIntelisis;
-import org.springframework.dao.DuplicateKeyException;
+import com.example.backend.almacen.repository.LoteRepository;
+import com.example.backend.farmacia.entity.ConteoInicial;
+import com.example.backend.farmacia.entity.ConteoInicialRenglon;
+import com.example.backend.farmacia.repository.ConteoInicialRenglonRepository;
+import com.example.backend.farmacia.repository.ConteoInicialRepository;
+import com.example.backend.farmacia.repository.LoteFarmaciaRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,16 +45,29 @@ public class ServicioConteoInicial {
     public static final String ALMACEN = "ALMACEN";
     public static final String FARMACIA = "FARMACIA";
 
+    // Solo para leer la copia de Intelisis (intelisis_existencia_lote), que no tiene entidad.
     private final JdbcTemplate haero;
+    private final ConteoInicialRepository cierres;
+    private final ConteoInicialRenglonRepository renglones;
+    private final LoteFarmaciaRepository lotesFarmacia;
+    private final LoteRepository lotesAlmacen;
+    private final EntityManager em;
     private final ServicioRecepcion recepcion;
     private final ServicioRegistrosIntelisis registrosIntelisis;
     private final ServicioInventarioFarmacia farmacia;
     private final String almacenPrincipal;
 
-    public ServicioConteoInicial(JdbcTemplate haero, ServicioRecepcion recepcion, ServicioRegistrosIntelisis registrosIntelisis,
+    public ServicioConteoInicial(JdbcTemplate haero, ConteoInicialRepository cierres, ConteoInicialRenglonRepository renglones,
+                                 LoteFarmaciaRepository lotesFarmacia, LoteRepository lotesAlmacen, EntityManager em,
+                                 ServicioRecepcion recepcion, ServicioRegistrosIntelisis registrosIntelisis,
                                  ServicioInventarioFarmacia farmacia,
                                  @org.springframework.beans.factory.annotation.Value("${intelisis.almacenes:25301,25301-C}") String almacenes) {
         this.haero = haero;
+        this.cierres = cierres;
+        this.renglones = renglones;
+        this.lotesFarmacia = lotesFarmacia;
+        this.lotesAlmacen = lotesAlmacen;
+        this.em = em;
         this.recepcion = recepcion;
         this.registrosIntelisis = registrosIntelisis;
         this.farmacia = farmacia;
@@ -96,34 +114,22 @@ public class ServicioConteoInicial {
                 limpia, almacenPrincipal);
     }
 
-    private static final String SELECT_RENGLON = """
-            SELECT r.id, r.codigo, r.medicamento_clave, m.nombre_generico, m.piezas_por_caja, r.lote, r.caducidad, r.ubicacion,
-                   r.cantidad, ur.nombre_completo AS registro, r.registrado_en, uc.nombre_completo AS conteo, r.contado_en
-            FROM conteo_inicial_renglon r
-            JOIN medicamento m ON m.clave = r.medicamento_clave
-            JOIN usuario ur ON ur.id = r.registrado_por
-            LEFT JOIN usuario uc ON uc.id = r.contado_por
-            """;
-
+    @Transactional(readOnly = true)
     public Estado estado(String area) {
-        List<Map<String, Object>> cierre = haero.queryForList("""
-                SELECT c.cerrado_en, u.nombre_completo FROM conteo_inicial c JOIN usuario u ON u.id = c.cerrado_por WHERE c.area = ?
-                """, area);
-        List<Renglon> renglones = haero.query(SELECT_RENGLON + " WHERE r.area = ? ORDER BY r.ubicacion, r.medicamento_clave, r.lote",
-                ServicioConteoInicial::renglon, area);
-        int sinCantidad = (int) renglones.stream().filter(r -> r.cantidad() == null).count();
-        Map<String, Object> c = cierre.isEmpty() ? Map.of() : cierre.get(0);
-        return new Estado(area, !cierre.isEmpty(), c.get("cerrado_en") instanceof Timestamp t ? t.toLocalDateTime() : null,
-                (String) c.get("nombre_completo"), renglones.size(), sinCantidad, renglones);
+        ConteoInicial cierre = cierres.findByArea(area).orElse(null);
+        List<Renglon> lista = renglones.findByAreaOrderByUbicacionAscMedicamentoClaveAscLoteAsc(area).stream()
+                .map(ServicioConteoInicial::renglon).toList();
+        int sinCantidad = (int) lista.stream().filter(r -> r.cantidad() == null).count();
+        return new Estado(area, cierre != null, cierre == null ? null : cierre.getCerradoEn(),
+                cierre == null ? null : cierre.getCerradoPor().getNombreCompleto(), lista.size(), sinCantidad, lista);
     }
 
     /** Ya no se puede contar ni dar de alta inicial cuando el área guardó su inventario inicial. */
     public void exigirAbierto(String area) {
-        List<Timestamp> cerrado = haero.queryForList("SELECT cerrado_en FROM conteo_inicial WHERE area = ?", Timestamp.class, area);
-        if (!cerrado.isEmpty()) {
+        cierres.findById(area).ifPresent(c -> {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El inventario inicial de " + nombre(area) + " ya se guardó el "
-                    + cerrado.get(0).toLocalDateTime().toLocalDate() + "; no se puede volver a hacer");
-        }
+                    + c.getCerradoEn().toLocalDate() + "; no se puede volver a hacer");
+        });
     }
 
     @Transactional
@@ -174,10 +180,8 @@ public class ServicioConteoInicial {
                 throw malo("Falta la caducidad de la caja");
             }
             caducidad = nuevo.caducidad();
-            List<java.sql.Date> otras = haero.queryForList("""
-                    SELECT DISTINCT caducidad FROM conteo_inicial_renglon WHERE area = ? AND medicamento_clave = ? AND lote = ?
-                    """, java.sql.Date.class, area, clave, lote);
-            if (otras.stream().anyMatch(d -> !d.toLocalDate().equals(caducidad))) {
+            List<LocalDate> otras = renglones.caducidadesDelLote(area, clave, lote);
+            if (otras.stream().anyMatch(d -> !d.equals(caducidad))) {
                 throw malo("El lote " + lote + " ya está en el conteo con caducidad " + otras.get(0) + "; revisa la caducidad de la caja");
             }
         }
@@ -190,18 +194,23 @@ public class ServicioConteoInicial {
         if (existente != null) {
             return renglon(existente);
         }
-        long usuario = farmacia.usuario(nombreUsuario).getId();
+        ConteoInicialRenglon renglon = new ConteoInicialRenglon();
+        renglon.setArea(area);
+        renglon.setCodigo(codigo);
+        renglon.setMedicamento(medicamento);
+        renglon.setLote(lote);
+        renglon.setCaducidad(caducidad);
+        renglon.setUbicacion(ubicacion);
+        renglon.setRegistradoPor(farmacia.usuario(nombreUsuario));
+        renglon.setRegistradoEn(LocalDateTime.now());
         try {
-            Long id = haero.queryForObject("""
-                    INSERT INTO conteo_inicial_renglon (area, codigo, medicamento_clave, lote, caducidad, ubicacion, registrado_por, registrado_en)
-                    OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, Long.class, area, codigo, clave, lote, java.sql.Date.valueOf(caducidad), ubicacion, usuario,
-                    Timestamp.valueOf(LocalDateTime.now()));
-            return renglon(id);
-        } catch (DuplicateKeyException e) {
-            // Otra persona lo escaneó al mismo tiempo.
-            return renglon(idDe(area, clave, lote, ubicacion));
+            renglones.saveAndFlush(renglon);
+        } catch (DataIntegrityViolationException e) {
+            // Otra persona lo escaneó en el mismo instante (llave única de área, clave, lote y ubicación).
+            // Con JPA la transacción ya no sirve después del choque: se pide volver a escanear, y ahí sale el suyo.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Otra persona acaba de registrar este lote en ese estante; vuelve a escanear");
         }
+        return renglon(renglon);
     }
 
     @Transactional
@@ -210,13 +219,12 @@ public class ServicioConteoInicial {
         if (cantidad == null || cantidad < 0) {
             throw malo("Escribe lo que hay en el anaquel (0 si no había)");
         }
-        long usuario = farmacia.usuario(nombreUsuario).getId();
-        int cambiados = haero.update("UPDATE conteo_inicial_renglon SET cantidad = ?, contado_por = ?, contado_en = ? WHERE id = ? AND area = ?",
-                cantidad, usuario, Timestamp.valueOf(LocalDateTime.now()), id, area);
-        if (cambiados == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo");
-        }
-        return renglon(id);
+        ConteoInicialRenglon renglon = renglones.findByIdAndArea(id, area)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo"));
+        renglon.setCantidad(cantidad);
+        renglon.setContadoPor(farmacia.usuario(nombreUsuario));
+        renglon.setContadoEn(LocalDateTime.now());
+        return renglon(renglon);
     }
 
     /**
@@ -233,27 +241,26 @@ public class ServicioConteoInicial {
         if (destino != null && destino.length() > 40) {
             throw malo("La ubicación puede tener hasta 40 caracteres");
         }
-        List<Renglon> encontrado = haero.query(SELECT_RENGLON + " WHERE r.id = ? AND r.area = ?", ServicioConteoInicial::renglon, id, area);
-        if (encontrado.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo");
-        }
-        Renglon origen = encontrado.get(0);
-        Long otro = idDe(area, origen.clave(), origen.lote(), destino);
+        ConteoInicialRenglon origen = renglones.findByIdAndArea(id, area)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo"));
+        Long otro = idDe(area, origen.getMedicamento().getClave(), origen.getLote(), destino);
         if (otro == null) {
-            haero.update("UPDATE conteo_inicial_renglon SET ubicacion = ? WHERE id = ?", destino, id);
-            return renglon(id);
+            origen.setUbicacion(destino);
+            return renglon(origen);
         }
         if (otro == id) {
-            return origen;
+            return renglon(origen);
         }
-        Renglon ya = renglon(otro);
-        if (origen.cantidad() != null || ya.cantidad() != null) {
-            int suma = (origen.cantidad() == null ? 0 : origen.cantidad()) + (ya.cantidad() == null ? 0 : ya.cantidad());
-            haero.update("UPDATE conteo_inicial_renglon SET cantidad = ?, contado_por = ?, contado_en = ? WHERE id = ?",
-                    suma, farmacia.usuario(nombreUsuario).getId(), Timestamp.valueOf(LocalDateTime.now()), otro);
+        ConteoInicialRenglon ya = renglones.findById(otro).orElseThrow();
+        if (origen.getCantidad() != null || ya.getCantidad() != null) {
+            ya.setCantidad((origen.getCantidad() == null ? 0 : origen.getCantidad()) + (ya.getCantidad() == null ? 0 : ya.getCantidad()));
+            ya.setContadoPor(farmacia.usuario(nombreUsuario));
+            ya.setContadoEn(LocalDateTime.now());
         }
-        haero.update("DELETE FROM conteo_inicial_renglon WHERE id = ?", id);
-        return renglon(otro);
+        renglones.delete(origen);
+        // Se escribe ya: si luego se mueve otro renglón al mismo estante (renombrar), la búsqueda debe verlo.
+        renglones.flush();
+        return renglon(ya);
     }
 
     /**
@@ -264,9 +271,7 @@ public class ServicioConteoInicial {
     public Estado renombrarEstante(String area, String actual, String nuevo, String nombreUsuario) {
         exigirAbierto(area);
         String de = ServicioInventarioFarmacia.texto(actual);
-        List<Long> ids = haero.queryForList("""
-                SELECT id FROM conteo_inicial_renglon WHERE area = ? AND (ubicacion = ? OR (ubicacion IS NULL AND ? IS NULL))
-                """, Long.class, area, de, de);
+        List<Long> ids = renglones.idsDelEstante(area, de);
         if (ids.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese estante no tiene renglones en el conteo");
         }
@@ -279,9 +284,8 @@ public class ServicioConteoInicial {
     @Transactional
     public void quitar(String area, long id) {
         exigirAbierto(area);
-        if (haero.update("DELETE FROM conteo_inicial_renglon WHERE id = ? AND area = ?", id, area) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo");
-        }
+        renglones.delete(renglones.findByIdAndArea(id, area)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo")));
     }
 
     /**
@@ -299,7 +303,6 @@ public class ServicioConteoInicial {
         if (sinCantidad > 0) {
             throw malo("Faltan " + sinCantidad + " renglones sin cantidad; captúralos (0 si no había) antes de guardar");
         }
-        long usuario = farmacia.usuario(nombreUsuario).getId();
         List<Renglon> contados = renglones.stream().filter(r -> r.cantidad() > 0).toList();
         if (ALMACEN.equals(area)) {
             // Un lote que está en varios anaqueles es una sola alta con varias ubicaciones.
@@ -324,8 +327,9 @@ public class ServicioConteoInicial {
                     long loteId = recepcion.registrarEntrada(alta, nombreUsuario).getLoteId();
                     // Farmacia hace su inventario inicial primero: sus lotes quedaron sin lote de Almacén;
                     // se ligan ahora para la trazabilidad (HU33).
-                    haero.update("UPDATE farmacia_lote SET lote_id = ? WHERE medicamento_clave = ? AND numero_lote = ? AND lote_id IS NULL",
-                            loteId, primero.clave(), primero.lote());
+                    lotesFarmacia.findByMedicamentoClaveAndNumeroLoteIgnoreCase(primero.clave(), primero.lote())
+                            .filter(l -> l.getLoteAlmacen() == null)
+                            .ifPresent(l -> l.setLoteAlmacen(lotesAlmacen.getReferenceById(loteId)));
                 } catch (ResponseStatusException e) {
                     throw new ResponseStatusException(e.getStatusCode(), "Lote " + primero.lote() + " de " + primero.clave() + ": " + e.getReason());
                 }
@@ -344,10 +348,15 @@ public class ServicioConteoInicial {
             farmacia.altaInicial(alta, nombreUsuario);
         }
         // Al final: si dos personas guardan a la vez, la segunda choca con la llave del área y no se duplica nada.
+        ConteoInicial cierre = new ConteoInicial();
+        cierre.setArea(area);
+        cierre.setCerradoEn(LocalDateTime.now());
+        cierre.setCerradoPor(farmacia.usuario(nombreUsuario));
         try {
-            haero.update("INSERT INTO conteo_inicial (area, cerrado_en, cerrado_por) VALUES (?, ?, ?)",
-                    area, Timestamp.valueOf(LocalDateTime.now()), usuario);
-        } catch (DuplicateKeyException e) {
+            // persist (no merge): debe ser un INSERT nuevo y chocar si otra persona ya guardó.
+            em.persist(cierre);
+            em.flush();
+        } catch (PersistenceException | DataIntegrityViolationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Otra persona acaba de guardar el inventario inicial de " + nombre(area));
         }
         return estado(area);
@@ -356,29 +365,22 @@ public class ServicioConteoInicial {
     // El código ya aprendido (HU42) o, si es nuevo, el de otro renglón del conteo.
     private String claveDelCodigo(String codigo) {
         return farmacia.buscarCodigo(codigo).map(c -> c.getMedicamento().getClave())
-                .orElseGet(() -> haero.queryForList("SELECT TOP 1 medicamento_clave FROM conteo_inicial_renglon WHERE codigo = ?",
-                        String.class, codigo).stream().findFirst().orElse(null));
+                .orElseGet(() -> renglones.clavesDelCodigo(codigo).stream().findFirst().orElse(null));
     }
 
     private Long idDe(String area, String clave, String lote, String ubicacion) {
-        return haero.queryForList("""
-                SELECT id FROM conteo_inicial_renglon
-                WHERE area = ? AND medicamento_clave = ? AND lote = ? AND (ubicacion = ? OR (ubicacion IS NULL AND ? IS NULL))
-                """, Long.class, area, clave, lote, ubicacion, ubicacion).stream().findFirst().orElse(null);
+        return renglones.idsDelLoteEn(area, clave, lote, ubicacion).stream().findFirst().orElse(null);
     }
 
     private Renglon renglon(long id) {
-        return haero.query(SELECT_RENGLON + " WHERE r.id = ?", ServicioConteoInicial::renglon, id).get(0);
+        return renglon(renglones.findById(id).orElseThrow());
     }
 
-    private static Renglon renglon(ResultSet rs, int n) throws SQLException {
-        Timestamp registrado = rs.getTimestamp("registrado_en");
-        Timestamp contado = rs.getTimestamp("contado_en");
-        return new Renglon(rs.getLong("id"), rs.getString("codigo"), rs.getString("medicamento_clave"), rs.getString("nombre_generico"),
-                rs.getObject("piezas_por_caja", Integer.class), rs.getString("lote"), rs.getDate("caducidad").toLocalDate(),
-                rs.getString("ubicacion"), rs.getObject("cantidad", Integer.class), rs.getString("registro"),
-                registrado == null ? null : registrado.toLocalDateTime(), rs.getString("conteo"),
-                contado == null ? null : contado.toLocalDateTime());
+    private static Renglon renglon(ConteoInicialRenglon r) {
+        return new Renglon(r.getId(), r.getCodigo(), r.getMedicamento().getClave(), r.getMedicamento().getNombreGenerico(),
+                r.getMedicamento().getPiezasPorCaja(), r.getLote(), r.getCaducidad(), r.getUbicacion(), r.getCantidad(),
+                r.getRegistradoPor().getNombreCompleto(), r.getRegistradoEn(),
+                r.getContadoPor() == null ? null : r.getContadoPor().getNombreCompleto(), r.getContadoEn());
     }
 
     private static String nombre(String area) {

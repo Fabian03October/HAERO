@@ -25,6 +25,9 @@ import com.example.backend.farmacia.repository.EntregaRepository;
 import com.example.backend.farmacia.repository.RecetaRepository;
 import com.example.backend.hospitalizacion.ServicioHospitalizacion;
 import com.example.backend.hospitalizacion.ServicioSincronizacionHospitalizacion;
+import com.example.backend.farmacia.entity.FarmaciaCarritoCierre;
+import com.example.backend.farmacia.repository.FarmaciaCarritoCierreRepository;
+import com.example.backend.usuarios.entity.Usuario;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -68,6 +71,7 @@ public class ServicioCarrito {
     private static final DateTimeFormatter DIA = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final JdbcTemplate haero;
+    private final FarmaciaCarritoCierreRepository cierres;
     private final RecetaRepository recetaRepository;
     private final EntregaRepository entregaRepository;
     private final MedicamentoRepository medicamentoRepository;
@@ -78,6 +82,7 @@ public class ServicioCarrito {
     private final LocalTime horaCorte;
 
     public ServicioCarrito(JdbcTemplate haero,
+                           FarmaciaCarritoCierreRepository cierres,
                            RecetaRepository recetaRepository,
                            EntregaRepository entregaRepository,
                            MedicamentoRepository medicamentoRepository,
@@ -86,6 +91,7 @@ public class ServicioCarrito {
                            ServicioInventarioFarmacia inventario,
                            @Value("${hospitalizacion.carrito.hora-corte:13:00}") String horaCorte) {
         this.haero = haero;
+        this.cierres = cierres;
         this.recetaRepository = recetaRepository;
         this.entregaRepository = entregaRepository;
         this.medicamentoRepository = medicamentoRepository;
@@ -421,21 +427,22 @@ public class ServicioCarrito {
     }
 
     Cierre cierre(String central, LocalDate dia) {
-        return haero.query("""
-                SELECT c.cerrado_en, u.nombre_completo FROM farmacia_carrito_cierre c JOIN usuario u ON u.id = c.usuario_id
-                WHERE c.central = ? AND c.dia = ?
-                """, (rs, n) -> new Cierre(rs.getTimestamp(1).toLocalDateTime(), rs.getString(2)), central, java.sql.Date.valueOf(dia))
-                .stream().findFirst().orElse(null);
+        return cierres.findByCentralAndDia(central, dia)
+                .map(c -> new Cierre(c.getCerradoEn(), c.getUsuario().getNombreCompleto())).orElse(null);
     }
 
-    void registrarCierre(String central, long usuarioId) {
-        Timestamp ahora = Timestamp.valueOf(LocalDateTime.now());
-        java.sql.Date hoy = java.sql.Date.valueOf(LocalDate.now());
-        if (haero.update("UPDATE farmacia_carrito_cierre SET cerrado_en = ?, usuario_id = ? WHERE central = ? AND dia = ?",
-                ahora, usuarioId, central, hoy) == 0) {
-            haero.update("INSERT INTO farmacia_carrito_cierre (central, dia, cerrado_en, usuario_id) VALUES (?, ?, ?, ?)",
-                    central, hoy, ahora, usuarioId);
-        }
+    /** El cierre del carrito de hoy en el área: si ya se cerró antes (urgencia), se actualiza quién y cuándo. */
+    void registrarCierre(String central, Usuario usuario) {
+        LocalDate hoy = LocalDate.now();
+        FarmaciaCarritoCierre cierre = cierres.findByCentralAndDia(central, hoy).orElseGet(() -> {
+            FarmaciaCarritoCierre nuevo = new FarmaciaCarritoCierre();
+            nuevo.setCentral(central);
+            nuevo.setDia(hoy);
+            return nuevo;
+        });
+        cierre.setCerradoEn(LocalDateTime.now());
+        cierre.setUsuario(usuario);
+        cierres.save(cierre);
     }
 
     // ---------- comunes ----------
