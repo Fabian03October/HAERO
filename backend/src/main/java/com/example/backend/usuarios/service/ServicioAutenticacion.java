@@ -81,7 +81,7 @@ public class ServicioAutenticacion {
             }
             usuario.setIntentosFallidos(intentos);
             usuarioRepository.save(usuario);
-            throw new BadCredentialsException("Usuario o contraseña incorrectos");
+            throw new BadCredentialsException("Usuario o contraseña incorrecta");
         }
 
         usuario.setIntentosFallidos(0);
@@ -121,7 +121,7 @@ public class ServicioAutenticacion {
                 return new BadCredentialsException(mensajeBloqueo(intentos.bloqueadoHasta, ahora));
             }
         }
-        return new BadCredentialsException("Usuario o contraseña incorrectos");
+        return new BadCredentialsException("Usuario o contraseña incorrecta");
     }
 
     static String mensajeBloqueo(LocalDateTime hasta, LocalDateTime ahora) {

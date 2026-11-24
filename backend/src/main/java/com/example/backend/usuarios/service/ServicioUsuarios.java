@@ -30,8 +30,11 @@ public class ServicioUsuarios {
 
     private static final Pattern CORREO_VALIDO = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final int LONGITUD_MINIMA_CONTRASENA = 8;
-    static final String MENSAJE_CONTRASENA =
-            "La contraseña debe tener al menos " + LONGITUD_MINIMA_CONTRASENA + " caracteres, con al menos una letra y un número";
+    private static final int LONGITUD_MAXIMA_CONTRASENA = 10;
+    // Solo al crear: hay usuarios anteriores más largos (p. ej. "supervision") que deben poder entrar.
+    static final int LONGITUD_MAXIMA_USUARIO = 10;
+    static final String MENSAJE_CONTRASENA = "La contraseña debe tener de " + LONGITUD_MINIMA_CONTRASENA + " a "
+            + LONGITUD_MAXIMA_CONTRASENA + " caracteres, con al menos una letra y un número";
 
     private final UsuarioRepository usuarioRepository;
     private final RolRepository rolRepository;
@@ -57,6 +60,11 @@ public class ServicioUsuarios {
     }
 
     public UsuarioResponse crearUsuario(CrearUsuarioRequest request, String nombreUsuarioSolicitante) {
+        String nombreUsuario = request.getNombreUsuario() == null ? "" : request.getNombreUsuario().trim();
+        if (nombreUsuario.isEmpty() || nombreUsuario.length() > LONGITUD_MAXIMA_USUARIO) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El nombre de usuario es obligatorio y puede tener hasta " + LONGITUD_MAXIMA_USUARIO + " caracteres");
+        }
         if (usuarioRepository.existsByNombreUsuario(request.getNombreUsuario())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El nombre de usuario ya existe");
         }
@@ -260,6 +268,7 @@ public class ServicioUsuarios {
     static void validarContrasena(String contrasena) {
         boolean valida = contrasena != null
                 && contrasena.length() >= LONGITUD_MINIMA_CONTRASENA
+                && contrasena.length() <= LONGITUD_MAXIMA_CONTRASENA
                 && contrasena.chars().anyMatch(Character::isLetter)
                 && contrasena.chars().anyMatch(Character::isDigit);
         if (!valida) {

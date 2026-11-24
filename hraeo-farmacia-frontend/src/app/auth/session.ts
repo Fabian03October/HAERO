@@ -48,7 +48,7 @@ interface LoginResponse {
   fechaAceptacionPoliticas: string | null;
 }
 
-const ERROR_INICIO_POR_DEFECTO = 'Usuario o contraseña incorrectos.';
+const ERROR_INICIO_POR_DEFECTO = 'Usuario o contraseña incorrecta.';
 
 @Injectable({
   providedIn: 'root',

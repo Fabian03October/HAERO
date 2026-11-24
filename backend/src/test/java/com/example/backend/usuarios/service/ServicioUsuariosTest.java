@@ -73,7 +73,7 @@ class ServicioUsuariosTest {
         request.setNombreCompleto("Ana Torres");
         request.setNombreUsuario("atorres");
         request.setCorreo("atorres@hraeo.test");
-        request.setContrasenaTemporal("Temporal123*");
+        request.setContrasenaTemporal("Temp123*");
         request.setRol("ALMACEN");
 
         Rol rolAlmacen = new Rol();
@@ -82,7 +82,7 @@ class ServicioUsuariosTest {
         when(usuarioRepository.existsByNombreUsuario("atorres")).thenReturn(false);
         when(usuarioRepository.existsByCorreo("atorres@hraeo.test")).thenReturn(false);
         when(rolRepository.findByNombre("ALMACEN")).thenReturn(Optional.of(rolAlmacen));
-        when(passwordEncoder.encode("Temporal123*")).thenReturn("hash-nuevo");
+        when(passwordEncoder.encode("Temp123*")).thenReturn("hash-nuevo");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UsuarioResponse respuesta = servicioUsuarios.crearUsuario(request, "admin");
@@ -122,7 +122,7 @@ class ServicioUsuariosTest {
 
         assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("al menos 8 caracteres");
+                .hasMessageContaining("de 8 a 10 caracteres");
     }
 
     @Test
@@ -130,7 +130,7 @@ class ServicioUsuariosTest {
         CrearUsuarioRequest request = new CrearUsuarioRequest();
         request.setNombreUsuario("nuevo");
         request.setCorreo("no-es-correo");
-        request.setContrasenaTemporal("Temporal123*");
+        request.setContrasenaTemporal("Temp123*");
 
         when(usuarioRepository.existsByNombreUsuario("nuevo")).thenReturn(false);
         when(usuarioRepository.existsByCorreo("no-es-correo")).thenReturn(false);
@@ -145,7 +145,7 @@ class ServicioUsuariosTest {
         CrearUsuarioRequest request = new CrearUsuarioRequest();
         request.setNombreUsuario("nuevo");
         request.setCorreo("nuevo@hraeo.test");
-        request.setContrasenaTemporal("Temporal123*");
+        request.setContrasenaTemporal("Temp123*");
         request.setRol("NOEXISTE");
 
         when(usuarioRepository.existsByNombreUsuario("nuevo")).thenReturn(false);
@@ -162,7 +162,7 @@ class ServicioUsuariosTest {
         CrearUsuarioRequest request = new CrearUsuarioRequest();
         request.setNombreUsuario("otroadmin");
         request.setCorreo("otroadmin@hraeo.test");
-        request.setContrasenaTemporal("Temporal123*");
+        request.setContrasenaTemporal("Temp123*");
         request.setRol("ADMIN");
 
         Rol rolAdmin = new Rol();
@@ -292,10 +292,10 @@ class ServicioUsuariosTest {
     @Test
     void restablecerContrasena_conTemporalValida_marcaDebeCambiarContrasena() {
         RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
-        request.setContrasenaTemporal("NuevaTemp123*");
+        request.setContrasenaTemporal("NuevaT12*");
 
         when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
-        when(passwordEncoder.encode("NuevaTemp123*")).thenReturn("hash-restablecido");
+        when(passwordEncoder.encode("NuevaT12*")).thenReturn("hash-restablecido");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UsuarioResponse respuesta = servicioUsuarios.restablecerContrasena(5L, request, "admin");
@@ -310,7 +310,7 @@ class ServicioUsuariosTest {
         usuarioExistente.setRol(rolAdmin);
 
         RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
-        request.setContrasenaTemporal("NuevaTemp123*");
+        request.setContrasenaTemporal("NuevaT12*");
 
         when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
 
@@ -330,11 +330,11 @@ class ServicioUsuariosTest {
 
         CambiarContrasenaRequest request = new CambiarContrasenaRequest();
         request.setContrasenaActual("clave-de-prueba");
-        request.setContrasenaNueva("NuevaValida123*");
+        request.setContrasenaNueva("Nueva123*");
 
         when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
         when(passwordEncoder.matches("clave-de-prueba", "hash-actual")).thenReturn(true);
-        when(passwordEncoder.encode("NuevaValida123*")).thenReturn("hash-nuevo");
+        when(passwordEncoder.encode("Nueva123*")).thenReturn("hash-nuevo");
 
         servicioUsuarios.cambiarContrasenaPropia("jperez", request);
 
@@ -358,11 +358,22 @@ class ServicioUsuariosTest {
     }
 
     @Test
+    void crearUsuario_rechazaNombreDeUsuarioVacioOLargo() {
+        for (String nombre : new String[] {"x".repeat(11), "   ", null}) {
+            CrearUsuarioRequest request = new CrearUsuarioRequest();
+            request.setNombreUsuario(nombre);
+            assertThatThrownBy(() -> servicioUsuarios.crearUsuario(request, "admin"))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("hasta 10 caracteres");
+        }
+    }
+
+    @Test
     void validarContrasena_pideOchoCaracteresConLetraYNumero() {
-        ServicioUsuarios.validarContrasena("Farmacia2026");
+        ServicioUsuarios.validarContrasena("Farma2026");
         ServicioUsuarios.validarContrasena("abc12345");
 
-        for (String debil : new String[] {"12345678", "abcdefgh", "Abc123", "        ", null}) {
+        for (String debil : new String[] {"12345678", "abcdefgh", "Abc123", "        ", null, "a1".repeat(6)}) {
             assertThatThrownBy(() -> ServicioUsuarios.validarContrasena(debil))
                     .as("debería rechazar \"%s\"", debil)
                     .isInstanceOf(ResponseStatusException.class)
@@ -374,7 +385,7 @@ class ServicioUsuariosTest {
     void cambiarContrasenaPropia_conActualIncorrecta_lanza400() {
         CambiarContrasenaRequest request = new CambiarContrasenaRequest();
         request.setContrasenaActual("mala");
-        request.setContrasenaNueva("NuevaValida123*");
+        request.setContrasenaNueva("Nueva123*");
 
         when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
         when(passwordEncoder.matches("mala", "hash-actual")).thenReturn(false);
@@ -392,11 +403,11 @@ class ServicioUsuariosTest {
 
         CambiarContrasenaRequest request = new CambiarContrasenaRequest();
         request.setContrasenaActual("hash-actual-en-claro");
-        request.setContrasenaNueva("NuevaValida123*");
+        request.setContrasenaNueva("Nueva123*");
 
         when(usuarioRepository.findByNombreUsuario("jperez")).thenReturn(Optional.of(usuarioExistente));
         when(passwordEncoder.matches("hash-actual-en-claro", "hash-actual")).thenReturn(true);
-        when(passwordEncoder.encode("NuevaValida123*")).thenReturn("hash-nuevo");
+        when(passwordEncoder.encode("Nueva123*")).thenReturn("hash-nuevo");
 
         servicioUsuarios.cambiarContrasenaPropia("jperez", request);
 
@@ -437,7 +448,7 @@ class ServicioUsuariosTest {
         when(passwordEncoder.encode(any())).thenReturn("nuevo-hash");
         when(usuarioRepository.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
         RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
-        request.setContrasenaTemporal("Temporal123");
+        request.setContrasenaTemporal("Temp1234");
 
         servicioUsuarios.restablecerContrasena(5L, request, "admin");
 
@@ -497,9 +508,9 @@ class ServicioUsuariosTest {
     @Test
     void restablecerContrasena_seAnotaEnLaBitacoraSinGuardarLaContrasena() {
         RestablecerContrasenaRequest request = new RestablecerContrasenaRequest();
-        request.setContrasenaTemporal("Temporal123*");
+        request.setContrasenaTemporal("Temp123*");
         when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuarioExistente));
-        when(passwordEncoder.encode("Temporal123*")).thenReturn("hash-temporal");
+        when(passwordEncoder.encode("Temp123*")).thenReturn("hash-temporal");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
         servicioUsuarios.restablecerContrasena(5L, request, "admin");

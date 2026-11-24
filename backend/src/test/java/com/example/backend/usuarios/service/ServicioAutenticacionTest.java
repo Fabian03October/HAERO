@@ -83,7 +83,7 @@ class ServicioAutenticacionTest {
 
         assertThatThrownBy(() -> servicioAutenticacion.login(request))
                 .isInstanceOf(BadCredentialsException.class)
-                .hasMessage("Usuario o contraseña incorrectos");
+                .hasMessage("Usuario o contraseña incorrecta");
     }
 
     @Test
@@ -98,7 +98,7 @@ class ServicioAutenticacionTest {
 
         assertThatThrownBy(() -> servicioAutenticacion.login(request))
                 .isInstanceOf(BadCredentialsException.class)
-                .hasMessage("Usuario o contraseña incorrectos");
+                .hasMessage("Usuario o contraseña incorrecta");
     }
 
     @Test
@@ -112,7 +112,7 @@ class ServicioAutenticacionTest {
 
         assertThatThrownBy(() -> servicioAutenticacion.login(request))
                 .isInstanceOf(BadCredentialsException.class)
-                .hasMessage("Usuario o contraseña incorrectos");
+                .hasMessage("Usuario o contraseña incorrecta");
     }
 
 
@@ -132,7 +132,7 @@ class ServicioAutenticacionTest {
 
         assertThatThrownBy(() -> servicioAutenticacion.login(intento("mala")))
                 .isInstanceOf(BadCredentialsException.class)
-                .hasMessage("Usuario o contraseña incorrectos");
+                .hasMessage("Usuario o contraseña incorrecta");
         assertThat(usuarioActivo.getIntentosFallidos()).isEqualTo(1);
         assertThat(usuarioActivo.getBloqueadoHasta()).isNull();
     }
@@ -196,7 +196,7 @@ class ServicioAutenticacionTest {
         when(usuarioRepository.findByNombreUsuario("noexiste")).thenReturn(Optional.empty());
 
         for (int i = 1; i < ServicioAutenticacion.MAX_INTENTOS; i++) {
-            assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessage("Usuario o contraseña incorrectos");
+            assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessage("Usuario o contraseña incorrecta");
         }
         assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessageContaining("Cuenta bloqueada");
         assertThatThrownBy(() -> servicioAutenticacion.login(request)).hasMessageContaining("Cuenta bloqueada");

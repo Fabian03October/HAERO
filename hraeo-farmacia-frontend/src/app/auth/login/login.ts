@@ -14,6 +14,12 @@ export class Login {
   private readonly router = inject(Router);
 
   readonly error = signal(false);
+
+  constructor() {
+    // Llegar al login (por ejemplo, con la flecha de atrás del navegador) cierra la sesión abierta:
+    // así la flecha de adelante ya no vuelve a entrar sin iniciar sesión.
+    if (this.session.usuarioActual()) this.session.cerrarSesion();
+  }
   readonly contacto = CONTACTO_ADMINISTRADOR;
   // Pantalla donde estaba al cerrarse la sesión; al volver a entrar regresa ahí (solo rutas internas).
   private readonly volver = this.rutaInterna(inject(ActivatedRoute).snapshot.queryParamMap.get('volver'));

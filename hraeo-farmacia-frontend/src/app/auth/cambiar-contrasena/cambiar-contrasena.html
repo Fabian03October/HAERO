@@ -20,14 +20,14 @@
     <div class="field">
       <label for="nueva">Nueva contraseña</label>
       <app-campo-contrasena>
-        <input id="nueva" type="password" placeholder="•••••••••••" #nueva>
+        <input id="nueva" type="password" maxlength="10" placeholder="•••••••••••" #nueva>
       </app-campo-contrasena>
-      <div class="hint">Mínimo 8 caracteres, con al menos una letra y un número, y distinta de la actual.</div>
+      <div class="hint">De 8 a 10 caracteres, con al menos una letra y un número, y distinta de la actual.</div>
     </div>
     <div class="field">
       <label for="confirmar">Confirmar nueva contraseña</label>
       <app-campo-contrasena>
-        <input id="confirmar" type="password" placeholder="•••••••••••" #confirmar>
+        <input id="confirmar" type="password" maxlength="10" placeholder="•••••••••••" #confirmar>
       </app-campo-contrasena>
     </div>
     <button
