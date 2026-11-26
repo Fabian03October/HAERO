@@ -121,3 +121,11 @@ tr.falta .cantidad { border-color: var(--color-warn-accent); }
   .estante strong { font-size: 22px; }
   .cantidad { width: 80px; }
 }
+
+/* Verificación antes de guardar. */
+.subtitulo-revision { margin: 16px 0 8px; color: var(--color-guinda); font-size: 14px; }
+.desglose { display: block; color: var(--color-text-muted); font-size: 11px; white-space: nowrap; }
+
+.cajas-sueltas { display: flex; align-items: flex-end; gap: 10px; }
+.cajas-sueltas .field { flex: 1; }
+.cajas-sueltas .mas { padding-bottom: 10px; font-weight: 800; }

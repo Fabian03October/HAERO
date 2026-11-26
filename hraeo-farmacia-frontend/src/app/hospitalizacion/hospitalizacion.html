@@ -45,7 +45,7 @@
         </section>
 
         @if (areaActual(); as a) {
-          <div class="hosp" [class.con-detalle]="!!camaElegida()">
+          <div class="hosp" [class.con-detalle]="!!camaElegida()" [class.sin-lateral]="vista() === 'CARRITO'">
             <section class="card">
               <div class="barra">
                 <div>
@@ -103,6 +103,67 @@
                   <div class="banner" [class.error]="tipoMensajeCarrito() === 'error'" [class.warn]="tipoMensajeCarrito() === 'warn'" [class.info]="tipoMensajeCarrito() === 'info'">{{ mensajeCarrito() }}</div>
                 }
 
+                @if (historial(); as h) {
+                  <section class="historial-cama">
+                    <div class="historial-titulo">
+                      <strong>Historial 7 días · cama {{ h.espacio }}</strong>
+                      <span>{{ h.paciente ?? 'Paciente' }} · Exp. {{ h.expediente ?? '—' }}</span>
+                      @if (puedeSurtir) {
+                        <button class="btn" type="button" [disabled]="!clavesElegidas().size" (click)="surtirSeleccionados()">Surtir seleccionados ({{ clavesElegidas().size }}) →</button>
+                      }
+                      <button class="link" type="button" (click)="historial.set(null)">Cerrar</button>
+                    </div>
+
+                    <!-- 1) Lo que quedó sin surtir: cada medicamento una sola vez -->
+                    <div class="historial-dia">
+                      <div class="historial-dia-cabecera">
+                        <strong>Sin surtir en días anteriores</strong>
+                      </div>
+                      <ul>
+                        @for (p of pendientesHistorial(); track p.linea.clave) {
+                          <li class="fila-historial">
+                            @if (puedeSurtir) {
+                              <input type="checkbox" [attr.aria-label]="'Surtir ' + p.linea.medicamento" [checked]="seleccionHistorial().has('previos|' + p.linea.clave)" (change)="alternarSeleccionHistorial('previos|' + p.linea.clave)" />
+                            }
+                            <span class="linea-nombre">{{ p.linea.medicamento }}
+                              <small class="sub">{{ p.linea.clave }}{{ p.linea.posologia ? ' · ' + p.linea.posologia : '' }}</small>
+                            </span>
+                            <span class="estado-linea pendiente">Sin surtir desde {{ diaLargo(p.desde) }}</span>
+                          </li>
+                        } @empty {
+                          <li class="fila-historial"><span class="sub">Nada pendiente: todo lo de días anteriores se surtió (o no está en el catálogo).</span></li>
+                        }
+                      </ul>
+                    </div>
+                    <p class="nota">Marca lo que vas a surtir (aquí arriba o en cualquier día de abajo) y da "Surtir seleccionados": pasas al paso 2 y te pide las piezas de cada uno, uno tras otro. Entra al carrito y a la hoja de baja de hoy.</p>
+
+                    <!-- 2) Día por día: solo para consultar y volver a imprimir la indicación -->
+                    @for (d of h.dias; track d.dia) {
+                      <div class="historial-dia">
+                        <div class="historial-dia-cabecera">
+                          <strong>{{ d.dia === carrito()?.dia ? 'Hoy' : diaLargo(d.dia) }}</strong>
+                          <button class="link" type="button" (click)="imprimirIndicaciones([h.idIngreso], d.dia)">🖨 Indicaciones de ese día</button>
+                        </div>
+                        <ul>
+                          @for (l of d.lineas; track (l.clave ?? '') + l.medicamento) {
+                            <li class="fila-historial" [class.sin-clave]="!l.enCatalogo">
+                              @if (puedeSurtir && surtibleDesdeHistorial(d, l)) {
+                                <input type="checkbox" [attr.aria-label]="'Surtir ' + l.medicamento" [checked]="seleccionHistorial().has(d.dia + '|' + l.clave)" (change)="alternarSeleccionHistorial(d.dia + '|' + l.clave)" />
+                              }
+                              <span class="linea-nombre">{{ l.medicamento }}
+                                <small class="sub">{{ l.clave ?? 'Sin clave del catálogo' }}{{ l.posologia ? ' · ' + l.posologia : '' }}{{ l.entregadas ? ' · ' + l.entregadas + ' pzs' : '' }}{{ l.lotes ? ' · lote ' + l.lotes : '' }}</small>
+                              </span>
+                              <span class="estado-linea" [class.surtido]="l.estado === 'SURTIDO' || (!!l.clave && d.surtidasDespues.includes(l.clave))" [class.pendiente]="l.estado === 'PENDIENTE' && l.enCatalogo && !(l.clave && d.surtidasDespues.includes(l.clave))">{{ estadoHistorial(d, l) }}</span>
+                            </li>
+                          }
+                        </ul>
+                      </div>
+                    } @empty {
+                      <p class="vacio">Sin indicaciones de medicamento en los últimos 7 días.</p>
+                    }
+                  </section>
+                }
+
                 @if (paso() === 1) {
                   @if (carrito()?.cerradoEn) {
                     <div class="despues">
@@ -126,6 +187,7 @@
                           <span>{{ cama.paciente ?? 'Paciente' }}</span>
                           <small>Exp. {{ cama.expediente ?? '—' }} · {{ cama.lineas.length }} {{ cama.lineas.length === 1 ? 'medicamento' : 'medicamentos' }}</small>
                           <button class="link imprimir-cama" type="button" (click)="imprimirIndicaciones([cama.idIngreso])">🖨 Su hoja</button>
+                          <button class="link" type="button" [disabled]="cargandoHistorial() === cama.idIngreso" (click)="verHistorial(cama)">{{ historial()?.idIngreso === cama.idIngreso ? 'Cerrar historial' : 'Historial 7 días' }}</button>
                         </div>
                       </div>
                     } @empty {
@@ -228,9 +290,12 @@
                     <div class="confirmar">
                       <div class="confirmar-cabecera">
                         <div>
-                          <p class="eyebrow">Meter al carrito</p>
+                          <p class="eyebrow">Meter al carrito{{ colaHistorial().length ? ' · del historial, faltan ' + colaHistorial().length : '' }}</p>
                           <strong>{{ e.medicamento }}</strong> <app-marca-seguridad [clave]="e.clave" />
                           <small class="sub">{{ e.clave }} · {{ e.lote ? 'lote ' + e.lote + ' (del código)' : 'lote que caduca primero' }}</small>
+                          @for (p of previasCarrito(); track p.folioEntrega) {
+                            <small class="pill-revisar" title="Revisa que no se duplique">⚠ Ya se le dio por {{ p.area }} el {{ hora(p.fecha) }} ({{ p.piezas }} pz, receta {{ p.receta }})</small>
+                          }
                         </div>
                         <button class="link" type="button" (click)="cancelarSurtido()">Cancelar</button>
                       </div>
@@ -242,13 +307,15 @@
                           <button type="button" class="candidato" [class.elegido]="candidato()?.idIngreso === cand.idIngreso" (click)="elegirCandidato(cand)">
                             <strong>{{ cand.espacio }}</strong>
                             <span>{{ cand.paciente ?? 'Paciente' }}</span>
-                            @if (cand.sugeridas) { <small>Referencia: {{ cand.sugeridas }} dosis en 24 h</small> }
+                            @if (cand.sugeridas) { <small>Referencia: {{ cand.sugeridas }} {{ cand.sugeridas === 1 ? "pieza" : "piezas" }} en el día</small> }
                           </button>
                         }
                       </div>
                       <div class="en-linea confirmar-piezas">
                         <label for="piezas-carrito">¿Cuántas piezas?</label>
-                        <input id="piezas-carrito" type="number" min="1" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="confirmarSurtido()" />
+                        <app-cantidad-piezas idCampo="piezas-carrito" [clave]="porSurtir()?.clave" [(piezas)]="piezas" (enter)="confirmarSurtido()"
+                                             [placeholder]="candidato()?.sugeridas ? '' : 'Anota'" />
+                        <small class="sub">{{ candidato()?.sugeridas ? 'Sugerido según la indicación; cámbialo si entregas otra cantidad.' : 'La indicación no permite calcularlo: anota lo que entregas.' }}</small>
                         <button class="btn" type="button" [disabled]="!candidato() || !piezas() || surtiendo()" (click)="confirmarSurtido()">{{ surtiendo() ? 'Guardando…' : 'Meter al carrito · cama ' + (candidato()?.espacio ?? '') }}</button>
                       </div>
                     </div>
@@ -265,11 +332,14 @@
                           <strong>{{ cama.espacio }}</strong>
                           <span>{{ cama.paciente ?? 'Paciente' }}</span>
                           <small>Exp. {{ cama.expediente ?? '—' }}</small>
+                          <button class="link imprimir-cama" type="button" [disabled]="cargandoHistorial() === cama.idIngreso" (click)="verHistorial(cama)">
+                            {{ historial()?.idIngreso === cama.idIngreso ? 'Cerrar historial' : cargandoHistorial() === cama.idIngreso ? 'Cargando…' : 'Historial 7 días' }}
+                          </button>
                         </div>
                         <ul>
                           @for (l of cama.lineas; track (l.clave ?? '') + l.medicamento) {
                             <li [class]="'linea-carrito ' + l.estado" [class.sin-clave]="!l.enCatalogo">
-                              <span class="estado-linea">{{ estadoLineaTexto[l.estado] }}</span>
+                              <span class="estado-linea">{{ l.enCatalogo || l.estado !== 'PENDIENTE' ? estadoLineaTexto[l.estado] : 'No se surte' }}</span>
                               <span class="linea-nombre">
                                 {{ l.medicamento }}
                                 @if (l.pendienteDeAyer) { <span class="pill-ayer">Pendiente de ayer</span> }
@@ -277,7 +347,7 @@
                                 @if (l.modificado) { <span class="pill-nuevo">Cambió la dosis</span> }
                                 @if (revisar(l)) { <span class="pill-revisar" title="Las piezas no coinciden con la dosis del día">⚠ Revisar piezas</span> }
                                 <small class="sub">
-                                  {{ l.clave ?? 'Sin clave del catálogo' }}{{ l.posologia ? ' · ' + l.posologia : '' }}{{ l.dosis24h ? ' · ' + l.dosis24h + ' dosis en 24 h' : '' }}{{ l.indicadoEn ? ' · indicado ' + hora(l.indicadoEn) : '' }}
+                                  {{ l.enCatalogo ? l.clave : 'No está en el catálogo de Farmacia (el médico lo indicó sin clave): no se surte desde aquí' }}{{ l.posologia ? ' · ' + l.posologia : '' }}{{ l.dosis24h ? ' · ' + l.dosis24h + ' dosis en 24 h' : '' }}{{ l.piezasDia ? ' = ' + l.piezasDia + (l.piezasDia === 1 ? ' pieza' : ' piezas') : '' }}{{ l.indicadoEn ? ' · indicado ' + hora(l.indicadoEn) : '' }}
                                 </small>
                                 @if (l.lotes) { <small class="sub">En carrito: {{ l.entregadas }} pzs · lote {{ l.lotes }}</small> }
                                 @if (l.estado === 'SUSPENDIDO') { <small class="sub cancelado-texto">Cancelado {{ l.canceladoEn ? hora(l.canceladoEn) : '' }}{{ l.canceladoPor ? ' por ' + l.canceladoPor : '' }}</small> }
@@ -285,7 +355,7 @@
                               <span class="linea-cifras">{{ l.entregadas ? l.entregadas + ' pzs' : '' }}</span>
                               @if (puedeSurtir && l.enCatalogo) {
                                 @if (l.estado === 'PENDIENTE') {
-                                  <button class="link" type="button" title="Solo para cajas que no traen código de barras" (click)="surtirRenglon(cama, l)">Caja sin código</button>
+                                  <button class="link" type="button" title="Solo si la caja no trae código de barras: el lote se toma por caducidad (FEFO)" (click)="surtirRenglon(cama, l)">Surtir sin escanear</button>
                                 } @else {
                                   <button class="link danger" type="button" (click)="sacarDelCarrito(cama, l)">Sacar</button>
                                 }
@@ -298,7 +368,7 @@
                       <p class="empty-box">{{ carrito() ? 'No hay indicaciones nuevas ni pendientes por surtir en esta área.' : 'Cargando el carrito…' }}</p>
                     }
                   </div>
-                  <p class="nota">Escanea cada caja; "Caja sin código" es solo para cajas que no traen código de barras. La cantidad la captura quien surte (la dosis es referencia; si no coincide se marca para revisar). Al meter algo al carrito se descuenta del inventario de Farmacia.</p>
+                  <p class="nota">Escanea cada caja; "Surtir sin escanear" es solo para cajas que no traen código de barras. La cantidad la captura quien surte (la dosis es referencia; si no coincide se marca para revisar). Al meter algo al carrito se descuenta del inventario de Farmacia.</p>
                   <div class="acciones-paso">
                     <button class="btn secondary" type="button" (click)="irAPaso(1)">← Indicaciones</button>
                     <button class="btn" type="button" (click)="irAPaso(3)">Siguiente: finalizar →</button>
@@ -445,7 +515,8 @@
               }
             </section>
 
-            <!-- Panel lateral: la cama elegida o las novedades del área -->
+            <!-- Panel lateral: la cama elegida o las novedades del área (al despachar el carrito no se muestra) -->
+            @if (vista() !== 'CARRITO') {
             <aside class="card lateral-hosp">
               @if (camaElegida()) {
                 <div class="card-heading">
@@ -520,6 +591,7 @@
                 <p class="nota">Elige una cama para ver al paciente, sus medicamentos y sus actualizaciones.</p>
               }
             </aside>
+            }
           </div>
         }
 

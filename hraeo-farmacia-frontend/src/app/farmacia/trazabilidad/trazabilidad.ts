@@ -10,7 +10,7 @@ import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 import { FARMACIA_MENU } from '../farmacia-nav';
 import { cargarLogo } from '../../almacen/despacho/salidas-registradas/comprobante-salidas';
 import { conDatosHaero, descargarReporteTrazabilidad, descargarReporteVarios } from './reporte-trazabilidad';
-import { FarmaciaApi, LoteTrazable, PasoRecorrido, Trazabilidad as TrazabilidadApi } from '../farmacia-api';
+import { FarmaciaApi, LoteTrazable, PasoRecorrido, PeriodoTrazabilidad, Trazabilidad as TrazabilidadApi } from '../farmacia-api';
 
 type Modo = TrazabilidadApi['modo'];
 
@@ -46,6 +46,7 @@ interface ElegidoReporte {
   modo: Modo;
   valor: string;
   clave?: string;
+  periodo?: PeriodoTrazabilidad;
   titulo: string;
 }
 
@@ -84,6 +85,9 @@ export class Trazabilidad {
   readonly items = FARMACIA_MENU;
 
   readonly busqueda = signal('');
+  // Periodo opcional de las entregas a pacientes (no aplica a recetas, que ya tienen su ventana).
+  readonly desde = signal('');
+  readonly hasta = signal('');
   readonly aviso = signal('');
   readonly buscando = signal(false);
   // Lo último que se buscó como texto libre, para ofrecer "buscar como expediente / paciente".
@@ -164,11 +168,11 @@ export class Trazabilidad {
 
   verLote(lote: string, clave?: string): void {
     this.loteActual.set(lote + (clave ? '|' + clave : ''));
-    this.consultar(this.api.trazabilidadPorLote(lote, clave), `Lote ${lote}${clave ? ' · ' + clave : ''}`);
+    this.consultar(this.api.trazabilidadPorLote(lote, clave, this.periodo()), `Lote ${lote}${clave ? ' · ' + clave : ''}`);
   }
 
   verExpediente(expediente: string): void {
-    this.consultar(this.api.trazabilidadPorExpediente(expediente), `Expediente ${expediente}`);
+    this.consultar(this.api.trazabilidadPorExpediente(expediente, this.periodo()), `Expediente ${expediente}`);
   }
 
   verReceta(folio: string): void {
@@ -178,7 +182,7 @@ export class Trazabilidad {
   /** Un número: primero como expediente; si no trae entregas, como folio de receta. */
   private verExpedienteOReceta(numero: string): void {
     this.buscando.set(true);
-    this.api.trazabilidadPorExpediente(numero).subscribe({
+    this.api.trazabilidadPorExpediente(numero, this.periodo()).subscribe({
       next: (porExpediente) => {
         if (porExpediente.entregas.length) {
           this.buscando.set(false);
@@ -205,7 +209,7 @@ export class Trazabilidad {
   }
 
   verPaciente(paciente: string): void {
-    this.consultar(this.api.trazabilidadPorPaciente(paciente), paciente);
+    this.consultar(this.api.trazabilidadPorPaciente(paciente, this.periodo()), paciente);
   }
 
   /** Desde la tabla de entregas: del paciente a sus lotes. */
@@ -217,6 +221,19 @@ export class Trazabilidad {
 
   esLoteActual(l: LoteTrazable): boolean {
     return this.loteActual() === l.lote + '|' + l.clave;
+  }
+
+  /** Periodo escrito en la pantalla, solo con las fechas que se llenaron. */
+  private periodo(): PeriodoTrazabilidad {
+    return { ...(this.desde() ? { desde: this.desde() } : {}), ...(this.hasta() ? { hasta: this.hasta() } : {}) };
+  }
+
+  /** " · del 01/11/2026 al 24/11/2026" para el título y el PDF. */
+  private textoPeriodo(p: PeriodoTrazabilidad): string {
+    const f = (d: string) => d.split('-').reverse().join('/');
+    if (p.desde && p.hasta) return ` · del ${f(p.desde)} al ${f(p.hasta)}`;
+    if (p.desde) return ` · desde el ${f(p.desde)}`;
+    return p.hasta ? ` · hasta el ${f(p.hasta)}` : '';
   }
 
   private consultar(consulta: Observable<TrazabilidadApi>, titulo: string): void {
@@ -238,7 +255,7 @@ export class Trazabilidad {
   private mostrar(resultado: TrazabilidadApi, titulo: string): void {
     this.resultado.set(resultado);
     this.modo.set(resultado.modo);
-    this.titulo.set(titulo);
+    this.titulo.set(resultado.modo === 'RECETA' ? titulo : titulo + this.textoPeriodo(this.periodo()));
     // Por expediente o paciente no hay recorrido de un lote: se quedan las etapas vacías.
     this.recorrido.set(
       resultado.recorrido.length
@@ -294,8 +311,10 @@ export class Trazabilidad {
     const resultado = this.resultado();
     if (!resultado) return null;
     const clave = resultado.modo === 'LOTE' ? this.loteActual().split('|')[1] : undefined;
-    const llave = resultado.modo === 'LOTE' && clave ? `LOTE|${clave}|${resultado.valor.toUpperCase()}` : `${resultado.modo}||${resultado.valor.toUpperCase()}`;
-    return { llave, modo: resultado.modo, valor: resultado.valor, clave, titulo: this.titulo() };
+    const periodo = resultado.modo === 'RECETA' ? {} : this.periodo();
+    const base = resultado.modo === 'LOTE' && clave ? `LOTE|${clave}|${resultado.valor.toUpperCase()}` : `${resultado.modo}||${resultado.valor.toUpperCase()}`;
+    const llave = `${base}|${periodo.desde ?? ''}|${periodo.hasta ?? ''}`;
+    return { llave, modo: resultado.modo, valor: resultado.valor, clave, periodo, titulo: this.titulo() };
   }
 
   quitarDelReporte(e: ElegidoReporte): void {
@@ -319,13 +338,13 @@ export class Trazabilidad {
   private consultaDe(e: ElegidoReporte): Observable<TrazabilidadApi> {
     switch (e.modo) {
       case 'LOTE':
-        return this.api.trazabilidadPorLote(e.valor, e.clave);
+        return this.api.trazabilidadPorLote(e.valor, e.clave, e.periodo);
       case 'EXPEDIENTE':
-        return this.api.trazabilidadPorExpediente(e.valor);
+        return this.api.trazabilidadPorExpediente(e.valor, e.periodo);
       case 'RECETA':
         return this.api.trazabilidadPorReceta(e.valor);
       default:
-        return this.api.trazabilidadPorPaciente(e.valor);
+        return this.api.trazabilidadPorPaciente(e.valor, e.periodo);
     }
   }
 

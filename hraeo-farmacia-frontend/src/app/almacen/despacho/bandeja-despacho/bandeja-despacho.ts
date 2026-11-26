@@ -68,6 +68,8 @@ export class BandejaDespacho {
   readonly fueraDeFefo = signal(false);
   // HU15 CA2: motivo obligatorio si de verdad se toma un lote fuera del orden FEFO.
   readonly motivoFueraDeFefo = signal('');
+  // Parcial: por qué no se surte lo que falta. Solo se pide si todavía queda existencia (sin existencia, el motivo es ese).
+  readonly motivoFaltante = signal('');
   // HU40: por qué no se puede surtir lo pendiente.
   readonly motivoRechazo = signal('');
   readonly rechazando = signal(false);
@@ -110,6 +112,8 @@ export class BandejaDespacho {
   readonly disponibleTotal = computed(() => this.existencias().reduce((total, fila) => total + fila.cajas, 0));
   readonly totalADespachar = computed(() => this.renglones().reduce((total, fila) => total + fila.aDespachar, 0));
   readonly esParcial = computed(() => this.totalADespachar() < this.porSurtir());
+  readonly quedaExistencia = computed(() => this.renglones().reduce((total, fila) => total + Math.max(fila.cajas - (fila.aDespachar || 0), 0), 0) > 0);
+  readonly pideMotivoFaltante = computed(() => this.esParcial() && this.quedaExistencia());
 
   readonly saleFueraDeFefo = computed(() => this.fueraDeFefo() && this.renglones().some((fila) => fila.bloqueado && fila.aDespachar > 0));
 
@@ -127,6 +131,7 @@ export class BandejaDespacho {
     }
     if (this.totalADespachar() > this.porSurtir()) return `Solo faltan ${this.porSurtir()} cajas por surtir; ajusta las cantidades.`;
     if (this.saleFueraDeFefo() && !this.motivoFueraDeFefo().trim()) return 'Escribe por qué despachas fuera del orden FEFO.';
+    if (this.totalADespachar() && this.pideMotivoFaltante() && !this.motivoFaltante().trim()) return 'Todavía hay existencia: escribe por qué no surtes lo que falta.';
     return '';
   });
 
@@ -170,6 +175,7 @@ export class BandejaDespacho {
     this.asignaciones.set({});
     this.fueraDeFefo.set(false);
     this.motivoFueraDeFefo.set('');
+    this.motivoFaltante.set('');
     this.motivoRechazo.set('');
     this.rechazando.set(false);
     this.cargandoDetalle.set(true);
@@ -294,7 +300,8 @@ export class BandejaDespacho {
 
     this.enviando.set(true);
     this.api.despachar(solicitud.id, { partidas, parcial: this.esParcial(), confirmarFueraDeFefo: this.fueraDeFefo(),
-      motivoFueraDeFefo: this.saleFueraDeFefo() ? this.motivoFueraDeFefo().trim() : undefined }).subscribe({
+      motivoFueraDeFefo: this.saleFueraDeFefo() ? this.motivoFueraDeFefo().trim() : undefined,
+      motivoFaltante: this.esParcial() ? this.motivoFaltante().trim() || undefined : undefined }).subscribe({
       next: (respuesta) => {
         this.enviando.set(false);
         this.historial.recargarSalidas();

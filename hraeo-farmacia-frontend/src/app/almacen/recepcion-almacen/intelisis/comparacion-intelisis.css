@@ -20,3 +20,8 @@ td small.nombre { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
   .sync-card .card-heading { flex-direction: column; align-items: stretch; }
   .sync-card .primary-button { justify-self: stretch; }
 }
+
+.link-lotes { margin-top: 4px; padding: 0; border: 0; background: none; color: var(--color-guinda-medio); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.detalle-lotes > td { background: var(--color-fondo-suave, #faf7f3); }
+.tabla-lotes { width: 100%; }
+.tabla-lotes th, .tabla-lotes td { padding: 6px 8px; font-size: 12px; }

@@ -141,9 +141,14 @@
                         <span [class]="'status ' + solicitud.estatus.toLowerCase()">{{ estadoTexto[solicitud.estatus] }}</span>
                         @if (solicitud.motivoCierre) {
                           <small class="motivo-cierre">{{ solicitud.motivoCierre }} · {{ solicitud.cerradaPor }}</small>
+                        } @else if (solicitud.motivoFaltante && solicitud.cantidadAtendida < solicitud.cantidadSolicitada) {
+                          <small class="motivo-cierre">No surtido: {{ solicitud.motivoFaltante }}</small>
                         }
                       </td>
                       <td>
+                        @if (solicitud.pedidoId && solicitud.cantidadAtendida > 0) {
+                          <button type="button" class="link-cancelar" [disabled]="generandoVale()" (click)="imprimirVale(solicitud.pedidoId)">🖨 Vale</button>
+                        }
                         @if (abierta(solicitud.estatus)) {
                           <button type="button" class="link-cancelar" (click)="cancelar(solicitud)">Cancelar</button>
                           @if (abiertasDelPedido(solicitud.pedidoId) > 1) {

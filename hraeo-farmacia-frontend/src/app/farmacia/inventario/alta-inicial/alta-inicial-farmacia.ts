@@ -1,6 +1,5 @@
 import { Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Observable } from 'rxjs';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -10,7 +9,7 @@ import { Sidebar } from '../../../shared/sidebar/sidebar';
 import { EscanerCamara } from '../../../shared/escaner-camara/escaner-camara';
 import { leerGs1 } from '../../../shared/gs1';
 import { pitido } from '../../../shared/pitido';
-import { AlmacenApi, Medicamento, leerCaducidad, mensajeDeError } from '../../../almacen/almacen-api';
+import { Medicamento, leerCaducidad, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
 import { AreaConteo, EstadoConteo, FarmaciaApi, LoteIntelisisConteo, NuevoRenglonConteo, RenglonConteo } from '../../farmacia-api';
@@ -50,13 +49,24 @@ export class AltaInicialFarmacia {
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
   private readonly api = inject(FarmaciaApi);
-  private readonly almacenApi = inject(AlmacenApi);
   private readonly inventario = inject(InventarioInicialEstado);
 
   readonly area: AreaConteo = inject(ActivatedRoute).snapshot.data['area'] === 'ALMACEN' ? 'almacen' : 'farmacia';
   readonly enAlmacen = this.area === 'almacen';
   readonly unidad = this.enAlmacen ? 'cajas' : 'piezas';
   readonly unidadTitulo = this.enAlmacen ? 'Cajas' : 'Piezas';
+
+  /**
+   * En Farmacia se cuentan piezas: "= 2 cajas y 4 sueltas (la caja trae 10)" para que quien pensaba en cajas
+   * note el error al instante (1 caja de paracetamol escrita como "1" serían 9 tabletas de menos).
+   */
+  desglose(renglon: RenglonConteo, texto: string | number | null): string {
+    const piezas = Number(texto);
+    const porCaja = renglon.piezasPorCaja ?? 1;
+    if (this.enAlmacen || porCaja <= 1 || texto === null || texto === '' || !Number.isInteger(piezas) || piezas < 0) return '';
+    const cajas = Math.floor(piezas / porCaja);
+    return `= ${cajas} ${cajas === 1 ? 'caja' : 'cajas'} y ${piezas % porCaja} sueltas (la caja trae ${porCaja})`;
+  }
   readonly nombreArea = this.enAlmacen ? 'Almacén' : 'Farmacia';
   readonly rutaExistencias = this.enAlmacen ? '/almacen/recepcion/inventario' : '/farmacia/inventario/existencias';
 
@@ -91,6 +101,22 @@ export class AltaInicialFarmacia {
   // Caja que ya estaba registrada en el estante: ventana para escribir sus piezas.
   readonly capturando = signal<RenglonConteo | null>(null);
   piezasCaptura = '';
+  // Farmacia: se cuenta "cajas completas + piezas sueltas" (ampolletas o tabletas fuera de su caja) y se guarda en piezas.
+  cajasCaptura = '';
+  sueltasCaptura = '';
+  conCajas(renglon: RenglonConteo): boolean {
+    return !this.enAlmacen && (renglon.piezasPorCaja ?? 1) > 1;
+  }
+  totalCaptura(renglon: RenglonConteo): number | null {
+    // Los campos numéricos entregan número o null (no texto).
+    const textoCajas = String(this.cajasCaptura ?? '').trim();
+    const textoSueltas = String(this.sueltasCaptura ?? '').trim();
+    if (textoCajas === '' && textoSueltas === '') return null;
+    const cajas = textoCajas === '' ? 0 : Number(textoCajas);
+    const sueltas = textoSueltas === '' ? 0 : Number(textoSueltas);
+    if (![cajas, sueltas].every((n) => Number.isInteger(n) && n >= 0)) return null;
+    return cajas * (renglon.piezasPorCaja ?? 1) + sueltas;
+  }
   readonly errorCaptura = signal('');
   readonly guardandoCaptura = signal(false);
   private readonly campoPiezas = viewChild<ElementRef<HTMLInputElement>>('campoPiezas');
@@ -264,12 +290,7 @@ export class AltaInicialFarmacia {
       this.registrar({ codigo, lote: gs1.lote, caducidad: gs1.caducidad });
       return;
     }
-    // Ya registrada en este estante (un solo lote con ese código): directo a poner sus piezas.
-    const mismas = this.renglonesDelEstante().filter((r) => r.codigo === codigo);
-    if (mismas.length === 1) {
-      this.abrirCaptura(mismas[0]);
-      return;
-    }
+    // Siempre se elige el lote (aunque la clave ya tenga uno en el estante, la caja puede ser de otro lote).
     // Sin lote o sin caducidad en el código: se elige de los lotes de Intelisis de su clave.
     this.loteManual = gs1?.lote ?? '';
     this.caducidadManual = '';
@@ -285,11 +306,8 @@ export class AltaInicialFarmacia {
       return;
     }
     this.buscandoClave.set(true);
-    // Cada área busca el código en su propia ruta (Almacén no puede usar la de Farmacia); las dos dan clave y nombre.
-    const buscar: Observable<{ clave: string; nombre: string }> = this.enAlmacen
-      ? this.almacenApi.resolverCodigo(codigo)
-      : this.api.codigoMedicamento(codigo);
-    buscar.subscribe({
+    // Lo que escaneó la otra área también sirve: el catálogo o el conteo de Almacén o de Farmacia.
+    this.api.claveEnConteo(codigo, this.area).subscribe({
       next: (c) => {
         this.buscandoClave.set(false);
         this.usarClaveDeLaCaja(c.clave, c.nombre);
@@ -309,7 +327,14 @@ export class AltaInicialFarmacia {
     this.claveCaja.set({ clave, nombre });
     this.lotesCaja.set(null);
     this.api.lotesParaConteo(clave, this.area).subscribe({
-      next: (lotes) => {
+      next: (deIntelisis) => {
+        // Más los lotes de esa clave que ya se registraron a mano en este conteo (no están en Intelisis).
+        const yaVistos = new Set(deIntelisis.map((l) => l.lote.toUpperCase()));
+        const aMano = this.renglones()
+          .filter((r) => r.clave === clave && !yaVistos.has(r.lote.toUpperCase()))
+          .filter((r, i, todos) => todos.findIndex((x) => x.lote.toUpperCase() === r.lote.toUpperCase()) === i)
+          .map((r) => ({ lote: r.lote, caducidad: r.caducidad, piezas: null }));
+        const lotes = [...deIntelisis, ...aMano];
         this.lotesCaja.set(lotes);
         // Si el código trajo el lote y está en Intelisis, se registra sin preguntar.
         const leido = this.loteManual.trim().toUpperCase();
@@ -334,6 +359,12 @@ export class AltaInicialFarmacia {
     const caja = this.pendiente();
     const clave = this.claveCaja()?.clave;
     if (!caja || !clave) return;
+    // Sin caducidad en Intelisis: se pasa a escribirla a mano con el lote ya puesto.
+    if (!lote.caducidad) {
+      this.loteManual = lote.lote;
+      this.aMano();
+      return;
+    }
     this.registrar({ codigo: caja.codigo, clave, lote: lote.lote, caducidad: lote.caducidad });
   }
 
@@ -477,6 +508,9 @@ export class AltaInicialFarmacia {
     this.camaraAbierta.set(false);
     this.ultimoId.set(renglon.id);
     this.piezasCaptura = renglon.cantidad === null ? '' : String(renglon.cantidad);
+    const porCaja = renglon.piezasPorCaja ?? 1;
+    this.cajasCaptura = renglon.cantidad === null ? '' : String(Math.floor(renglon.cantidad / porCaja));
+    this.sueltasCaptura = renglon.cantidad === null ? '' : String(renglon.cantidad % porCaja);
     this.errorCaptura.set('');
     this.capturando.set(renglon);
     setTimeout(() => {
@@ -493,8 +527,13 @@ export class AltaInicialFarmacia {
   guardarCaptura(): void {
     const renglon = this.capturando();
     if (!renglon || this.guardandoCaptura()) return;
-    const cantidad = Number(this.piezasCaptura.trim());
-    if (this.piezasCaptura.trim() === '' || !Number.isInteger(cantidad) || cantidad < 0) {
+    if (this.conCajas(renglon)) {
+      const total = this.totalCaptura(renglon);
+      this.piezasCaptura = total === null ? '' : String(total);
+    }
+    const escrito = String(this.piezasCaptura ?? '').trim();
+    const cantidad = Number(escrito);
+    if (escrito === '' || !Number.isInteger(cantidad) || cantidad < 0) {
       this.errorCaptura.set(`Escribe las ${this.unidad} con un número entero (0 si no había).`);
       return;
     }
@@ -567,6 +606,41 @@ export class AltaInicialFarmacia {
   }
 
   // ---------- Mover a otro estante ----------
+  // ---------- Corregir un renglón (verificación antes de guardar) ----------
+  readonly corrigiendo = signal<RenglonConteo | null>(null);
+  readonly errorCorregir = signal('');
+  readonly guardandoCorreccion = signal(false);
+  claveCorregir = '';
+  loteCorregir = '';
+  caducidadCorregir = '';
+
+  abrirCorregir(renglon: RenglonConteo): void {
+    this.claveCorregir = renglon.clave;
+    this.loteCorregir = renglon.lote;
+    this.caducidadCorregir = renglon.caducidad;
+    this.errorCorregir.set('');
+    this.corrigiendo.set(renglon);
+  }
+
+  guardarCorreccion(): void {
+    const r = this.corrigiendo();
+    if (!r || this.guardandoCorreccion()) return;
+    this.guardandoCorreccion.set(true);
+    this.api.corregirRenglonConteo(r.id, { clave: this.claveCorregir.trim(), lote: this.loteCorregir.trim(), caducidad: this.caducidadCorregir || null }, this.area)
+      .subscribe({
+        next: (actualizado) => {
+          this.guardandoCorreccion.set(false);
+          this.corrigiendo.set(null);
+          this.ponerRenglon(actualizado);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.guardandoCorreccion.set(false);
+          if (error.status === 409) return this.yaGuardado(error);
+          this.errorCorregir.set(mensajeDeError(error, 'No se pudo corregir el renglón.'));
+        },
+      });
+  }
+
   abrirMover(renglon: RenglonConteo): void {
     this.estanteDestino = '';
     this.errorMover.set('');

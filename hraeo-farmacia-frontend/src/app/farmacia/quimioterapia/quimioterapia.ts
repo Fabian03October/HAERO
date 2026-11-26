@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
@@ -7,10 +7,11 @@ import { Sidebar } from '../../shared/sidebar/sidebar';
 import { EscanerCamara } from '../../shared/escaner-camara/escaner-camara';
 import { MarcaSeguridad } from '../../shared/marca-seguridad/marca-seguridad';
 import { DatosGs1, leerGs1 } from '../../shared/gs1';
+import { SeguridadMedicamentos } from '../../shared/seguridad-medicamentos';
 import { pitido } from '../../shared/pitido';
 import { Medicamento, mensajeDeError } from '../../almacen/almacen-api';
 import { BuscadorMedicamento } from '../buscador-medicamento/buscador-medicamento';
-import {
+import { EntregaPrevia,
   ClaveSugerida,
   EstadoQuimio,
   FarmaciaApi,
@@ -29,6 +30,8 @@ import { Router } from '@angular/router';
 import { FARMACIA_MENU } from '../farmacia-nav';
 import { CajasQuirofano, EstadoBajaArea } from '../cajas-quirofano/cajas-quirofano';
 import { Paginacion, Paginador } from '../../shared/paginador/paginador';
+import { diaLocal } from '../../shared/fechas';
+import { CantidadPiezas } from '../../shared/cantidad-piezas/cantidad-piezas';
 
 type ModoBusqueda = 'NOMBRE' | 'CURP';
 type Opcion = 'PRINCIPAL' | 'ALTERNATIVA';
@@ -117,7 +120,7 @@ type ClaveElegida = Pick<Medicamento, 'clave' | 'nombreGenerico'>;
 // Se descuenta como una entrega normal de Farmacia. Intelisis solo se consulta.
 @Component({
   selector: 'app-quimioterapia',
-  imports: [FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, MarcaSeguridad, BuscadorMedicamento, Paginador],
+  imports: [CantidadPiezas, FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, MarcaSeguridad, BuscadorMedicamento, Paginador],
   templateUrl: './quimioterapia.html',
   styleUrls: ['../panel-farmacia/panel-farmacia.css', '../farmacia-comun.css', './quimioterapia.css'],
 })
@@ -225,6 +228,8 @@ export class Quimioterapia {
   // ---------- 1. Solicitud y paciente ----------
   readonly folio = signal('');
   readonly expediente = signal('');
+  // Lo que ya salió de estas claves para el paciente por Hospitalización o Ventanilla en los últimos 7 días (solo aviso).
+  readonly previasQuimio = signal<EntregaPrevia[]>([]);
   readonly nombreSolicitud = signal('');
   readonly buscando = signal(false);
   readonly noExiste = signal(false);
@@ -301,6 +306,10 @@ export class Quimioterapia {
   // Lo último que pasó al escanear (se pinta en grande con su color) y el código nuevo por asignar.
   readonly ultimoEscaneo = signal<{ tipo: 'ok' | 'completo' | 'error' | 'aviso'; texto: string } | null>(null);
   readonly codigoSinClave = signal<{ codigo: string; gs1: DatosGs1 | null } | null>(null);
+  // Caja escaneada que ya eligió su medicamento de la nota pero espera que se escriban las piezas.
+  private readonly escaneoEnEspera = signal<{ codigo: string; gs1: DatosGs1 | null; clave: string } | null>(null);
+  // Código que HAERO no conoce, escaneado antes de elegir clave: se liga a la clave que se elija en la nota.
+  private readonly codigoNuevoEnEspera = signal<{ codigo: string; gs1: DatosGs1 | null } | null>(null);
   // Código de caja → clave (null = HAERO no lo conoce), para no consultar dos veces la misma caja.
   private readonly codigosConocidos = new Map<string, string | null>();
   readonly existencias = signal<LoteFarmacia[]>([]);
@@ -329,8 +338,42 @@ export class Quimioterapia {
     return faltan;
   });
 
+  // ---------- Reprogramar (el paciente no puede pasar el día programado) ----------
+  readonly motivosReprogramar = ['Paciente no se presentó', 'Paciente no apto hoy (indicación médica)', 'Falta medicamento'];
+  readonly reprogramando = signal<number | null>(null);
+  readonly fechaReprogramar = signal('');
+  readonly motivoReprogramar = signal('');
+  readonly guardandoReprogramar = signal(false);
+  readonly hoyDia = diaLocal();
+
+  abrirReprogramar(s: SolicitudQuimio): void {
+    this.reprogramando.set(s.folio);
+    this.fechaReprogramar.set('');
+    this.motivoReprogramar.set('');
+  }
+
+  guardarReprogramacion(s: SolicitudQuimio): void {
+    if (this.guardandoReprogramar()) return;
+    this.guardandoReprogramar.set(true);
+    this.api.reprogramarQuimio(s.folio, this.fechaReprogramar(), this.motivoReprogramar().trim()).subscribe({
+      next: (r) => {
+        this.guardandoReprogramar.set(false);
+        this.reprogramando.set(null);
+        const dia = (r.fechaRequerida ?? '').slice(0, 10).split('-').reverse().join('/');
+        this.mostrar(`Solicitud ${s.folio} reprogramada al ${dia}. Notifica a Oncología Médica del cambio.`, 'info');
+        this.cargarSolicitudes();
+      },
+      error: (e) => {
+        this.guardandoReprogramar.set(false);
+        this.mostrar(mensajeDeError(e, 'No se pudo reprogramar.'), 'error');
+      },
+    });
+  }
+
   // ---------- Baja del día (como en Hospitalización) ----------
   private readonly bajas = inject(CajasQuirofano);
+  // Piezas por caja de cada clave: un escaneo cuenta hasta una caja completa.
+  private readonly catalogo = inject(SeguridadMedicamentos);
   readonly bajaDia = signal<EstadoBajaArea | null>(null);
   readonly terminando = signal(false);
 
@@ -359,11 +402,42 @@ export class Quimioterapia {
     window.open(`/farmacia/hospitalizacion/imprimir/bajas?${parametros}`, '_blank');
   }
 
+  // Hojas de solicitud para surtir: "Su hoja", todas las de la lista o las elegidas.
+  readonly elegidasImprimir = signal<Set<number>>(new Set());
+  // "Las de hoy": las de la lista que se requieren hoy (como el carrito de Hospitalización: lo del día).
+  readonly deHoy = computed(() => this.solicitudes().filter((s) => (s.fechaRequerida ?? '').startsWith(this.hoyDia)));
+
+  alternarElegida(folio: number): void {
+    this.elegidasImprimir.update((actual) => {
+      const nuevo = new Set(actual);
+      if (!nuevo.delete(folio)) nuevo.add(folio);
+      return nuevo;
+    });
+  }
+
+  imprimirSolicitudes(cuales: Iterable<number | SolicitudQuimio>): void {
+    const folios = [...cuales].map((c) => (typeof c === 'number' ? c : c.folio));
+    if (!folios.length) return;
+    window.open(`/farmacia/quimioterapia/imprimir?folios=${folios.join(',')}`, '_blank');
+  }
+
   imprimirHojasPacientes(): void {
     window.open('/farmacia/hospitalizacion/imprimir/bajas?central=QUIMIO', '_blank');
   }
 
   constructor() {
+    this.catalogo.cargar();
+    effect(() => {
+      const expediente = this.expediente().trim();
+      const claves = [...new Set(this.renglones().map((r) => this.claveSurtida(r)))];
+      untracked(() => {
+        if (!expediente || !claves.length) return this.previasQuimio.set([]);
+        this.api.entregasPrevias(expediente, claves).subscribe({
+          next: (previas) => this.previasQuimio.set(previas.filter((p) => p.area !== 'Quimioterapia')),
+          error: () => this.previasQuimio.set([]),
+        });
+      });
+    });
     this.cargarEstado();
     this.cargarSolicitudes();
     this.cargarExistencias();
@@ -727,6 +801,33 @@ export class Quimioterapia {
     const piezas = this.piezasFila();
     if (!piezas || piezas <= 0 || !Number.isInteger(piezas)) return this.mostrar('Escribe las piezas (frascos o ampolletas) a surtir.', 'error');
     this.agregarDeNota(m, clave, piezas);
+    // Si la clave salió de escanear una caja, esa caja ya cuenta como la primera pieza.
+    const espera = this.escaneoEnEspera();
+    if (espera && espera.clave === clave.clave) {
+      this.escaneoEnEspera.set(null);
+      this.asignarEscaneo(espera.codigo, espera.gs1, espera.clave);
+    }
+  }
+
+  /** La caja escaneada es una de las claves posibles de un medicamento de la nota que aún no tiene clave. */
+  private notaParaClave(clave: string): { m: MedicamentoEnNota; c: ClaveSugerida } | null {
+    for (const m of this.medicamentosNota()) {
+      const c = m.claves.find((x) => x.clave === clave);
+      if (c && !this.bloqueoDe(m) && !this.renglonesDe(m).length) return { m, c };
+    }
+    return null;
+  }
+
+  /** Escanear la caja elige la clave: se agrega a su medicamento de la nota y la caja cuenta como pieza. */
+  private agregarPorEscaneo(m: MedicamentoEnNota, c: ClaveSugerida, codigo: string, gs1: DatosGs1 | null): void {
+    const piezas = this.piezasCalculadas(m, c);
+    if (piezas) {
+      this.agregarDeNota(m, c, piezas);
+      return this.asignarEscaneo(codigo, gs1, c.clave);
+    }
+    this.escaneoEnEspera.set({ codigo, gs1, clave: c.clave });
+    this.agregarSugerencia(m, c);
+    this.avisoEscaneo('aviso', `Esta caja es ${c.clave} ${c.nombre}: va en ${m.farmaco}. Escribe cuántas piezas se surten y da Enter.`);
   }
 
   private agregarDeNota(m: MedicamentoEnNota, c: ClaveSugerida, piezas: number): void {
@@ -767,6 +868,12 @@ export class Quimioterapia {
       this.mostrar(`${m.farmaco}: se cambió ${antes} por ${c.clave} (${piezas} pz).`, 'info');
     } else {
       this.mensaje.set('');
+    }
+    const nuevo = this.codigoNuevoEnEspera();
+    if (nuevo) {
+      this.codigoNuevoEnEspera.set(null);
+      this.codigosConocidos.set(nuevo.codigo, c.clave);
+      this.asignarEscaneo(nuevo.codigo, nuevo.gs1, c.clave);
     }
   }
 
@@ -1079,7 +1186,7 @@ export class Quimioterapia {
     this.codigoSinClave.set(null);
     const gs1 = leerGs1(crudo);
     const codigo = gs1?.gtin ?? crudo;
-    if (gs1?.caducidad && gs1.caducidad < new Date().toISOString().slice(0, 10)) {
+    if (gs1?.caducidad && gs1.caducidad < diaLocal()) {
       return this.avisoEscaneo('error', `El lote ${gs1.lote ?? ''} de esta caja está vencido: no se surte. Apártalo para darlo de baja.`);
     }
     const conocida = this.codigosConocidos.get(codigo);
@@ -1144,12 +1251,18 @@ export class Quimioterapia {
       // Código nuevo: si su lote solo existe en uno de los medicamentos pendientes, es de ese.
       const porLote = gs1?.lote ? pendientes.filter((r) => this.lotesDe(r).some((l) => mismoLote(l.lote, gs1.lote!))) : [];
       if (porLote.length === 1) return this.sumarEscaneo(porLote[0], codigo, gs1);
+      if (!this.renglones().length && this.medicamentosNota().length) {
+        this.codigoNuevoEnEspera.set({ codigo, gs1 });
+        return this.avisoEscaneo('aviso', 'Este código todavía no está en HAERO. Elige arriba la clave de este medicamento (revisa su ficha): la caja se cuenta y el código queda guardado.');
+      }
       if (!pendientes.length) return this.avisoEscaneo('error', 'Ya está escaneado todo lo de la indicación: esta caja sobra.');
       this.codigoSinClave.set({ codigo, gs1 });
       return this.avisoEscaneo('aviso', 'Este código todavía no está en HAERO. Elige abajo de qué medicamento es y queda guardado.');
     }
     const deClave = this.renglones().filter((r) => this.claveSurtida(r) === clave);
     if (!deClave.length) {
+      const deNota = this.notaParaClave(clave);
+      if (deNota) return this.agregarPorEscaneo(deNota.m, deNota.c, codigo, gs1);
       const deAlternativa = this.renglones().find((r) => r.usar === 'PRINCIPAL' && r.alternativa?.clave === clave);
       if (deAlternativa) {
         return this.avisoEscaneo('error', `Esta caja es ${clave}, la alternativa de ${deAlternativa.principal.clave}. Si vas a surtir la alternativa, elígela en su tarjeta.`);
@@ -1183,12 +1296,15 @@ export class Quimioterapia {
       lote = lotes.find((l) => usadas(l.lote) < l.piezas);
       if (!lote) return this.avisoEscaneo('error', `No hay existencia de ${clave} en Farmacia.`);
     }
-    const escaneos = [...r.escaneos, { lote: lote.lote, caducidad: lote.caducidad, codigo, fefo: !gs1?.lote }];
+    // Una caja cuenta lo que falta, hasta una caja completa (sin pasar de lo que hay en ese lote).
+    const cuantas = Math.max(1, Math.min(this.catalogo.piezasPorCaja(clave), r.piezas - r.escaneos.length, lote.piezas - usadas(lote.lote)));
+    const pieza = { lote: lote.lote, caducidad: lote.caducidad, codigo, fefo: !gs1?.lote };
+    const escaneos = [...r.escaneos, ...Array.from({ length: cuantas }, () => ({ ...pieza }))];
     this.cambiarRenglon(r.id, { escaneos });
     const nombre = `${clave} ${r.usar === 'ALTERNATIVA' && r.alternativa ? r.alternativa.nombre : r.principal.nombre}`;
     const sinLote = gs1?.lote ? '' : ' (la caja no trae lote: se tomó el que caduca primero)';
     if (escaneos.length < r.piezas) {
-      return this.avisoEscaneo('ok', `${nombre}: ${escaneos.length} de ${r.piezas} · lote ${lote.lote}${sinLote}`);
+      return this.avisoEscaneo('ok', `${nombre}: +${cuantas} (${escaneos.length} de ${r.piezas}) · lote ${lote.lote}${sinLote}`);
     }
     const restantes = this.renglones().filter((x) => !x.sinEscaneo && this.escaneadas(x) < x.piezas).length;
     this.avisoEscaneo('completo', restantes

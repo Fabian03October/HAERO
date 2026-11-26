@@ -128,13 +128,25 @@
               }
             </div>
 
+            <div class="barra-imprimir">
+              <span class="sub">Imprime la solicitud para surtir (como las indicaciones de Hospitalización: datos, diagnóstico y notas del médico).</span>
+              <button class="btn" type="button" [disabled]="!deHoy().length" (click)="imprimirSolicitudes(deHoy())">🖨 Imprimir las de hoy ({{ deHoy().length }})</button>
+              <button class="btn secondary" type="button" [disabled]="!elegidasImprimir().size" (click)="imprimirSolicitudes(elegidasImprimir())">🖨 Imprimir elegidas ({{ elegidasImprimir().size }})</button>
+            </div>
+
             <div class="tarjetas-solicitud">
               @for (s of pagSolicitudes.visibles(); track s.folio) {
                 @let medias = enPausa()?.folioIntelisis === '' + s.folio;
                 <article class="tarjeta-solicitud" [class.medias]="medias" [class.pendiente]="s.pendientes > 0" [class.surtida]="s.sesionesSurtidas > 0 && !s.pendientes" (click)="abrirSolicitud(s.folio)">
                   <div class="ts-folio">
-                    <strong>{{ s.folio }}</strong>
+                    <label class="elegir" (click)="$event.stopPropagation()">
+                      <input type="checkbox" [attr.aria-label]="'Elegir solicitud ' + s.folio" [checked]="elegidasImprimir().has(s.folio)" (change)="alternarElegida(s.folio)" />
+                      <strong>{{ s.folio }}</strong>
+                    </label>
                     <small>{{ s.fechaRequerida ? (s.fechaRequerida | date: 'dd/MM/yyyy') : (s.fecha | date: 'dd/MM/yyyy') }}{{ s.sesionesSurtidas ? ' · sesión ' + (s.sesionesSurtidas + 1) : '' }}</small>
+                    @if (s.motivoReprogramacion) {
+                      <small class="reprogramada">Reprogramada del {{ s.fechaOriginal | date: 'dd/MM' }} · {{ s.motivoReprogramacion }}</small>
+                    }
                   </div>
                   <div class="ts-paciente">
                     <strong>{{ s.paciente ?? 'Expediente sin paciente en Intelisis' }}</strong>
@@ -160,9 +172,36 @@
                       <span class="estado">Por surtir</span>
                     }
                   </div>
-                  <button class="btn" type="button" [class.secondary]="!medias" (click)="$event.stopPropagation(); medias ? continuarPausada() : abrirSolicitud(s.folio)">
-                    {{ medias ? 'Continuar' : s.pendientes ? 'Surtir lo que falta' : s.sesionesSurtidas ? 'Ver / nueva sesión' : 'Surtir' }}
-                  </button>
+                  <div class="ts-acciones">
+                    <button class="btn" type="button" [class.secondary]="!medias" (click)="$event.stopPropagation(); medias ? continuarPausada() : abrirSolicitud(s.folio)">
+                      {{ medias ? 'Continuar' : s.pendientes ? 'Surtir lo que falta' : s.sesionesSurtidas ? 'Ver / nueva sesión' : 'Surtir' }}
+                    </button>
+                    <button class="link" type="button" (click)="$event.stopPropagation(); imprimirSolicitudes([s.folio])">🖨 Su hoja</button>
+                    @if (!medias && (!s.sesionesSurtidas || s.pendientes)) {
+                      <button class="link" type="button" (click)="$event.stopPropagation(); abrirReprogramar(s)">Reprogramar</button>
+                    }
+                  </div>
+                  @if (reprogramando() === s.folio) {
+                    <!-- El paciente no puede pasar: Farmacia llama a Oncología Médica y anota la fecha que le dan. -->
+                    <div class="reprogramar" (click)="$event.stopPropagation()">
+                      <strong>Reprogramar la quimioterapia</strong>
+                      <label><span>Nueva fecha (la que dio Oncología Médica)</span>
+                        <input type="date" [min]="hoyDia" [ngModel]="fechaReprogramar()" (ngModelChange)="fechaReprogramar.set($event ?? '')" />
+                      </label>
+                      <div class="motivos">
+                        @for (mot of motivosReprogramar; track mot) {
+                          <button type="button" class="chip-motivo" [class.activo]="motivoReprogramar() === mot" (click)="motivoReprogramar.set(mot)">{{ mot }}</button>
+                        }
+                      </div>
+                      <input [ngModel]="motivoReprogramar()" (ngModelChange)="motivoReprogramar.set($event)" maxlength="300" placeholder="Motivo (o escribe otro)" aria-label="Motivo" />
+                      <div class="acciones">
+                        <button class="btn" type="button" [disabled]="guardandoReprogramar() || !fechaReprogramar() || !motivoReprogramar().trim()" (click)="guardarReprogramacion(s)">
+                          {{ guardandoReprogramar() ? 'Guardando…' : 'Guardar nueva fecha' }}
+                        </button>
+                        <button class="link" type="button" (click)="reprogramando.set(null)">Cancelar</button>
+                      </div>
+                    </div>
+                  }
                 </article>
               } @empty {
                 <p class="empty">{{ cargandoLista() ? 'Cargando…' : 'No hay solicitudes con esos filtros. Si traes la hoja, escribe su folio.' }}</p>
@@ -445,9 +484,12 @@
                             <button type="button" class="clave-sugerida" [class.agregada]="enLista" [class.seleccionada]="esperando" [class.sin-piezas]="c.existencia <= 0"
                                     [disabled]="enLista" [title]="(agregados.length && !enLista ? 'Cambiar a esta clave: ' : '') + c.nombre + (c.forma ? ' · ' + c.forma : '') + (c.concentracion ? ' · ' + c.concentracion : '')"
                                     (click)="agregarSugerencia(m, c)">
-                              <strong>{{ enLista ? '✓ ' : '' }}{{ c.clave }}</strong>
-                              <span>{{ c.concentracion ?? c.forma ?? c.nombre }}</span>
-                              <small>{{ c.existencia > 0 ? c.existencia + ' pz' : 'sin exist.' }}{{ c.usadaAntes ? ' · ciclo ant.' : '' }}</small>
+                              <span class="ficha-linea"><strong>{{ enLista ? '✓ ' : '' }}{{ c.clave }}</strong>
+                                <small>{{ c.existencia > 0 ? c.existencia + ' pz en Farmacia' : 'sin existencia' }}{{ c.usadaAntes ? ' · usada en el ciclo anterior' : '' }}</small></span>
+                              <span class="ficha-nombre">{{ c.nombre }}</span>
+                              @if (c.forma || c.concentracion) {
+                                <span class="ficha-detalle">{{ c.forma ?? '' }}{{ c.forma && c.concentracion ? ' · ' : '' }}{{ c.concentracion ?? '' }}</span>
+                              }
                             </button>
                           } @empty {
                             <small class="sub">Sin claves: usa "+ Agregar otro medicamento".</small>
@@ -464,8 +506,8 @@
                       <td class="number pz-celda">
                         @if (pidePiezas) {
                           <div class="pz-captura">
-                            <input id="pz-fila" type="number" min="1" placeholder="Pz" aria-label="Piezas a surtir"
-                                   [ngModel]="piezasFila()" (ngModelChange)="piezasFila.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="confirmarPiezas(m)" />
+                            <app-cantidad-piezas idCampo="pz-fila" placeholder="Pz" etiqueta="Piezas a surtir" [clave]="pendientePiezas()?.clave"
+                                                 [(piezas)]="piezasFila" (enter)="confirmarPiezas(m)" />
                             <button class="btn" type="button" (click)="confirmarPiezas(m)">✓</button>
                           </div>
                         } @else if (agregados.length === 1) {
@@ -570,7 +612,8 @@
                 </div>
                 <div class="field">
                   <label for="piezas">Piezas a surtir</label>
-                  <input id="piezas" type="number" min="1" [ngModel]="piezas()" (ngModelChange)="piezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="agregarRenglon()" [placeholder]="piezasSugeridas() ? piezasSugeridas() + ' (calculado)' : ''" />
+                  <app-cantidad-piezas idCampo="piezas" etiqueta="Piezas a surtir" [clave]="principal()?.clave" [(piezas)]="piezas" (enter)="agregarRenglon()"
+                                       [placeholder]="piezasSugeridas() ? piezasSugeridas() + ' (calculado)' : ''" />
                 </div>
               </div>
               @if (piezasSugeridas(); as sugeridas) {
@@ -586,22 +629,30 @@
         </section>
         }
 
-        <!-- 3. Surtido -->
-        @if (renglones().length) {
+        <!-- 3. Surtido: el escáner sale desde que hay medicamentos en la nota (escanear la caja elige su clave). -->
+        @if (renglones().length || medicamentosNota().length) {
           <section class="card">
             <div class="card-heading">
               <div>
                 <p class="eyebrow">Paso 3</p>
                 <h2>Surtir</h2>
               </div>
-              <span class="estado" [class.ok]="escaneoCompleto()">
-                {{ escaneoCompleto() ? '✓ Todo escaneado' : 'Escanea las cajas' }}
+              <span class="estado" [class.ok]="renglones().length && escaneoCompleto()">
+                {{ renglones().length && escaneoCompleto() ? '✓ Todo escaneado' : 'Escanea las cajas' }}
               </span>
             </div>
 
             <!-- Escaneo continuo: cualquier caja, en cualquier orden; HAERO sabe de qué medicamento es. -->
-            <div class="escaner-grande" [class.listo]="escaneoCompleto()">
-              <label for="escaner-surtido">Escanea las cajas de todos los medicamentos, en cualquier orden</label>
+            @if (previasQuimio().length) {
+              <div class="banner warn">
+                <strong>Revisa que no se duplique: ya se le entregó en los últimos 7 días</strong>
+                @for (p of previasQuimio(); track p.folioEntrega + p.clave) {
+                  <div>{{ p.clave }} {{ p.medicamento }} · {{ p.fecha | date: 'dd/MM HH:mm' }} · {{ p.area }} · receta {{ p.receta }} · {{ p.piezas }} pz</div>
+                }
+              </div>
+            }
+            <div class="escaner-grande" [class.listo]="renglones().length && escaneoCompleto()">
+              <label for="escaner-surtido">Escanea las cajas de todos los medicamentos, en cualquier orden: HAERO reconoce cada caja y la acomoda en su medicamento de la nota</label>
               <div class="scanner">
                 <input id="escaner-surtido" [(ngModel)]="codigoFrasco" (keyup.enter)="escanearFrasco()" autocomplete="off"
                        placeholder="Da clic aquí y pasa las cajas por el lector" />
@@ -734,7 +785,7 @@
               }
             </div>
             <ul class="nota recordatorios">
-              <li>Cada caja escaneada cuenta 1 pieza. Si sacas 2 frascos de la misma caja, escanéala 2 veces.</li>
+              <li>Cada caja escaneada cuenta lo que falta, hasta una caja completa (ej. una caja de 3 ampolletas cuenta hasta 3). Si diste menos, quita piezas en su lote.</li>
               <li>Si el código trae lote (GS1) se toma ese lote; si no, el que caduca primero (marcado con *).</li>
               <li>Un lote vencido no se surte. Los de red fría se sacan del refrigerador al final.</li>
             </ul>

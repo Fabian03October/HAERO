@@ -11,8 +11,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Medicamento, mensajeDeError } from '../../../almacen/almacen-api';
 import { FARMACIA_MENU } from '../../farmacia-nav';
 import { BuscadorMedicamento } from '../../buscador-medicamento/buscador-medicamento';
-import { EntregaReciente, FarmaciaApi, LoteFarmacia, Receta, RecetaIntelisis } from '../../farmacia-api';
+import { EntregaPrevia, EntregaReciente, FarmaciaApi, LoteFarmacia, Receta, RecetaIntelisis } from '../../farmacia-api';
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
+import { SeguridadMedicamentos } from '../../../shared/seguridad-medicamentos';
+import { CantidadPiezas } from '../../../shared/cantidad-piezas/cantidad-piezas';
 
 // Clave indicada en la receta, con lo que se le va entregando (HU28, HU29).
 interface ClaveReceta {
@@ -63,7 +65,7 @@ const MINIMO_NOMBRE = 3;
 // Farmacia no puede consultar los códigos de barras de Almacén.
 @Component({
   selector: 'app-nueva-entrega',
-  imports: [MarcaSeguridad, FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
+  imports: [CantidadPiezas, MarcaSeguridad, FormsModule, DatePipe, Topbar, Sidebar, EscanerCamara, BuscadorMedicamento],
   templateUrl: './nueva-entrega.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css', './nueva-entrega.css'],
 })
@@ -72,6 +74,8 @@ export class NuevaEntrega {
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   readonly items = FARMACIA_MENU;
   private readonly api = inject(FarmaciaApi);
+  // Piezas por caja de cada clave: un escaneo cuenta hasta una caja completa.
+  private readonly catalogo = inject(SeguridadMedicamentos);
   readonly buscandoPaciente = signal(false);
   // Intelisis no respondió: el paciente se captura a mano con los datos de la receta.
   readonly sinIntelisis = signal(false);
@@ -86,6 +90,38 @@ export class NuevaEntrega {
   readonly modoPaciente = signal<ModoPaciente>('EXPEDIENTE');
   readonly busquedaPaciente = signal('');
   readonly paciente = signal<Paciente | null>(null);
+  // Lo que ya se le entregó al paciente de estas claves en los últimos 7 días (otra receta, Quimio u Hospitalización).
+  readonly entregasPrevias = signal<EntregaPrevia[]>([]);
+  readonly previasDeLaEntrega = computed(() => {
+    const claves = new Set(this.cajas().map((c) => c.clave).filter(Boolean));
+    return this.entregasPrevias().filter((p) => claves.has(p.clave));
+  });
+  readonly justificacionRepetida = signal('');
+  // Receta ya surtida que se puede resurtir con el mismo folio (paciente crónico).
+  readonly porResurtir = signal<Receta | null>(null);
+  readonly motivoResurtir = signal('');
+  readonly resurtiendo = signal(false);
+  readonly motivosResurtir = ['Tratamiento crónico (mismo esquema)', 'Indicación médica'];
+
+  diasDesde(fecha: string | null): number | null {
+    return fecha ? Math.floor((Date.now() - new Date(fecha).getTime()) / 86_400_000) : null;
+  }
+
+  resurtir(): void {
+    const receta = this.porResurtir();
+    if (!receta || this.resurtiendo() || !this.motivoResurtir().trim()) return;
+    this.resurtiendo.set(true);
+    this.api.resurtirReceta(receta.folio, this.motivoResurtir().trim()).subscribe({
+      next: (abierta) => {
+        this.resurtiendo.set(false);
+        this.cargarReceta(abierta.folio);
+      },
+      error: (error) => {
+        this.resurtiendo.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudo resurtir la receta.'), 'error');
+      },
+    });
+  }
   // Al buscar por nombre puede haber varios pacientes que se llamen igual.
   readonly coincidencias = signal<Paciente[]>([]);
   readonly folioReceta = signal('');
@@ -174,6 +210,7 @@ export class NuevaEntrega {
     if (this.resumen().some((item) => item.noDispensada && !item.motivo.trim())) faltan.push('el motivo de las claves no dispensadas');
     if (this.cajas().some((caja) => !caja.clave || !(caja.piezas > 0))) faltan.push('la clave y las piezas de cada caja');
     if (!this.cajas().length && !this.claves().some((item) => item.noDispensada)) faltan.push('escanear al menos una caja o marcar las claves no dispensadas');
+    if (this.previasDeLaEntrega().length && !this.justificacionRepetida().trim()) faltan.push('la justificación (ya se le entregó en los últimos 7 días)');
     return faltan;
   });
 
@@ -185,6 +222,20 @@ export class NuevaEntrega {
   };
 
   constructor() {
+    this.catalogo.cargar();
+    // Al cambiar el paciente o las claves de la receta, se revisa si ya se le entregaron en los últimos 7 días.
+    effect(() => {
+      const expediente = this.paciente()?.expediente;
+      const claves = this.claves().map((c) => c.clave).filter(Boolean);
+      const folio = this.folioReceta().trim();
+      untracked(() => {
+        if (!expediente || !claves.length) return this.entregasPrevias.set([]);
+        this.api.entregasPrevias(expediente, claves, folio || undefined).subscribe({
+          next: (previas) => this.entregasPrevias.set(previas),
+          error: () => this.entregasPrevias.set([]),
+        });
+      });
+    });
     // Desde Recetas parciales (HU29) se llega con el folio para completar esa receta.
     const folio = inject(ActivatedRoute).snapshot.queryParamMap.get('receta');
     if (folio) this.cargarReceta(folio);
@@ -193,6 +244,13 @@ export class NuevaEntrega {
   private cargarReceta(folio: string): void {
     this.api.receta(folio).subscribe({
       next: (receta) => {
+        // Ya surtida completa: se ofrece resurtirla (misma receta, mismas cantidades) en vez de solo avisar.
+        if (receta.estado === 'SURTIDA') {
+          this.porResurtir.set(receta);
+          this.motivoResurtir.set('');
+          return;
+        }
+        this.porResurtir.set(null);
         this.recetaExistente.set(receta);
         this.folioReceta.set(receta.folio);
         this.paciente.set({ nombre: receta.paciente, expediente: receta.expediente, curp: receta.curp });
@@ -339,7 +397,7 @@ export class NuevaEntrega {
   // Llena paciente, folio y claves con la receta de Intelisis; si ya está en HAERO, se completa.
   usarRecetaIntelisis(receta: RecetaIntelisis): void {
     if (!receta.folio) return this.mostrarMensaje('Esa receta no tiene folio en Intelisis; captúrala a mano.', 'error');
-    if (receta.estadoEnHaero === 'SURTIDA') return this.mostrarMensaje(`La receta ${receta.folio} ya se surtió por completo en Farmacia.`, 'warn');
+    if (receta.estadoEnHaero === 'SURTIDA') return this.cargarReceta(receta.folio);
     if (receta.estadoEnHaero) {
       this.cargarReceta(receta.folio);
       return;
@@ -358,10 +416,16 @@ export class NuevaEntrega {
     this.claves.set([...porClave.values()]);
     this.claves().forEach((clave) => this.cargarFefo(clave.clave));
     const sinClave = receta.partidas.filter((p) => !p.enCatalogo).map((p) => p.medicamento);
+    // Por folio sale cualquier receta: se avisa si no está firmada o si tiene más de 30 días (no bloquea).
+    const avisos: string[] = [];
+    if (receta.estatus && receta.estatus !== 'FIRMADO') avisos.push(`No está firmada en Intelisis (${receta.estatus}): confírmala con el médico antes de surtir.`);
+    const dias = receta.fecha ? Math.floor((Date.now() - new Date(receta.fecha).getTime()) / 86_400_000) : 0;
+    if (dias > 30) avisos.push(`Es del ${receta.fecha!.slice(0, 10).split('-').reverse().join('/')} (hace ${dias} días): revisa que siga vigente.`);
+    if (sinClave.length) avisos.push(`Sin clave del catálogo (agrégalas a mano si se surten): ${sinClave.join(', ')}.`);
     this.mostrarMensaje(
       `Receta ${receta.folio} cargada de Intelisis con ${porClave.size} ${porClave.size === 1 ? 'clave' : 'claves'}. Revisa las piezas indicadas.` +
-        (sinClave.length ? ` Sin clave del catálogo (agrégalas a mano si se surten): ${sinClave.join(', ')}.` : ''),
-      sinClave.length ? 'warn' : 'info',
+        (avisos.length ? ' ' + avisos.join(' ') : ''),
+      avisos.length ? 'warn' : 'info',
     );
   }
 
@@ -442,8 +506,9 @@ export class NuevaEntrega {
       this.mensaje.set('');
     }
 
-    // Con una sola clave pendiente, la caja se le asigna sola.
+    // Con una sola clave pendiente, la caja se le asigna sola y cuenta lo que falta, hasta una caja completa.
     const pendientes = this.resumen().filter((item) => item.estado !== 'COMPLETA' && item.estado !== 'NO_DISPENSADA');
+    const sola = pendientes.length === 1 ? pendientes[0] : null;
     this.cajas.update((lista) => [
       ...lista,
       {
@@ -452,8 +517,8 @@ export class NuevaEntrega {
         gtin: gs1?.gtin ?? codigo,
         lote: gs1?.lote ?? '',
         caducidad: gs1?.caducidad ?? '',
-        clave: pendientes.length === 1 ? pendientes[0].clave : '',
-        piezas: 0,
+        clave: sola ? sola.clave : '',
+        piezas: sola ? this.piezasDeCaja(sola.clave) : 0,
       },
     ]);
     this.limpiarCodigo();
@@ -466,7 +531,16 @@ export class NuevaEntrega {
   }
 
   actualizarCaja(id: number, cambios: Partial<CajaEscaneada>): void {
-    this.cajas.update((lista) => lista.map((caja) => (caja.id === id ? { ...caja, ...cambios } : caja)));
+    // Al elegir de qué clave es la caja, se ponen sus piezas (si todavía no tenía).
+    const caja = this.cajas().find((c) => c.id === id);
+    if (cambios.clave && caja && !caja.piezas && cambios.piezas === undefined) cambios = { ...cambios, piezas: this.piezasDeCaja(cambios.clave) };
+    this.cajas.update((lista) => lista.map((c) => (c.id === id ? { ...c, ...cambios } : c)));
+  }
+
+  /** Una caja cuenta lo que falta de esa clave, hasta una caja completa (al menos 1). */
+  private piezasDeCaja(clave: string): number {
+    const pendiente = this.resumen().find((item) => item.clave === clave)?.pendiente ?? 0;
+    return Math.max(1, Math.min(this.catalogo.piezasPorCaja(clave), pendiente || this.catalogo.piezasPorCaja(clave)));
   }
 
   quitarCaja(id: number): void {
@@ -493,6 +567,7 @@ export class NuevaEntrega {
             motivo: item.motivo.trim() || undefined,
           })),
         cajas: this.cajas().map((caja) => ({ clave: caja.clave, lote: caja.lote.trim() || undefined, piezas: caja.piezas })),
+        justificacionRepetida: this.previasDeLaEntrega().length ? this.justificacionRepetida().trim() : undefined,
       })
       .subscribe({
         next: (resultado) => {

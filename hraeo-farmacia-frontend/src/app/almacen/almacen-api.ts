@@ -32,7 +32,7 @@ export interface Medicamento {
   // Dada de alta en HAERO = ya tiene código de barras; solo esas entran al inventario.
   dadoDeAlta: boolean;
   codigosBarras: number;
-  // Seguridad del paciente. altoRiesgo es lo que se muestra: la marca de Farmacia si la hay
+  // Seguridad del paciente. altoRiesgo es lo que se muestra: la marca de Almacén si la hay
   // (altoRiesgoMarcado) o, si no, lo que dice Intelisis (riesgo = ALTO).
   altoRiesgo: boolean;
   altoRiesgoIntelisis: boolean;
@@ -181,6 +181,8 @@ export interface Solicitud {
   fechaCierre: string | null;
   // HU39: pedido al que pertenece; null en las de una sola clave anteriores.
   pedidoId: number | null;
+  // Por qué no se surtió lo que falta (despacho parcial o sin existencia).
+  motivoFaltante: string | null;
 }
 
 export interface DespachoPedido {
@@ -216,6 +218,17 @@ export interface DespacharSolicitudRequest {
   confirmarFueraDeFefo?: boolean;
   // HU15 CA2: por qué se despacha fuera de FEFO; queda en el movimiento.
   motivoFueraDeFefo?: string;
+  // Parcial con existencia que queda: por qué no se surte lo que falta (sin existencia, el backend lo pone solo).
+  motivoFaltante?: string;
+}
+
+// Vale del pedido: lo entregado y lo que no se surtió con su motivo (lo imprimen Almacén y Farmacia).
+export interface ValePedido {
+  pedidoId: number;
+  solicitadoPor: string | null;
+  fechaPedido: string;
+  entregado: { clave: string; medicamento: string; lote: string; caducidad: string; ubicacion: string; cajas: number; despacho: string | null; fecha: string }[];
+  noSurtido: { clave: string; medicamento: string; pedidas: number; surtidas: number; faltan: number; motivo: string; estatus: string }[];
 }
 
 export interface DespacharSolicitudResponse {
@@ -501,6 +514,17 @@ export interface AvisoIntelisis {
 
 export type EstadoComparacion = 'EN_AMBOS' | 'SOLO_HAERO' | 'SOLO_INTELISIS';
 
+// Un lote de la clave en piezas: HAERO (Almacén cajas × piezas por caja + Farmacia) contra Intelisis.
+export interface LoteConciliado {
+  lote: string;
+  caducidad: string | null;
+  almacenCajas: number;
+  farmaciaPiezas: number;
+  haeroPiezas: number | null;
+  intelisisPiezas: number | null;
+  lotesIntelisis: string[];
+}
+
 export interface ComparacionClave {
   clave: string;
   nombre: string | null;
@@ -563,6 +587,11 @@ export class AlmacenApi {
   // ---------- Catálogo de medicamentos ----------
   listarMedicamentos(): Observable<Medicamento[]> {
     return this.http.get<Medicamento[]>(`${API_BASE_URL}/almacen/medicamentos`, this.cabeceras());
+  }
+
+  /** Alto riesgo (null = lo que dice Intelisis) y red fría de una clave; lo configura Almacén. */
+  actualizarSeguridad(clave: string, altoRiesgo: boolean | null, redFria: boolean): Observable<Medicamento> {
+    return this.http.put<Medicamento>(`${API_BASE_URL}/almacen/medicamentos/${encodeURIComponent(clave)}/seguridad`, { altoRiesgo, redFria }, this.cabeceras());
   }
 
   obtenerMedicamento(clave: string): Observable<Medicamento> {
@@ -717,6 +746,11 @@ export class AlmacenApi {
     return this.http.get<SugerenciaDespacho>(`${API_BASE_URL}/almacen/solicitudes/${solicitudId}/sugerencia`, this.cabeceras());
   }
 
+  /** Vale del pedido; area 'farmacia' usa la ruta de Farmacia (cada rol solo entra a la suya). */
+  valePedido(pedidoId: number, area: 'almacen' | 'farmacia' = 'almacen'): Observable<ValePedido> {
+    return this.http.get<ValePedido>(`${API_BASE_URL}/${area}/solicitudes/pedidos/${pedidoId}/vale`, this.cabeceras());
+  }
+
   despachar(solicitudId: number, request: DespacharSolicitudRequest): Observable<DespacharSolicitudResponse> {
     return this.http.post<DespacharSolicitudResponse>(`${API_BASE_URL}/almacen/solicitudes/${solicitudId}/despachar`, request, this.cabeceras());
   }
@@ -733,6 +767,10 @@ export class AlmacenApi {
   // ---------- Integración Intelisis (lee el espejo en HAERO, nunca Intelisis directo) ----------
   estadoIntelisis(): Observable<EstadoIntelisis> {
     return this.http.get<EstadoIntelisis>(`${API_BASE_URL}/almacen/intelisis/estado`, this.cabeceras());
+  }
+
+  lotesConciliacion(clave: string): Observable<LoteConciliado[]> {
+    return this.http.get<LoteConciliado[]>(`${API_BASE_URL}/almacen/intelisis/comparacion/${encodeURIComponent(clave)}/lotes`, this.cabeceras());
   }
 
   comparacionIntelisis(): Observable<ComparacionClave[]> {

@@ -11,6 +11,9 @@ import { leerGs1 } from '../shared/gs1';
 import { FARMACIA_MENU } from '../farmacia/farmacia-nav';
 
 import { MarcaSeguridad } from '../shared/marca-seguridad/marca-seguridad';
+import { EntregaPrevia, FarmaciaApi } from '../farmacia/farmacia-api';
+import { SeguridadMedicamentos } from '../shared/seguridad-medicamentos';
+import { CantidadPiezas } from '../shared/cantidad-piezas/cantidad-piezas';
 import {
   AreaHospitalizacion,
   CamaCarrito,
@@ -22,11 +25,13 @@ import {
   EscaneoCarrito,
   EstadoLinea,
   EventoHospitalizacion,
+  HistorialCama,
   HojaBaja,
   HospitalizacionApi,
   LineaCarrito,
   TipoEvento,
 } from './hospitalizacion-api';
+import { coincide } from '../shared/buscar';
 
 // Cada cuánto se vuelve a pedir la foto al backend (el backend lee Intelisis cada 5 minutos).
 const RECARGA_MS = 60_000;
@@ -42,7 +47,7 @@ type FiltroCamas = '' | 'OCUPADA' | 'LIBRE' | 'NOVEDADES';
 // abrir el detalle de una cama queda registrado.
 @Component({
   selector: 'app-hospitalizacion',
-  imports: [Paginador, MarcaSeguridad, FormsModule, Topbar, Sidebar, EscanerCamara],
+  imports: [CantidadPiezas, Paginador, MarcaSeguridad, FormsModule, Topbar, Sidebar, EscanerCamara],
   templateUrl: './hospitalizacion.html',
   styleUrls: ['../farmacia/panel-farmacia/panel-farmacia.css', '../farmacia/farmacia-comun.css', './hospitalizacion.css'],
 })
@@ -53,6 +58,11 @@ export class Hospitalizacion {
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
   private readonly api = inject(HospitalizacionApi);
+  // Piezas por caja de cada clave: un escaneo cuenta hasta una caja completa.
+  private readonly catalogo = inject(SeguridadMedicamentos);
+  private readonly farmaciaApi = inject(FarmaciaApi);
+  // Lo que ya salió de esta clave para el paciente por Quimio o Ventanilla en los últimos 7 días (solo aviso).
+  readonly previasCarrito = signal<EntregaPrevia[]>([]);
 
   // Hospitalización la usa solo Farmacia.
   readonly items: ItemMenu[] = FARMACIA_MENU;
@@ -107,6 +117,28 @@ export class Hospitalizacion {
   readonly mensajeCarrito = signal('');
   readonly tipoMensajeCarrito = signal<'info' | 'error' | 'warn'>('info');
   readonly soloPendientes = signal(false);
+  // Historial de una cama del carrito (7 días); lo que se surta desde ahí entra al carrito de hoy.
+  readonly historial = signal<HistorialCama | null>(null);
+  readonly cargandoHistorial = signal<number | null>(null);
+  private readonly surtidoDesdeHistorial = signal(false);
+  // Casillas marcadas en el historial ("día|clave"; "previos|clave" en la lista de arriba) y lo que falta
+  // por surtir (se pide uno tras otro en el paso 2). Un medicamento marcado en dos días se surte una vez.
+  readonly seleccionHistorial = signal<Set<string>>(new Set());
+  readonly clavesElegidas = computed(() => new Set([...this.seleccionHistorial()].map((llave) => llave.split('|')[1])));
+  readonly colaHistorial = signal<LineaCarrito[]>([]);
+  // Lo no surtido de días anteriores, una vez por medicamento (desde el día más antiguo en que quedó pendiente).
+  readonly pendientesHistorial = computed(() => {
+    const porClave = new Map<string, { linea: LineaCarrito; desde: string }>();
+    for (const d of this.historial()?.dias ?? []) {
+      if (d.dia === this.carrito()?.dia) continue;
+      for (const l of d.lineas) {
+        if (!l.clave || !this.surtibleDesdeHistorial(d, l)) continue;
+        const previo = porClave.get(l.clave);
+        porClave.set(l.clave, { linea: previo?.linea ?? l, desde: d.dia });
+      }
+    }
+    return [...porClave.values()];
+  });
   private readonly campoCodigo = viewChild<ElementRef<HTMLInputElement>>('campoCodigo');
 
   readonly camasCarrito = computed(() => {
@@ -142,10 +174,10 @@ export class Hospitalizacion {
 
   // Paso 1: solo pacientes en cama con indicaciones de medicamento del día (nunca uno sin ellas).
   readonly pacientesDelDia = computed(() => {
-    const texto = this.busquedaCarrito().trim().toLowerCase();
+    const texto = this.busquedaCarrito();
     return (this.carrito()?.camas ?? [])
       .filter((cama) => !cama.egresado && cama.lineas.some((l) => l.estado !== 'SUSPENDIDO'))
-      .filter((cama) => !texto || `${cama.espacio} ${cama.paciente ?? ''} ${cama.expediente ?? ''}`.toLowerCase().includes(texto));
+      .filter((cama) => coincide(`${cama.espacio} ${cama.paciente ?? ''} ${cama.expediente ?? ''}`, texto, cama.paciente));
   });
 
   // Paso 3: lo que hay que decidir antes de finalizar y el total por medicamento.
@@ -171,8 +203,8 @@ export class Hospitalizacion {
   readonly hojasDia = signal<HojaBaja[]>([]);
   readonly bajasDia = signal<HojaBaja[]>([]);
   readonly hojasFiltradas = computed(() => {
-    const texto = this.filtroSurtidos().trim().toLowerCase();
-    return this.hojasDia().filter((h) => !texto || `${h.cama ?? ''} ${h.paciente ?? ''} ${h.expediente ?? ''}`.toLowerCase().includes(texto));
+    const texto = this.filtroSurtidos();
+    return this.hojasDia().filter((h) => coincide(`${h.cama ?? ''} ${h.paciente ?? ''} ${h.expediente ?? ''}`, texto, h.paciente));
   });
 
   readonly pendientesDeAyer = computed(() =>
@@ -195,14 +227,15 @@ export class Hospitalizacion {
   readonly areaActual = computed(() => this.areas().find((a) => a.central === this.area()) ?? null);
 
   readonly camasFiltradas = computed(() => {
-    const texto = this.busqueda().trim().toLowerCase();
+    const texto = this.busqueda().trim();
     return this.camas().filter((cama) => {
       if (this.filtro() === 'OCUPADA' && cama.estado !== 'OCUPADA') return false;
       if (this.filtro() === 'LIBRE' && cama.estado !== 'LIBRE') return false;
       if (this.filtro() === 'NOVEDADES' && !cama.novedades) return false;
       if (!texto) return true;
       const pacientes = cama.pacientes.map((p) => `${p.nombre ?? ''} ${p.expediente ?? ''}`).join(' ');
-      return `${cama.espacio} ${cama.nombre ?? ''} ${pacientes}`.toLowerCase().includes(texto);
+      return coincide(`${cama.espacio} ${cama.nombre ?? ''} ${pacientes}`, texto)
+        || cama.pacientes.some((p) => coincide(p.nombre ?? '', texto, p.nombre));
     });
   });
 
@@ -226,6 +259,7 @@ export class Hospitalizacion {
   };
 
   constructor() {
+    this.catalogo.cargar();
     this.cargarAreas();
     // Se refresca solo para que los avisos aparezcan sin recargar la página.
     const reloj = setInterval(() => this.refrescar(), RECARGA_MS);
@@ -282,7 +316,8 @@ export class Hospitalizacion {
 
   // Piezas distintas a la dosis del día: se marca para revisarlo después (no bloquea).
   revisar(l: LineaCarrito): boolean {
-    return l.entregadas > 0 && !!l.dosis24h && l.entregadas !== l.dosis24h;
+    const esperadas = l.piezasDia ?? l.dosis24h;
+    return l.entregadas > 0 && !!esperadas && l.entregadas !== esperadas;
   }
 
   alternarElegido(idIngreso: number): void {
@@ -295,9 +330,9 @@ export class Hospitalizacion {
   }
 
   // Abre en otra pestaña la hoja "Indicaciones médicas activas" (todas, elegidas o de un paciente).
-  imprimirIndicaciones(ingresos: number[] = []): void {
+  imprimirIndicaciones(ingresos: number[] = [], dia?: string): void {
     const url = this.router.serializeUrl(this.router.createUrlTree(['/farmacia/hospitalizacion/imprimir/indicaciones'], {
-      queryParams: { central: this.area(), ingresos: ingresos.length ? ingresos.join(',') : null },
+      queryParams: { central: this.area(), ingresos: ingresos.length ? ingresos.join(',') : null, dia: dia ?? null },
     }));
     window.open(url, '_blank');
   }
@@ -392,13 +427,92 @@ export class Hospitalizacion {
       idIngreso: cama.idIngreso,
       espacio: cama.espacio,
       paciente: cama.paciente,
-      sugeridas: linea.dosis24h ?? 0,
+      sugeridas: linea.piezasDia ?? linea.dosis24h ?? 0,
       entregadas: linea.entregadas,
     };
     this.prepararSurtido({ clave: linea.clave, medicamento: linea.medicamento ?? linea.clave, lote: null, candidatos: [candidato] }, candidato);
   }
 
-  private prepararSurtido(escaneo: EscaneoCarrito, candidato: CandidatoCarrito): void {
+  // ---------- Historial de la cama ----------
+
+  verHistorial(cama: CamaCarrito): void {
+    if (this.historial()?.idIngreso === cama.idIngreso) {
+      this.historial.set(null);
+      return;
+    }
+    this.cargandoHistorial.set(cama.idIngreso);
+    this.seleccionHistorial.set(new Set());
+    this.colaHistorial.set([]);
+    this.api.historial(cama.idIngreso).subscribe({
+      next: (historial) => {
+        this.cargandoHistorial.set(null);
+        this.historial.set(historial);
+      },
+      error: (error) => {
+        this.cargandoHistorial.set(null);
+        this.avisarCarrito(mensajeDeError(error, 'No se pudo cargar el historial de la cama.'), 'error');
+      },
+    });
+  }
+
+  /** Se puede surtir: está pendiente (hoy o un día anterior), en el catálogo y no se surtió después. */
+  surtibleDesdeHistorial(dia: HistorialCama['dias'][number], l: LineaCarrito): boolean {
+    return l.estado === 'PENDIENTE' && l.enCatalogo && !!l.clave && !dia.surtidasDespues.includes(l.clave);
+  }
+
+  // "martes 18/11" (al mediodía para que la zona horaria no cambie el día).
+  diaLargo(dia: string): string {
+    const fecha = new Date(`${dia}T12:00:00`);
+    return `${fecha.toLocaleDateString('es-MX', { weekday: 'long' })} ${fecha.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}`;
+  }
+
+  estadoHistorial(d: HistorialCama['dias'][number], l: LineaCarrito): string {
+    if (l.estado === 'SURTIDO') return 'Surtido';
+    if (l.estado === 'SUSPENDIDO') return 'Cancelado';
+    if (!l.enCatalogo) return 'No se surte (sin clave)';
+    if (l.clave && d.surtidasDespues.includes(l.clave)) return 'Surtido otro día';
+    return d.dia === this.carrito()?.dia ? 'Pendiente hoy' : 'Sin surtir';
+  }
+
+  alternarSeleccionHistorial(llave: string): void {
+    const nueva = new Set(this.seleccionHistorial());
+    if (nueva.has(llave)) nueva.delete(llave);
+    else nueva.add(llave);
+    this.seleccionHistorial.set(nueva);
+  }
+
+  /** Lo elegido en el historial se surte en el paso 2, uno tras otro (cada uno pide sus piezas). */
+  surtirSeleccionados(): void {
+    const elegidas = this.clavesElegidas();
+    if (!elegidas.size) return;
+    const porClave = new Map<string, LineaCarrito>();
+    for (const d of this.historial()?.dias ?? []) {
+      for (const l of d.lineas) {
+        if (l.clave && elegidas.has(l.clave) && this.surtibleDesdeHistorial(d, l) && !porClave.has(l.clave)) porClave.set(l.clave, l);
+      }
+    }
+    this.colaHistorial.set([...porClave.values()]);
+    this.seleccionHistorial.set(new Set());
+    this.irAPaso(2);
+    this.siguienteDelHistorial();
+  }
+
+  private siguienteDelHistorial(): void {
+    const h = this.historial();
+    const [siguiente, ...resto] = this.colaHistorial();
+    if (!h || !siguiente?.clave) {
+      this.colaHistorial.set([]);
+      return;
+    }
+    this.colaHistorial.set(resto);
+    const candidato: CandidatoCarrito = { idIngreso: h.idIngreso, espacio: h.espacio, paciente: h.paciente, sugeridas: siguiente.piezasDia ?? siguiente.dosis24h ?? 0, entregadas: 0 };
+    this.prepararSurtido({ clave: siguiente.clave, medicamento: siguiente.medicamento ?? siguiente.clave, lote: null, candidatos: [candidato] }, candidato, true);
+    // La captura de piezas queda debajo del historial: se lleva la vista hasta ella.
+    setTimeout(() => document.querySelector('.confirmar')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  }
+
+  private prepararSurtido(escaneo: EscaneoCarrito, candidato: CandidatoCarrito, desdeHistorial = false): void {
+    this.surtidoDesdeHistorial.set(desdeHistorial);
     this.porSurtir.set(escaneo);
     this.elegirCandidato(candidato);
     this.mensajeCarrito.set('');
@@ -406,12 +520,28 @@ export class Hospitalizacion {
 
   elegirCandidato(candidato: CandidatoCarrito): void {
     this.candidato.set(candidato);
-    // La cantidad la captura el despachador (como en ventanilla).
-    this.piezas.set(null);
+    this.previasCarrito.set([]);
+    const expediente = this.carrito()?.camas.find((c) => c.idIngreso === candidato.idIngreso)?.expediente;
+    const clave = this.porSurtir()?.clave;
+    if (expediente && clave) {
+      this.farmaciaApi.entregasPrevias(expediente, [clave]).subscribe({
+        next: (previas) => this.previasCarrito.set(previas.filter((p) => p.area !== 'Hospitalización')),
+      });
+    }
+    // Sugerencia: lo que falta del día, hasta una caja completa. Si la indicación no permite calcularlo
+    // (por ejemplo "Unidosis" sin frecuencia), el campo queda vacío para que el despachador anote lo que entrega.
+    const porCaja = this.catalogo.piezasPorCaja(this.porSurtir()?.clave);
+    const falta = candidato.sugeridas - candidato.entregadas;
+    this.piezas.set(candidato.sugeridas > 0 && falta > 0 ? Math.min(porCaja, falta) : null);
     setTimeout(() => (document.getElementById('piezas-carrito') as HTMLInputElement | null)?.focus());
   }
 
   cancelarSurtido(): void {
+    // Cancelar uno del historial pasa al siguiente elegido.
+    if (this.surtidoDesdeHistorial() && this.colaHistorial().length) {
+      this.siguienteDelHistorial();
+      return;
+    }
     this.porSurtir.set(null);
     this.candidato.set(null);
     this.campoCodigo()?.nativeElement.focus();
@@ -423,7 +553,7 @@ export class Hospitalizacion {
     const piezas = this.piezas();
     if (!escaneo || !candidato || !piezas || piezas <= 0 || this.surtiendo()) return;
     this.surtiendo.set(true);
-    this.api.surtir(candidato.idIngreso, escaneo.clave, piezas, escaneo.lote ?? undefined).subscribe({
+    this.api.surtir(candidato.idIngreso, escaneo.clave, piezas, escaneo.lote ?? undefined, this.surtidoDesdeHistorial()).subscribe({
       next: (surtido) => {
         this.surtiendo.set(false);
         const lotes = surtido.partidas.map((p) => `${p.lote} (${p.entregada})`).join(', ');
@@ -431,6 +561,12 @@ export class Hospitalizacion {
         this.porSurtir.set(null);
         this.candidato.set(null);
         this.cargarCarrito();
+        // Si venía del historial, se refresca para que ya no se ofrezca otra vez.
+        const h = this.historial();
+        if (this.surtidoDesdeHistorial() && h) {
+          this.api.historial(h.idIngreso).subscribe({ next: (nuevo) => this.historial.set(nuevo) });
+          this.siguienteDelHistorial();
+        }
         this.campoCodigo()?.nativeElement.focus();
       },
       error: (error) => {

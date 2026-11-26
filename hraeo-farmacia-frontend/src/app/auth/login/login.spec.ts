@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Login } from './login';
+import { destinoAlEntrar, Login } from './login';
 import { Session } from '../session';
 
 describe('Login', () => {
@@ -16,5 +16,12 @@ describe('Login', () => {
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: Session, useValue: session }] });
     TestBed.runInInjectionContext(() => new Login());
     expect(session.cerrarSesion).not.toHaveBeenCalled();
+  });
+
+  it('solo regresa a la pantalla anterior si es del módulo de quien entra', () => {
+    expect(destinoAlEntrar('ADMIN', '/farmacia/hospitalizacion')).toBe('/admin');
+    expect(destinoAlEntrar('FARMACIA', '/farmacia/hospitalizacion')).toBe('/farmacia/hospitalizacion');
+    expect(destinoAlEntrar('ADMIN', '/politicas')).toBe('/politicas');
+    expect(destinoAlEntrar('ALMACEN', null)).toBe('/almacen');
   });
 });

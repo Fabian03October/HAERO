@@ -49,6 +49,7 @@
 
 /* Distribución: camas a la izquierda, detalle a la derecha */
 .hosp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 18px; align-items: start; }
+.hosp.sin-lateral { grid-template-columns: minmax(0, 1fr); }
 .lateral-hosp { position: sticky; top: 16px; max-height: calc(100dvh - 32px); overflow-y: auto; }
 
 .leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 12px; color: var(--color-text-muted); font-size: 12px; }
@@ -210,3 +211,17 @@
 .opciones-codigo button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-card); font: inherit; cursor: pointer; }
 .opciones-codigo button:hover, .opciones-codigo button:focus-visible { border-color: var(--color-guinda-medio); }
 .opciones-codigo small { color: var(--color-text-muted); }
+
+/* Historial de la cama (7 días) dentro del carrito. */
+.historial-cama { display: grid; gap: 10px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--color-linea); border-radius: 12px; background: var(--color-fondo-suave, #faf8f5); }
+.historial-dia { border: 1px solid var(--color-linea); border-radius: 10px; overflow: hidden; background: var(--color-card); }
+.historial-dia-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 13px; text-transform: capitalize; }
+.historial-titulo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.historial-titulo strong { color: var(--color-guinda); }
+.historial-titulo button { margin-left: auto; }
+.fila-historial { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid #f3efe9; font-size: 12px; }
+.fila-historial:not(:has(input)) { grid-template-columns: minmax(0, 1fr) auto; }
+.fila-historial.sin-clave { opacity: 0.65; }
+.estado-linea.pendiente { background: #fff3e2; color: var(--color-warn-strong); }
+.estado-linea.surtido { background: var(--color-success-bg); color: var(--color-success-text); }
+

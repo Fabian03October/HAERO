@@ -3,9 +3,9 @@ import { ActivatedRoute } from '@angular/router';
 import { mensajeDeError } from '../../almacen/almacen-api';
 import { HojaIndicaciones, HospitalizacionApi } from '../hospitalizacion-api';
 
-// "Indicaciones médicas activas", con el mismo acomodo que la que imprime Intelisis (sin logos por
+// "Indicaciones médicas del día" (lo que entra al carrito de hoy), con el mismo acomodo que la que imprime Intelisis (sin logos por
 // ahora). Una hoja por paciente; se abre en otra pestaña y manda a imprimir sola.
-// ?central=CE-HCLIN&ingresos=1,2 (sin ingresos: todos los del área).
+// ?central=CE-HCLIN&ingresos=1,2 (sin ingresos: todos los del área); &dia=2026-11-20 para un día anterior.
 @Component({
   selector: 'app-imprimir-indicaciones',
   templateUrl: './imprimir-indicaciones.html',
@@ -20,7 +20,7 @@ export class ImprimirIndicaciones {
   constructor() {
     const parametros = inject(ActivatedRoute).snapshot.queryParamMap;
     const ingresos = (parametros.get('ingresos') ?? '').split(',').filter(Boolean).map(Number);
-    this.api.indicaciones(parametros.get('central') ?? '', ingresos).subscribe({
+    this.api.indicaciones(parametros.get('central') ?? '', ingresos, parametros.get('dia') ?? undefined).subscribe({
       next: (hojas) => {
         this.hojas.set(hojas);
         this.cargando.set(false);

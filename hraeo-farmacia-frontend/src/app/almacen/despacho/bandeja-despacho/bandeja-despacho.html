@@ -154,6 +154,13 @@
           <p class="card-help">{{ lotesVencidos() }} registro(s) vencido(s) de esta clave no se ofrecen para despacho.</p>
         }
 
+        @if (esParcial() && totalADespachar()) {
+          <label class="motivo-fefo">Faltan {{ porSurtir() - totalADespachar() }} cajas. ¿Por qué no se surten?{{ pideMotivoFaltante() ? ' (obligatorio: todavía hay existencia)' : ' (sin existencia: se anota "Sin existencia en Almacén")' }}
+            <input id="motivo-faltante" type="text" maxlength="280" placeholder="Por ejemplo, el resto está apartado para Urgencias"
+                   [ngModel]="motivoFaltante()" (ngModelChange)="motivoFaltante.set($event)" />
+          </label>
+        }
+
         @if (errorPartidas()) {
           <div class="message error">{{ errorPartidas() }}</div>
         }

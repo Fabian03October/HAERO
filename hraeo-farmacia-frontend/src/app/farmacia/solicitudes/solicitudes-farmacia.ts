@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
+import { firstValueFrom } from 'rxjs';
 import { Topbar } from '../../shared/topbar/topbar';
 import { Sidebar } from '../../shared/sidebar/sidebar';
 import { FARMACIA_MENU } from '../farmacia-nav';
@@ -206,6 +207,23 @@ export class SolicitudesFarmacia {
   /** Claves todavía abiertas del mismo pedido (para ofrecer cancelarlo completo). */
   abiertasDelPedido(pedidoId: number | null): number {
     return pedidoId ? this.solicitudes().filter((s) => s.pedidoId === pedidoId && solicitudAbierta(s.estatus)).length : 0;
+  }
+
+  // El mismo vale que imprime Almacén: lo entregado y lo que no se surtió con su motivo.
+  readonly generandoVale = signal(false);
+
+  async imprimirVale(pedidoId: number): Promise<void> {
+    if (this.generandoVale()) return;
+    this.generandoVale.set(true);
+    try {
+      const { cargarLogo, descargarValePedido } = await import('../../almacen/despacho/salidas-registradas/comprobante-salidas');
+      const vale = await firstValueFrom(this.api.valePedido(pedidoId, 'farmacia'));
+      descargarValePedido(folioPedido(pedidoId), vale, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+    } catch {
+      this.notificaciones.error('No se pudo generar el vale. Intenta de nuevo.');
+    } finally {
+      this.generandoVale.set(false);
+    }
   }
 
   async cancelarPedido(pedidoId: number): Promise<void> {

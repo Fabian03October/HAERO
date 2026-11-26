@@ -13,7 +13,7 @@ import { Trazabilidad } from './trazabilidad/trazabilidad';
 import { Hospitalizacion } from '../hospitalizacion/hospitalizacion';
 import { ImprimirIndicaciones } from '../hospitalizacion/imprimir/imprimir-indicaciones';
 import { ImprimirBajas } from '../hospitalizacion/imprimir/imprimir-bajas';
-import { SeguridadMedicamentosFarmacia } from './seguridad/seguridad-medicamentos-farmacia';
+import { ImprimirSolicitudes } from './quimioterapia/imprimir/imprimir-solicitudes';
 import { OperacionCaja } from './cajas-quirofano/operacion-caja/operacion-caja';
 import { CatalogoCajas } from './cajas-quirofano/catalogo-cajas/catalogo-cajas';
 import { Quimioterapia } from './quimioterapia/quimioterapia';
@@ -42,7 +42,6 @@ export const FARMACIA_ROUTES: Routes = [
   { path: 'inventario/bajas', component: BajasFarmacia, ...SOLO_FARMACIA },
   { path: 'baja-intelisis', component: BajaIntelisis, ...SOLO_FARMACIA },
   { path: 'trazabilidad', component: Trazabilidad, ...SOLO_FARMACIA },
-  { path: 'seguridad', component: SeguridadMedicamentosFarmacia, ...SOLO_FARMACIA },
   { path: 'hospitalizacion', component: Hospitalizacion, ...SOLO_FARMACIA },
   { path: 'quirofano/cajas', component: OperacionCaja, ...SOLO_FARMACIA },
   { path: 'quirofano/catalogo', component: CatalogoCajas, ...SOLO_FARMACIA },
@@ -52,4 +51,5 @@ export const FARMACIA_ROUTES: Routes = [
   // Hojas del carrito para imprimir (se abren en otra pestaña).
   { path: 'hospitalizacion/imprimir/indicaciones', component: ImprimirIndicaciones, ...SOLO_FARMACIA },
   { path: 'hospitalizacion/imprimir/bajas', component: ImprimirBajas, ...SOLO_FARMACIA },
+  { path: 'quimioterapia/imprimir', component: ImprimirSolicitudes, ...SOLO_FARMACIA },
 ];

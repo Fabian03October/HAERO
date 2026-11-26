@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { MovimientoSalida, TIPO_SALIDA_TEXTO, formatoCaducidad } from '../../solicitudes-almacen';
+import type { ValePedido } from '../../almacen-api';
 
 export const GUINDA: [number, number, number] = [97, 18, 50];
 export const DORADO: [number, number, number] = [165, 127, 44];
@@ -57,44 +58,78 @@ export function descargarComprobante(elegidas: MovimientoSalida[], historial: Mo
 }
 
 /**
- * HU39: vale de un pedido de Farmacia en una sola hoja: todas sus claves con los lotes y
- * ubicaciones que se entregaron, y las firmas de quien entregó y quien recibe.
+ * HU39: vale de un pedido de Farmacia en una sola hoja: lo que Almacén entregó (lotes, ubicaciones, cajas) y lo que
+ * no se surtió con su motivo, y las firmas de quien entregó y quien recibe. Lo imprimen Almacén y Farmacia.
  *
  * @param folio folio visible del pedido (PED-0012)
- * @param salidas todas las salidas del pedido
  */
-export function descargarValePedido(folio: string, salidas: MovimientoSalida[], generadoPor: string, logo?: string): void {
-  if (!salidas.length) return;
+const TITULO_VALE = 'Vale de despacho de pedido';
+
+// En el catálogo la descripción trae toda la fórmula; en el vale basta el principio para reconocerlo (la clave es la que manda).
+function corto(texto: string): string {
+  return texto.length > 70 ? texto.slice(0, 68).trimEnd() + '…' : texto;
+}
+
+export function armarValePedido(folio: string, vale: ValePedido, generadoPor: string, logo?: string): Documento {
   const doc = new jsPDF({ unit: 'mm', format: 'letter' }) as Documento;
   const generado = new Date();
-  const ordenadas = [...salidas].sort((a, b) => a.clave.localeCompare(b.clave) || a.fecha.localeCompare(b.fecha));
-  const primera = ordenadas[0];
-  let y = encabezadoBase(doc, 'Vale de despacho de pedido', folio, 'Pedido de Farmacia', logo);
-  const claves = new Set(ordenadas.map((s) => s.clave)).size;
-  const cajas = ordenadas.reduce((total, s) => total + s.cajas, 0);
+  // Las entregas como salidas, para reusar las firmas y el encabezado al cambiar de hoja.
+  const salidas: MovimientoSalida[] = vale.entregado.map((e, i) => ({
+    id: i, tipo: 'FARMACIA', fecha: e.fecha, usuario: e.despacho ?? '', folio, solicitudId: vale.pedidoId, clave: e.clave,
+    nombreGenerico: e.medicamento, lote: e.lote, caducidad: e.caducidad, ubicacion: e.ubicacion, cajas: e.cajas,
+    solicitadoPor: vale.solicitadoPor ?? undefined, fechaSolicitud: vale.fechaPedido, pedidoId: vale.pedidoId,
+  }));
+  const referencia: MovimientoSalida = salidas[0] ?? {
+    id: 0, tipo: 'FARMACIA', fecha: vale.fechaPedido, usuario: '', folio, solicitudId: vale.pedidoId, clave: '', nombreGenerico: '',
+    lote: '', caducidad: '', ubicacion: '', cajas: 0, solicitadoPor: vale.solicitadoPor ?? undefined,
+  };
+  let y = encabezadoBase(doc, TITULO_VALE, folio, 'Pedido de Farmacia', logo);
+  const cajas = salidas.reduce((total, s) => total + s.cajas, 0);
+  const faltan = vale.noSurtido.reduce((total, n) => total + n.faltan, 0);
   y = bloqueDatos(doc, 'Pedido de Farmacia', y, [
-    ['Solicitó (Farmacia)', primera.solicitadoPor ?? 'Sin dato'],
-    ['Fecha y hora del pedido', primera.fechaSolicitud ? fechaHora(primera.fechaSolicitud) : 'Sin dato'],
-    ['Claves entregadas', String(claves)],
+    ['Solicitó (Farmacia)', vale.solicitadoPor ?? 'Sin dato'],
+    ['Fecha y hora del pedido', fechaHora(vale.fechaPedido)],
+    ['Claves entregadas', String(new Set(salidas.map((s) => s.clave)).size)],
     ['Cajas entregadas', String(cajas)],
+    // Si se surtió todo, no se menciona lo no surtido.
+    ...(vale.noSurtido.length ? [['Claves no surtidas o incompletas', `${vale.noSurtido.length} (faltan ${faltan} cajas)`] as [string, string]] : []),
   ]);
   subtitulo(doc, 'Entregas de Almacén', y);
   autoTable(doc, {
     startY: y + 3,
     margin: { left: MARGEN, right: MARGEN },
     head: [['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Ubicación', 'Cajas', 'Despachó']],
-    body: ordenadas.map((s) => [s.clave, s.nombreGenerico, s.lote, formatoCaducidad(s.caducidad), s.ubicacion, String(s.cajas), s.usuario || 'Sin dato']),
+    body: salidas.length
+      ? salidas.map((s) => [s.clave, corto(s.nombreGenerico), s.lote, formatoCaducidad(s.caducidad), s.ubicacion, String(s.cajas), s.usuario || 'Sin dato'])
+      : [[{ content: 'Almacén todavía no entrega nada de este pedido.', colSpan: 7 }]],
     foot: [['', '', '', '', 'Total', { content: String(cajas), styles: { halign: 'right' } }, '']],
-    theme: 'grid',
-    styles: { fontSize: 8.5, cellPadding: 2, lineColor: [228, 221, 211], lineWidth: 0.2, textColor: [43, 43, 43] },
-    headStyles: { fillColor: GUINDA, textColor: 255, fontStyle: 'bold' },
+    ...ESTILO_TABLA,
     footStyles: { fillColor: [246, 233, 237], textColor: GUINDA, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [250, 248, 245] },
     columnStyles: { 1: { cellWidth: 52 }, 5: { halign: 'right' } },
   });
-  firmas(doc, ordenadas, doc.lastAutoTable.finalY + 10, logo);
+  y = doc.lastAutoTable.finalY + 10;
+  if (vale.noSurtido.length) {
+    y = asegurarEspacio(doc, y, 30, referencia, logo, TITULO_VALE);
+    subtitulo(doc, 'No surtido', y);
+    autoTable(doc, {
+      startY: y + 3,
+      margin: { left: MARGEN, right: MARGEN },
+      head: [['Clave', 'Medicamento', 'Pedidas', 'Surtidas', 'Faltan', 'Motivo']],
+      body: vale.noSurtido.map((n) => [n.clave, corto(n.medicamento), String(n.pedidas), String(n.surtidas), String(n.faltan),
+        n.motivo + (n.estatus === 'RECHAZADA' ? ' (no se surtirá)' : n.estatus === 'CANCELADA' ? ' (Farmacia la canceló)' : '')]),
+      ...ESTILO_TABLA,
+      headStyles: { fillColor: DORADO, textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 1: { cellWidth: 48 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+  firmas(doc, salidas.length ? salidas : [referencia], y, logo, TITULO_VALE);
   pies(doc, generado, generadoPor);
-  doc.save(`vale-${folio}-${generado.toLocaleDateString('en-CA')}.pdf`);
+  return doc;
+}
+
+export function descargarValePedido(folio: string, vale: ValePedido, generadoPor: string, logo?: string): void {
+  armarValePedido(folio, vale, generadoPor, logo).save(`vale-${folio}-${new Date().toLocaleDateString('en-CA')}.pdf`);
 }
 
 /** Lee el logo del hospital (public/logo-hraeo-gris.png) como data URL; undefined si no se pudo. */
@@ -144,14 +179,24 @@ export function encabezadoBase(doc: Documento, titulo: string, folio: string, ti
   doc.text('Hospital Regional de Alta Especialidad de Oaxaca', x, 20.5);
   doc.text('Farmacia hospitalaria · Almacén de medicamentos', x, 24.5);
 
+  // El folio usa el espacio que deja el título: se achica la letra y, si aun así no cabe, va en dos renglones.
   doc.setTextColor(...GUINDA);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(folio, ancho - MARGEN, 15, { align: 'right' });
+  const anchoTitulo = doc.setFontSize(14).getTextWidth(titulo);
+  doc.setFont('helvetica', 'normal');
+  const anchoSubtitulo = doc.setFontSize(8.5).getTextWidth('Hospital Regional de Alta Especialidad de Oaxaca');
+  doc.setFont('helvetica', 'bold');
+  const libre = ancho - MARGEN - (x + Math.max(anchoTitulo, anchoSubtitulo) + 8);
+  let tamano = 13;
+  while (tamano > 8 && doc.setFontSize(tamano).getTextWidth(folio) > libre) tamano -= 0.5;
+  const renglones: string[] = doc.splitTextToSize(folio, libre);
+  if (renglones.length > 3) renglones.splice(2, renglones.length, renglones[2].replace(/.{0,2}$/, '…'));
+  const alto = (tamano / 72) * 25.4 * 1.15;
+  doc.text(renglones, ancho - MARGEN, renglones.length > 1 ? 13.5 : 15, { align: 'right', lineHeightFactor: 1.15 });
   doc.setTextColor(...GRIS);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text(tipo, ancho - MARGEN, 20.5, { align: 'right' });
+  doc.text(tipo, ancho - MARGEN, renglones.length > 1 ? 13.5 + alto * renglones.length + 1.5 : 20.5, { align: 'right' });
 
   doc.setFillColor(...GUINDA);
   doc.rect(MARGEN, 29, ancho - MARGEN * 2, 1.1, 'F');
@@ -161,10 +206,11 @@ export function encabezadoBase(doc: Documento, titulo: string, folio: string, ti
 }
 
 // Si lo que sigue no cabe, continúa en otra hoja con el mismo encabezado.
-function asegurarEspacio(doc: Documento, y: number, alto: number, salida: MovimientoSalida, logo?: string): number {
+function asegurarEspacio(doc: Documento, y: number, alto: number, salida: MovimientoSalida, logo?: string, titulo?: string): number {
   if (y + alto <= doc.internal.pageSize.getHeight() - 20) return y;
   doc.addPage();
-  return encabezado(doc, salida, logo);
+  // El vale del pedido continúa con su propio título; el comprobante, con el de la salida.
+  return titulo ? encabezadoBase(doc, titulo, salida.folio, 'Pedido de Farmacia', logo) : encabezado(doc, salida, logo);
 }
 
 function datosSolicitud(doc: Documento, grupo: MovimientoSalida[], y: number): number {
@@ -258,11 +304,11 @@ function tablaEntregas(doc: Documento, grupo: MovimientoSalida[], y: number): nu
   return doc.lastAutoTable.finalY + 10;
 }
 
-function firmas(doc: Documento, grupo: MovimientoSalida[], y: number, logo?: string): void {
+function firmas(doc: Documento, grupo: MovimientoSalida[], y: number, logo?: string, titulo?: string): void {
   const salida = grupo[0];
   // Por Almacén firma quien hizo la última entrega.
   const almacen = grupo[grupo.length - 1].usuario;
-  y = asegurarEspacio(doc, y, 34, salida, logo);
+  y = asegurarEspacio(doc, y, 34, salida, logo, titulo);
   const alto = doc.internal.pageSize.getHeight();
   const ancho = doc.internal.pageSize.getWidth();
   // Las firmas van hacia el pie de la hoja si hay lugar; si no, debajo de lo anterior.

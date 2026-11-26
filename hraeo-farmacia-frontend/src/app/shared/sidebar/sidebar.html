@@ -5,6 +5,7 @@
     @if (item.hijos?.length) {
       <div class="group" [class.open]="estaAbierto(item)" [class.current]="contieneRutaActual(item)">
         <button type="button" class="item group-toggle" [attr.aria-expanded]="estaAbierto(item)" (click)="alternar(item)">
+          @if (item.icono) { <svg class="icono" viewBox="0 0 24 24" aria-hidden="true">@for (d of iconos[item.icono]; track $index) { <path [attr.d]="d" /> }</svg> }
           <span class="label">
             {{ item.etiqueta }}
             @if (item.etiquetaExtra) {
@@ -30,6 +31,7 @@
       </div>
     } @else if (item.routerLink) {
       <a class="item" [routerLink]="item.routerLink" routerLinkActive="active" [routerLinkActiveOptions]="opcionesActivo">
+        @if (item.icono) { <svg class="icono" viewBox="0 0 24 24" aria-hidden="true">@for (d of iconos[item.icono]; track $index) { <path [attr.d]="d" /> }</svg> }
         <span class="label">
           {{ item.etiqueta }}
           @if (item.etiquetaExtra) {

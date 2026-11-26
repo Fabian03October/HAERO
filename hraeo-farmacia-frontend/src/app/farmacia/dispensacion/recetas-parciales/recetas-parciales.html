@@ -50,7 +50,8 @@
                       <td>{{ receta.paciente }}<small class="sub">Exp. {{ receta.expediente }}</small></td>
                       <td>{{ fecha(receta.fecha) }}</td>
                       <td class="number">{{ receta.claves.length }}</td>
-                      <td><span class="estado" [class]="'estado ' + receta.estado">{{ estadoTexto[receta.estado] }}</span></td>
+                      <td><span class="estado" [class]="'estado ' + receta.estado">{{ estadoTexto[receta.estado] }}</span>
+                        @if (receta.vencida) { <span class="estado NO_DISPENSADA">Vencida</span> }</td>
                     </tr>
                   } @empty {
                     <tr><td colspan="5" class="empty">{{ cargando() ? 'Cargando…' : 'No hay recetas parciales ni no dispensadas. Aparecerán aquí cuando una entrega quede incompleta.' }}</td></tr>
@@ -95,7 +96,11 @@
                     </li>
                   }
                 </ul>
-                <a class="btn block" routerLink="/farmacia/dispensacion/nueva" [queryParams]="{ receta: receta.folio }">Completar entrega</a>
+                @if (receta.vencida) {
+                  <p class="hint">Venció: lo que faltó solo se entrega durante 30 días desde la primera entrega. El paciente necesita una receta nueva.</p>
+                } @else {
+                  <a class="btn block" routerLink="/farmacia/dispensacion/nueva" [queryParams]="{ receta: receta.folio }">Completar entrega</a>
+                }
               } @else {
                 <p class="empty-box">Al elegir una receta se ve lo entregado y lo pendiente de cada clave.</p>
               }

@@ -38,13 +38,18 @@
 .firma-surtio { width: 320px; margin: 60px auto 0; text-align: center; text-transform: uppercase; }
 
 @media print {
-  @page { size: letter; margin: 0; }
+  /* El margen va en la página (no en la hoja) para que también lo tengan las hojas que continúan. */
+  @page { size: letter; margin: 0.45in 0.5in; }
   :host { padding: 0; background: var(--color-card); }
   .no-imprimir { display: none !important; }
-  .hoja { width: auto; min-height: auto; margin: 0; padding: 0.45in 0.5in; break-after: page; }
-  .hoja:last-of-type { break-after: auto; }
+  /* page-break-* además de break-*: Safari solo respeta los antiguos; así cada paciente empieza en hoja nueva. */
+  .hoja { width: auto; min-height: auto; margin: 0; padding: 0; break-after: page; page-break-after: always; }
+  .hoja:last-of-type { break-after: auto; page-break-after: auto; }
   /* Que un medicamento, la dieta o las firmas no queden partidos entre dos hojas. */
-  .medicamento, .dieta, .firmas-medicos, .firma-surtio, .partidas tr { break-inside: avoid; }
-  .seccion { break-after: avoid; }
+  .medicamento, .dieta, .firmas-medicos, .firma-surtio, .partidas tr { break-inside: avoid; page-break-inside: avoid; }
+  .seccion { break-after: avoid; page-break-after: avoid; }
   .partidas thead { display: table-header-group; }
 }
+
+/* Notas de la solicitud de quimio: respetan los saltos de línea del médico. */
+.notas { white-space: pre-wrap; }

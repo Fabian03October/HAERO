@@ -3,11 +3,12 @@ import { ItemMenu } from '../shared/sidebar/sidebar';
 // Menú de Supervisión compartido por todas sus pantallas. Todo es de solo lectura:
 // Supervisión consulta, no registra movimientos.
 export const SUPERVISION_MENU: ItemMenu[] = [
-  { etiqueta: 'Inicio', routerLink: '/supervision' },
-  { etiqueta: 'Alertas de stock', routerLink: '/supervision/alertas' },
-  { etiqueta: 'CPM por clave', routerLink: '/supervision/cpm' },
+  { etiqueta: 'Inicio', routerLink: '/supervision', icono: 'inicio' },
+  { etiqueta: 'Alertas de stock', routerLink: '/supervision/alertas', icono: 'alertas' },
+  { etiqueta: 'CPM por clave', routerLink: '/supervision/cpm', icono: 'grafica' },
   {
     etiqueta: 'Consultas',
+    icono: 'consultas',
     routerLink: '/supervision/consultas',
     hijos: [
       { etiqueta: 'Existencias', routerLink: '/supervision/consultas/existencias' },
@@ -18,6 +19,7 @@ export const SUPERVISION_MENU: ItemMenu[] = [
   },
   {
     etiqueta: 'Reportes',
+    icono: 'reportes',
     routerLink: '/supervision/reportes',
     hijos: [
       { etiqueta: 'Mermas por caducidad', routerLink: '/supervision/reportes/mermas' },

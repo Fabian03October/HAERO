@@ -7,6 +7,7 @@ import { CancelarPedido } from './recepcion-almacen/cancelar-pedido/cancelar-ped
 import { InventarioInicial } from './recepcion-almacen/inventario-inicial';
 import { AltaInicialFarmacia } from '../farmacia/inventario/alta-inicial/alta-inicial-farmacia';
 import { CatalogoMedicamentos } from './recepcion-almacen/catalogo/catalogo-medicamentos';
+import { SeguridadMedicamentos } from './recepcion-almacen/seguridad/seguridad-medicamentos';
 import { ComparacionIntelisis } from './recepcion-almacen/intelisis/comparacion-intelisis';
 import { Existencias } from './existencias/existencias';
 import { Despacho } from './despacho/despacho';
@@ -38,6 +39,7 @@ export const ALMACEN_ROUTES: Routes = [
       // Inventario inicial por conteo (escanear, después cantidades, guardar una vez): la misma pantalla que Farmacia, en cajas.
       { path: 'conteo-inicial', component: AltaInicialFarmacia, data: { area: 'ALMACEN' } },
       { path: 'catalogo', component: CatalogoMedicamentos },
+      { path: 'seguridad', component: SeguridadMedicamentos },
       // Integración Intelisis (solo lectura): compara lo cargado por Excel con Intelisis.
       { path: 'intelisis', component: ComparacionIntelisis },
       // Ruta anterior de la carga de inventario.

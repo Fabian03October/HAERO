@@ -1,6 +1,7 @@
+import { diaLocal } from './fechas';
 // Reportes en CSV que se abren directo en Excel (con BOM para que respete los acentos).
 
-export const hoyIso = () => new Date().toISOString().slice(0, 10);
+export const hoyIso = () => diaLocal();
 
 /** Descarga un CSV con una línea de título, los encabezados y las filas. */
 export function descargarCsv(nombre: string, titulo: string, encabezados: string[], filas: (string | number | null)[][]): void {

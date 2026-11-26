@@ -99,6 +99,8 @@ export interface LineaCarrito {
   // Referencia para el despachador (la cantidad la captura él): "1 GRAMO INTRAVENOSA c/8 horas".
   posologia: string | null;
   dosis24h: number | null;
+  // Piezas del día (dosis ÷ lo que trae cada pieza × dosis en 24 h); null si no se puede saber.
+  piezasDia: number | null;
   entregadas: number;
   estado: EstadoLinea;
   indicadoEn: string | null;
@@ -113,6 +115,16 @@ export interface LineaCarrito {
   // Cuándo y qué médico lo canceló (SUSPENDIDO = se canceló después de meterlo al carrito).
   canceladoEn: string | null;
   canceladoPor: string | null;
+}
+
+/** Historial de la cama (últimos 7 días): lo que tocaba surtir cada día y cómo quedó. */
+export interface HistorialCama {
+  idIngreso: number;
+  espacio: string;
+  paciente: string | null;
+  expediente: string | null;
+  // Del más reciente al más antiguo; surtidasDespues = pendientes de ese día que se surtieron otro día.
+  dias: { dia: string; lineas: LineaCarrito[]; surtidasDespues: string[] }[];
 }
 
 export interface CamaCarrito {
@@ -295,9 +307,10 @@ export class HospitalizacionApi {
     return this.http.get<HojaBaja[]>(`${API_BASE_URL}/farmacia/carrito/bajas-volumen`, { ...this.cabeceras(), params });
   }
 
-  indicaciones(central: string, ingresos?: number[]): Observable<HojaIndicaciones[]> {
+  indicaciones(central: string, ingresos?: number[], dia?: string): Observable<HojaIndicaciones[]> {
     const params: Record<string, string> = { central };
     if (ingresos?.length) params['ingresos'] = ingresos.join(',');
+    if (dia) params['dia'] = dia;
     return this.http.get<HojaIndicaciones[]>(`${API_BASE_URL}/farmacia/carrito/indicaciones`, { ...this.cabeceras(), params });
   }
 
@@ -308,8 +321,13 @@ export class HospitalizacionApi {
   }
 
   /** Entrega al paciente: descuenta el inventario de Farmacia (lote GS1 o FEFO). */
-  surtir(idIngreso: number, clave: string, piezas: number, lote?: string): Observable<SurtidoCarrito> {
-    return this.http.post<SurtidoCarrito>(`${API_BASE_URL}/farmacia/carrito/surtir`, { idIngreso, clave, piezas, lote }, this.cabeceras());
+  surtir(idIngreso: number, clave: string, piezas: number, lote?: string, desdeHistorial = false): Observable<SurtidoCarrito> {
+    return this.http.post<SurtidoCarrito>(`${API_BASE_URL}/farmacia/carrito/surtir`, { idIngreso, clave, piezas, lote, desdeHistorial }, this.cabeceras());
+  }
+
+  /** Historial de la cama (7 días): lo surtido y lo que quedó sin surtir (se puede surtir hoy). */
+  historial(idIngreso: number): Observable<HistorialCama> {
+    return this.http.get<HistorialCama>(`${API_BASE_URL}/farmacia/carrito/historial`, { ...this.cabeceras(), params: { idIngreso } });
   }
 
   estado(): Observable<EstadoHospitalizacion> {

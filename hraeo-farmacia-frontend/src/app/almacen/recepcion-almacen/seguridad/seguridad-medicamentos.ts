@@ -1,40 +1,33 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ROL_ETIQUETA, Session } from '../../auth/session';
-import { Topbar } from '../../shared/topbar/topbar';
-import { Sidebar } from '../../shared/sidebar/sidebar';
-import { MarcaSeguridad } from '../../shared/marca-seguridad/marca-seguridad';
-import { SeguridadMedicamentos } from '../../shared/seguridad-medicamentos';
-import { AlmacenApi, Medicamento, mensajeDeError } from '../../almacen/almacen-api';
-import { FarmaciaApi } from '../farmacia-api';
-import { FARMACIA_MENU } from '../farmacia-nav';
-import { Paginacion, Paginador } from '../../shared/paginador/paginador';
+import { Session } from '../../../auth/session';
+import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
+import { SeguridadMedicamentos as MarcasSeguridad } from '../../../shared/seguridad-medicamentos';
+import { AlmacenApi, Medicamento, mensajeDeError } from '../../almacen-api';
+import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 
 type Filtro = 'ALTO' | 'FRIA' | 'DIFERENTE' | 'TODAS';
 type OpcionRiesgo = 'INTELISIS' | 'SI' | 'NO';
 
 
-// Farmacia · Seguridad del paciente: qué claves son de alto riesgo (lista ISMP: electrolitos
+// Almacén · Seguridad del paciente: qué claves son de alto riesgo (lista ISMP: electrolitos
 // concentrados, quimioterapia, citotóxicos…) y cuáles son de red fría. Parte de lo que dice
-// Intelisis (riesgo = ALTO) y Farmacia lo corrige clave por clave. Las etiquetas se ven en todas
-// las pantallas donde aparece la clave.
+// Intelisis (riesgo = ALTO) y Almacén lo corrige clave por clave. Las etiquetas se ven en todas
+// las pantallas donde aparece la clave (Farmacia las ve al surtir).
 @Component({
-  selector: 'app-seguridad-medicamentos-farmacia',
-  imports: [FormsModule, Topbar, Sidebar, MarcaSeguridad, Paginador],
-  templateUrl: './seguridad-medicamentos-farmacia.html',
-  styleUrls: ['../panel-farmacia/panel-farmacia.css', '../farmacia-comun.css', './seguridad-medicamentos-farmacia.css'],
+  selector: 'app-seguridad-medicamentos',
+  imports: [FormsModule, MarcaSeguridad, Paginador],
+  templateUrl: './seguridad-medicamentos.html',
+  styleUrls: ['../../../farmacia/panel-farmacia/panel-farmacia.css', '../../../farmacia/farmacia-comun.css', './seguridad-medicamentos.css'],
 })
-export class SeguridadMedicamentosFarmacia {
+export class SeguridadMedicamentos {
   // Por páginas: el catálogo son casi mil claves.
   readonly pagClaves = new Paginacion(() => this.filtradas());
 
-  protected readonly session = inject(Session);
-  protected readonly rolEtiqueta = ROL_ETIQUETA;
-  readonly items = FARMACIA_MENU;
-  private readonly farmaciaApi = inject(FarmaciaApi);
-  private readonly seguridad = inject(SeguridadMedicamentos);
-  // Supervisión solo consulta.
-  readonly puedeEditar = computed(() => this.session.usuarioActual()?.rol === 'FARMACIA');
+  private readonly session = inject(Session);
+  private readonly api = inject(AlmacenApi);
+  private readonly seguridad = inject(MarcasSeguridad);
+  readonly puedeEditar = computed(() => this.session.usuarioActual()?.rol === 'ALMACEN');
 
   readonly catalogo = signal<Medicamento[]>([]);
   readonly cargando = signal(true);
@@ -49,7 +42,7 @@ export class SeguridadMedicamentosFarmacia {
     return [
       { valor: 'ALTO' as Filtro, etiqueta: 'Alto riesgo', total: lista.filter((m) => m.altoRiesgo).length },
       { valor: 'FRIA' as Filtro, etiqueta: 'Red fría', total: lista.filter((m) => m.redFria).length },
-      { valor: 'DIFERENTE' as Filtro, etiqueta: 'Corregidas por Farmacia', total: lista.filter((m) => m.altoRiesgoMarcado !== null).length },
+      { valor: 'DIFERENTE' as Filtro, etiqueta: 'Corregidas en HAERO', total: lista.filter((m) => m.altoRiesgoMarcado !== null).length },
       { valor: 'TODAS' as Filtro, etiqueta: 'Todas', total: lista.length },
     ];
   });
@@ -66,7 +59,7 @@ export class SeguridadMedicamentosFarmacia {
   });
 
   constructor() {
-    inject(AlmacenApi).listarMedicamentos().subscribe({
+    this.api.listarMedicamentos().subscribe({
       next: (lista) => {
         this.catalogo.set([...lista].sort((a, b) => a.nombreGenerico.localeCompare(b.nombreGenerico)));
         this.cargando.set(false);
@@ -94,7 +87,7 @@ export class SeguridadMedicamentosFarmacia {
   private guardar(m: Medicamento, altoRiesgo: boolean | null, redFria: boolean): void {
     this.guardando.set(m.clave);
     this.error.set('');
-    this.farmaciaApi.actualizarSeguridad(m.clave, altoRiesgo, redFria).subscribe({
+    this.api.actualizarSeguridad(m.clave, altoRiesgo, redFria).subscribe({
       next: (actualizado) => {
         this.guardando.set(null);
         this.catalogo.update((lista) => lista.map((item) => (item.clave === actualizado.clave ? actualizado : item)));

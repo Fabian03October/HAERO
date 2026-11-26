@@ -4,11 +4,14 @@ import { IsActiveMatchOptions, NavigationEnd, Router, RouterLink, RouterLinkActi
 import { filter, map } from 'rxjs';
 import { ROL_ETIQUETA, Session } from '../../auth/session';
 import { MenuMovil } from '../menu-movil';
+import { ICONOS, Icono } from './iconos';
 
 export interface ItemMenu {
   etiqueta: string;
   routerLink?: string;
   etiquetaExtra?: string;
+  // Ícono de las opciones de primer nivel (ver iconos.ts).
+  icono?: Icono;
   // Si tiene hijos se muestra como submenú desplegable; routerLink es el prefijo
   // de ruta del grupo y sirve para abrirlo cuando alguna de sus páginas está activa.
   hijos?: ItemMenu[];
@@ -29,6 +32,7 @@ export class Sidebar {
   protected readonly menu = inject(MenuMovil);
   protected readonly session = inject(Session);
   protected readonly rolEtiqueta = ROL_ETIQUETA;
+  protected readonly iconos = ICONOS;
   private readonly router = inject(Router);
 
   private readonly url = toSignal(

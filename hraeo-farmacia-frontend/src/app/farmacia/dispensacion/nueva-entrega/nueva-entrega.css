@@ -36,3 +36,10 @@ p.pendiente { margin: -8px 0 16px; }
 @media (max-width: 1000px) {
   .entrega { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Resurtir una receta ya surtida (mismo folio). */
+.resurtir { display: grid; gap: 8px; margin-bottom: 14px; border-left: 4px solid var(--color-warn-accent); }
+.resurtir ul { margin: 0; padding-left: 18px; font-size: 13px; }
+.resurtir .motivos, .resurtir .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.resurtir .motivos .activo { border-color: var(--color-guinda); background: var(--color-guinda-suave); color: var(--color-guinda); }
+.resurtir input { padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 8px; font: inherit; }

@@ -4,7 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { MovimientoSalida, SolicitudesAlmacen, TIPO_SALIDA_TEXTO, fechaLocal, formatoCaducidad } from '../../solicitudes-almacen';
 import { Session } from '../../../auth/session';
-import { folioPedido } from '../../almacen-api';
+import { AlmacenApi, folioPedido } from '../../almacen-api';
+import { firstValueFrom } from 'rxjs';
 import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 
 // Despacho · Salidas registradas (HU14 CA5). Cada despacho deja un movimiento
@@ -19,6 +20,7 @@ import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
 })
 export class SalidasRegistradas {
   // Por páginas: la lista crece con el tiempo.
+  private readonly api = inject(AlmacenApi);
   readonly pagSalidas = new Paginacion(() => this.salidas());
 
   protected readonly solicitudes = inject(SolicitudesAlmacen);
@@ -85,8 +87,8 @@ export class SalidasRegistradas {
     this.generando.set(true);
     try {
       const { cargarLogo, descargarValePedido } = await import('./comprobante-salidas');
-      const salidas = this.solicitudes.salidas().filter((s) => s.pedidoId === pedidoId);
-      descargarValePedido(folioPedido(pedidoId), salidas, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+      const vale = await firstValueFrom(this.api.valePedido(pedidoId));
+      descargarValePedido(folioPedido(pedidoId), vale, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
     } catch {
       this.notificaciones.error('No se pudo generar el vale. Intenta de nuevo.');
     } finally {

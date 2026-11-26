@@ -63,6 +63,42 @@
               </span>
             </div>
 
+            <!-- Verificación: todos los renglones, para corregir lo que se capturó mal antes de guardar. -->
+            <h3 class="subtitulo-revision">Revisa todos los renglones antes de guardar</h3>
+            @if (avisoTabla()) {
+              <p class="error-captura" role="alert">{{ avisoTabla() }}</p>
+            }
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Estante</th><th>Medicamento</th><th>Lote</th><th>Caducidad</th><th class="number">{{ unidadTitulo }}</th><th>Contó</th><th></th></tr>
+                </thead>
+                <tbody>
+                  @for (r of renglones(); track r.id) {
+                    <tr [class.falta]="r.cantidad === null">
+                      <td>{{ r.ubicacion || 'Sin estante' }}</td>
+                      <td><strong>{{ r.medicamento }}</strong><small class="sub">{{ r.clave }}</small></td>
+                      <td>{{ r.lote }}</td>
+                      <td>{{ fechaCorta(r.caducidad) }} @if (esVencido(r)) { <span class="pill danger">Vencido</span> }</td>
+                      <td class="number">
+                        <input class="cantidad" type="number" min="0" step="1" inputmode="numeric" placeholder="—"
+                               [value]="valor(r)" (input)="escribir(r, $any($event.target).value)"
+                               (keydown.enter)="enterCantidad($event, r)" (blur)="guardarCantidad(r)"
+                               [attr.aria-label]="unidadTitulo + ' de ' + r.medicamento + ' lote ' + r.lote" />
+                        @if (desglose(r, valor(r)); as d) { <small class="sub desglose">{{ d }}</small> }
+                      </td>
+                      <td>{{ r.contadoPor ?? '— falta' }}</td>
+                      <td class="acciones-renglon">
+                        <button class="btn-quitar" type="button" (click)="abrirCorregir(r)">Corregir</button>
+                        <button class="btn-quitar" type="button" (click)="abrirMover(r)">Mover</button>
+                        <button class="btn-quitar" type="button" (click)="quitar(r)">Quitar</button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
             @if (resumen().faltan) {
               <div class="aviso-bloque">
                 <strong>Faltan {{ unidad }} por capturar</strong> (escribe 0 si no había). Toca un estante para terminarlo:
@@ -146,11 +182,11 @@
                   } @else if (lotesCaja() === null) {
                     <span class="manual-codigo">Leyendo los lotes de Intelisis…</span>
                   } @else if (!escribirAMano()) {
-                    <span>Toca el lote de la caja (lotes con existencia en Intelisis):</span>
+                    <span>Toca el lote de la caja (los de Intelisis y los que ya se registraron en el conteo):</span>
                     <div class="lotes-intelisis">
                       @for (l of lotesCaja(); track l.lote) {
                         <button class="btn secondary chico" type="button" (click)="elegirLote(l)">
-                          <strong>{{ l.lote }}</strong> · cad. {{ fechaCorta(l.caducidad) }} · {{ l.piezas | number: '1.0-0' }} pz
+                          <strong>{{ l.lote }}</strong> · {{ l.caducidad ? 'cad. ' + fechaCorta(l.caducidad) : 'sin caducidad en Intelisis' }} · {{ l.piezas === null ? 'ya en el conteo' : (l.piezas | number: '1.0-0') + ' pz' }}
                         </button>
                       }
                     </div>
@@ -240,21 +276,70 @@
                 </div>
               </form>
             }
+            @if (corrigiendo(); as r) {
+              <div class="velo" (click)="corrigiendo.set(null)"></div>
+              <form class="ventana-piezas" role="dialog" aria-modal="true" aria-labelledby="titulo-corregir"
+                    (ngSubmit)="guardarCorreccion()" (keydown.escape)="corrigiendo.set(null)">
+                <h3 id="titulo-corregir">Corregir renglón</h3>
+                <p class="datos-caja">{{ r.medicamento }} · estante {{ r.ubicacion || 'sin estante' }}</p>
+                <div class="field">
+                  <label for="clave-corregir">Clave</label>
+                  <input id="clave-corregir" name="clave" [(ngModel)]="claveCorregir" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="lote-corregir">Lote</label>
+                  <input id="lote-corregir" name="lote" [(ngModel)]="loteCorregir" autocomplete="off" />
+                </div>
+                @if (area === 'farmacia') {
+                  <div class="field">
+                    <label for="caducidad-corregir">Caducidad</label>
+                    <input id="caducidad-corregir" name="caducidad" type="date" [(ngModel)]="caducidadCorregir" />
+                  </div>
+                } @else {
+                  <p class="previo">En Almacén la caducidad sale de Intelisis según el lote.</p>
+                }
+                @if (errorCorregir()) {
+                  <p class="error-captura" role="alert">{{ errorCorregir() }}</p>
+                }
+                <div class="acciones">
+                  <button class="btn" type="submit" [disabled]="guardandoCorreccion()">Guardar corrección</button>
+                  <button class="link" type="button" (click)="corrigiendo.set(null)">Cancelar</button>
+                </div>
+              </form>
+            }
             @if (capturando(); as r) {
               <div class="velo" (click)="cerrarCaptura()"></div>
               <form class="ventana-piezas" role="dialog" aria-modal="true" aria-labelledby="titulo-piezas"
                     (ngSubmit)="guardarCaptura()" (keydown.escape)="cerrarCaptura()">
-                <p class="ya-registrada">Esta caja ya está registrada en este estante</p>
+                <p class="ya-registrada">Este lote ya está registrado en este estante</p>
                 <h3 id="titulo-piezas">{{ r.medicamento }}</h3>
                 <p class="datos-caja"><strong>{{ r.clave }}</strong> · lote <strong>{{ r.lote }}</strong> · cad. {{ fechaCorta(r.caducidad) }}</p>
                 @if (r.cantidad !== null) {
                   <p class="previo">Ya tiene <strong>{{ r.cantidad }}</strong> {{ unidad }}{{ r.contadoPor ? ' (contó ' + r.contadoPor + ')' : '' }}. Lo que escribas reemplaza esa cantidad.</p>
                 }
-                <div class="field">
-                  <label for="piezas-captura">{{ unidadTitulo }} que hay en el estante</label>
-                  <input id="piezas-captura" #campoPiezas name="piezas" type="number" min="0" step="1" inputmode="numeric"
-                         autocomplete="off" [(ngModel)]="piezasCaptura" />
-                </div>
+                @if (conCajas(r)) {
+                  <!-- Cajas cerradas + lo suelto (ampolletas o tabletas fuera de su caja); se guarda en piezas. -->
+                  <div class="cajas-sueltas">
+                    <div class="field">
+                      <label for="piezas-captura">Cajas completas</label>
+                      <input id="piezas-captura" #campoPiezas name="cajas" type="number" min="0" step="1" inputmode="numeric"
+                             autocomplete="off" [(ngModel)]="cajasCaptura" />
+                    </div>
+                    <span class="mas">+</span>
+                    <div class="field">
+                      <label for="sueltas-captura">Piezas sueltas</label>
+                      <input id="sueltas-captura" name="sueltas" type="number" min="0" step="1" inputmode="numeric"
+                             autocomplete="off" [(ngModel)]="sueltasCaptura" />
+                    </div>
+                  </div>
+                  <small class="sub desglose">1 caja = {{ r.piezasPorCaja }} piezas{{ totalCaptura(r) !== null ? ' · total ' + totalCaptura(r) + ' piezas' : '' }}</small>
+                } @else {
+                  <div class="field">
+                    <label for="piezas-captura">{{ unidadTitulo }} que hay en el estante</label>
+                    <input id="piezas-captura" #campoPiezas name="piezas" type="number" min="0" step="1" inputmode="numeric"
+                           autocomplete="off" [(ngModel)]="piezasCaptura" />
+                  </div>
+                }
                 @if (errorCaptura()) {
                   <p class="error-captura" role="alert">{{ errorCaptura() }}</p>
                 }
@@ -299,6 +384,7 @@
                                [value]="valor(r)" (input)="escribir(r, $any($event.target).value)"
                                (keydown.enter)="enterCantidad($event, r)" (blur)="guardarCantidad(r)"
                                [attr.aria-label]="unidadTitulo + ' de ' + r.medicamento + ' lote ' + r.lote" />
+                        @if (desglose(r, valor(r)); as d) { <small class="sub desglose">{{ d }}</small> }
                       </td>
                       <td>
                         @if (r.contadoPor) {

@@ -17,6 +17,7 @@ import {
 } from '../cajas-quirofano';
 import { datosVale, descargarValeExcel, descargarValePdf } from '../vale-documento';
 import { cargarLogo } from '../../../almacen/despacho/salidas-registradas/comprobante-salidas';
+import { diaLocal } from '../../../shared/fechas';
 
 // Medicamento que se está metiendo a la caja. codigo = código de barras escaneado (null si el
 // frasco no trae código). lote = '' quiere decir "el que sale primero" (FEFO).
@@ -135,7 +136,7 @@ export class OperacionCaja {
     return faltan;
   });
 
-  private readonly hoy = new Date().toISOString().slice(0, 10);
+  private readonly hoy = diaLocal();
 
   constructor() {
     this.seguridad.cargar();
@@ -229,7 +230,14 @@ export class OperacionCaja {
   }
 
   private nuevoPorMeter(codigo: string | null, clave: string, lote: string): void {
-    this.porMeter.set({ codigo, clave, lote, loteDelCodigo: !!lote, piezas: this.faltaDe(clave) });
+    // Como en todas las pantallas: lo que falta, hasta una caja completa.
+    this.porMeter.set({ codigo, clave, lote, loteDelCodigo: !!lote, piezas: this.cajaHastaLoQueFalta(clave) });
+  }
+
+  /** Lo que falta de esa clave, hasta una caja completa; null si la clave no está en el contenido (se escribe a mano). */
+  private cajaHastaLoQueFalta(clave: string): number | null {
+    const falta = this.faltaDe(clave);
+    return falta === null ? null : Math.max(1, Math.min(this.seguridad.piezasPorCaja(clave), falta));
   }
 
   private faltaDe(clave: string): number | null {

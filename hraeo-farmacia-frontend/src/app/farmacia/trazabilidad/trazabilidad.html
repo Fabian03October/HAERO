@@ -21,6 +21,14 @@
                    aria-label="Buscar" placeholder="Medicamento, clave, lote, expediente, nombre o CURP — o escanea la caja" />
             <button class="btn" type="button" [disabled]="buscando()" (click)="buscar()">{{ buscando() ? 'Buscando…' : 'Buscar' }}</button>
           </div>
+          <div class="periodo">
+            <label><span>Entregas desde</span><input type="date" [max]="hasta() || null" [ngModel]="desde()" (ngModelChange)="desde.set($event ?? '')" /></label>
+            <label><span>Hasta</span><input type="date" [min]="desde() || null" [ngModel]="hasta()" (ngModelChange)="hasta.set($event ?? '')" /></label>
+            @if (desde() || hasta()) {
+              <button class="link" type="button" (click)="desde.set(''); hasta.set('')">Quitar fechas</button>
+            }
+            <small class="hint">Opcional. Filtra las entregas a pacientes; el recorrido del lote siempre sale completo.</small>
+          </div>
           @if (aviso()) {
             <p class="hint pendiente">{{ aviso() }}</p>
           }

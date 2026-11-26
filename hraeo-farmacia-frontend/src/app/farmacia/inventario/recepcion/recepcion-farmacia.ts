@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { ROL_ETIQUETA, Session } from '../../../auth/session';
 import { Topbar } from '../../../shared/topbar/topbar';
 import { Sidebar } from '../../../shared/sidebar/sidebar';
@@ -14,7 +14,7 @@ import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad'
 // el mismo lote y caducidad. Si llega algo distinto se pide el motivo y Almacén lo ve.
 @Component({
   selector: 'app-recepcion-farmacia',
-  imports: [MarcaSeguridad, FormsModule, DatePipe, Topbar, Sidebar],
+  imports: [MarcaSeguridad, FormsModule, DatePipe, DecimalPipe, Topbar, Sidebar],
   templateUrl: './recepcion-farmacia.html',
   styleUrls: ['../../panel-farmacia/panel-farmacia.css', '../../farmacia-comun.css'],
 })
@@ -35,6 +35,9 @@ export class RecepcionFarmacia {
   // Cajas que llegaron de cada lote (por movimiento de Almacén).
   readonly recibidas = signal<Record<number, number | null>>({});
   readonly motivo = signal('');
+  // Estante donde se acomoda: se sugiere donde ya está la clave, pero se puede poner otro.
+  readonly ubicacion = signal('');
+  readonly estantes = signal<string[]>([]);
 
   // Lo que Almacén despachó y Farmacia no ha recibido, lo más reciente primero.
   readonly despachadas = computed(() => {
@@ -62,11 +65,13 @@ export class RecepcionFarmacia {
     }
     const conDiferencia = despacho?.partidas.some((p) => this.recibidas()[p.movimientoId] !== p.cajas);
     if (conDiferencia && !this.motivo().trim()) faltan.push('el motivo de la diferencia');
+    if (!this.ubicacion().trim()) faltan.push('el estante donde se acomoda');
     return faltan;
   });
 
   constructor() {
     this.cargar();
+    this.api.estantesFarmacia().subscribe({ next: (e) => this.estantes.set(e), error: () => this.estantes.set([]) });
   }
 
   private cargar(): void {
@@ -88,6 +93,7 @@ export class RecepcionFarmacia {
     // Lo normal es que llegue lo despachado; si no, se corrige y se pide el motivo.
     this.recibidas.set(Object.fromEntries(despacho.partidas.map((p) => [p.movimientoId, p.cajas])));
     this.motivo.set('');
+    this.ubicacion.set(despacho.ubicacionSugerida ?? '');
     this.aviso.set('');
   }
 
@@ -102,13 +108,13 @@ export class RecepcionFarmacia {
     this.guardando.set(true);
     this.error.set('');
     const partidas = despacho.partidas.map((p) => ({ movimientoId: p.movimientoId, cajasRecibidas: this.recibidas()[p.movimientoId] ?? 0 }));
-    this.api.recibir(despacho.solicitudId, partidas, this.motivo().trim()).subscribe({
+    this.api.recibir(despacho.solicitudId, partidas, this.motivo().trim(), this.ubicacion().trim()).subscribe({
       next: (recepcion) => {
         this.guardando.set(false);
         this.seleccionada.set(null);
         this.aviso.set(
           `Recepción de ${folioSolicitud(recepcion.solicitudId)} guardada: ${recepcion.cajasRecibidas} cajas ` +
-            `(${recepcion.piezasRecibidas.toLocaleString('es-MX')} piezas) entraron al inventario de Farmacia.`,
+            `(${recepcion.piezasRecibidas.toLocaleString('es-MX')} piezas) entraron al inventario de Farmacia, en el estante ${this.ubicacion().trim().toUpperCase()}.`,
         );
         this.cargar();
       },

@@ -11,6 +11,7 @@ import { MarcaSeguridad } from '../../shared/marca-seguridad/marca-seguridad';
 import { RotacionAlmacen } from '../rotacion-almacen';
 import { descargarCsv, hoyIso } from '../../shared/csv';
 import { Paginacion, Paginador } from '../../shared/paginador/paginador';
+import { diaLocal } from '../../shared/fechas';
 
 interface GrupoLote {
   clave: string;
@@ -253,7 +254,7 @@ export class Existencias {
   descargarProximosACaducar(): void {
     const limite = new Date();
     limite.setMonth(limite.getMonth() + MESES_PROXIMOS_A_CADUCAR);
-    const tope = limite.toISOString().slice(0, 10);
+    const tope = diaLocal(limite);
     const merma = new Map(
       this.rotacion.alertasActivas().filter((a) => a.tipo === 'MERMA_PROBABLE').map((a) => [`${a.clave}|${a.numeroLote}`, a.limite]),
     );
@@ -387,7 +388,7 @@ export class Existencias {
   private cargarRecientes(): void {
     const hoy = new Date();
     const desde = new Date(hoy.getTime() - 30 * 86400000);
-    const dia = (fecha: Date) => fecha.toISOString().slice(0, 10);
+    const dia = (fecha: Date) => diaLocal(fecha);
     this.api.listarMovimientos({ desde: dia(desde), hasta: dia(hoy) }).subscribe({
       next: (lista) =>
         this.recientes.set(

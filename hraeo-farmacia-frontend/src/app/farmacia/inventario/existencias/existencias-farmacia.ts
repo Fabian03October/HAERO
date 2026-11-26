@@ -11,6 +11,7 @@ import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad'
 import { descargarCsv, hoyIso } from '../../../shared/csv';
 import { CajasQuirofano, PiezasEnCaja } from '../../cajas-quirofano/cajas-quirofano';
 import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
+import { diaLocal } from '../../../shared/fechas';
 
 // Meses hacia adelante para considerar un lote "próximo a caducar", igual que en Almacén.
 const MESES_ALERTA_CADUCIDAD = 9;
@@ -77,7 +78,7 @@ export class ExistenciasFarmacia {
   private readonly limiteCaducidad = (() => {
     const fecha = new Date();
     fecha.setMonth(fecha.getMonth() + MESES_ALERTA_CADUCIDAD);
-    return fecha.toISOString().slice(0, 10);
+    return diaLocal(fecha);
   })();
 
   vencido(caducidad: string): boolean {
@@ -109,6 +110,29 @@ export class ExistenciasFarmacia {
   }
 
   // ---------- Enlazar el código de la caja a una clave que se dio de alta sin código ----------
+  // Cambiar un lote de estante (queda quién, cuándo y de dónde a dónde).
+  readonly cambiandoEstante = signal<number | null>(null);
+  readonly estanteNuevo = signal('');
+  readonly estantes = computed(() => [...new Set(this.lotes().map((l) => l.ubicacion).filter((u): u is string => !!u))].sort());
+
+  empezarCambioEstante(lote: LoteFarmacia): void {
+    this.estanteNuevo.set(lote.ubicacion ?? '');
+    this.cambiandoEstante.set(lote.id);
+  }
+
+  guardarEstante(lote: LoteFarmacia): void {
+    const nuevo = this.estanteNuevo().trim();
+    if (!nuevo) return;
+    this.api.cambiarEstante(lote.id, nuevo).subscribe({
+      next: (actualizado) => {
+        this.lotes.update((lista) => lista.map((l) => (l.id === lote.id ? { ...l, ubicacion: actualizado.ubicacion } : l)));
+        this.cambiandoEstante.set(null);
+        this.avisoCodigo.set({ tipo: 'ok', texto: `${lote.clave} lote ${lote.lote} quedó en el estante ${actualizado.ubicacion}.` });
+      },
+      error: (error) => this.avisoCodigo.set({ tipo: 'error', texto: mensajeDeError(error, 'No se pudo cambiar el estante.') }),
+    });
+  }
+
   readonly claveEnlazando = signal<string | null>(null);
   readonly avisoCodigo = signal<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   codigoNuevo = '';
@@ -166,7 +190,7 @@ export class ExistenciasFarmacia {
       if (this.filtro() === 'POR_CADUCAR' && !lote.porCaducar) return false;
       if (this.filtro() === 'VENCIDO' && lote.estado !== 'VENCIDO') return false;
       if (!texto) return true;
-      return `${lote.clave} ${lote.medicamento} ${lote.lote} ${(lote.codigos ?? []).join(' ')}`.toLowerCase().includes(texto);
+      return `${lote.clave} ${lote.medicamento} ${lote.lote} ${lote.ubicacion ?? ''} ${(lote.codigos ?? []).join(' ')}`.toLowerCase().includes(texto);
     });
   });
 

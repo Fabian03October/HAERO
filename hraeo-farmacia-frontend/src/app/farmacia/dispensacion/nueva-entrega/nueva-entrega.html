@@ -15,6 +15,32 @@
           </div>
         </header>
 
+        @if (porResurtir(); as r) {
+          <!-- Receta ya surtida: se puede resurtir con el mismo folio; queda el motivo, quién y cuándo. -->
+          <section class="card resurtir">
+            <p class="eyebrow">Receta {{ r.folio }} · ya se surtió por completo</p>
+            <strong>{{ r.paciente }}{{ r.expediente ? ' · Exp. ' + r.expediente : '' }}</strong>
+            <small class="sub">
+              Última entrega: {{ r.ultimaEntrega ? (r.ultimaEntrega | date: 'dd/MM/yyyy HH:mm') + ' (hace ' + diasDesde(r.ultimaEntrega) + ' días)' : '—' }}
+              · Resurtida {{ r.resurtimientos }} {{ r.resurtimientos === 1 ? 'vez' : 'veces' }}
+            </small>
+            <ul>
+              @for (c of r.claves; track c.clave) {
+                <li>{{ c.clave }} {{ c.medicamento }} · {{ c.entregada }} pz entregadas</li>
+              }
+            </ul>
+            <div class="motivos">
+              @for (mot of motivosResurtir; track mot) {
+                <button type="button" class="btn secondary chico" [class.activo]="motivoResurtir() === mot" (click)="motivoResurtir.set(mot)">{{ mot }}</button>
+              }
+            </div>
+            <input [ngModel]="motivoResurtir()" (ngModelChange)="motivoResurtir.set($event)" maxlength="300" placeholder="Motivo del resurtido (o escribe otro)" aria-label="Motivo del resurtido" />
+            <div class="acciones">
+              <button class="btn" type="button" [disabled]="resurtiendo() || !motivoResurtir().trim()" (click)="resurtir()">{{ resurtiendo() ? 'Abriendo…' : 'Resurtir esta receta' }}</button>
+              <button class="link" type="button" (click)="porResurtir.set(null)">Cancelar</button>
+            </div>
+          </section>
+        }
         @if (mensaje()) {
           <div class="banner" [class.error]="tipoMensaje() === 'error'" [class.warn]="tipoMensaje() === 'warn'" [class.info]="tipoMensaje() === 'info'">{{ mensaje() }}</div>
         }
@@ -206,7 +232,7 @@
                         </select>
                       </td>
                       <td class="number">
-                        <input class="celda corta"type="number" min="1" [ngModel]="caja.piezas || null" (ngModelChange)="actualizarCaja(caja.id, { piezas: +$event })" />
+                        <app-cantidad-piezas [clave]="caja.clave" [piezas]="caja.piezas || null" (piezasChange)="actualizarCaja(caja.id, { piezas: $event ?? 0 })" />
                       </td>
                       <td><button class="link danger" type="button" (click)="quitarCaja(caja.id)">Quitar</button></td>
                     </tr>
@@ -273,6 +299,22 @@
               </tbody>
             </table>
           </div>
+
+          @if (previasDeLaEntrega().length) {
+            <!-- El paciente ya recibió alguna de estas claves en los últimos 7 días: se entrega solo con justificación. -->
+            <div class="banner warn previas">
+              <strong>Ya se le entregó en los últimos 7 días:</strong>
+              <ul>
+                @for (p of previasDeLaEntrega(); track p.folioEntrega + p.clave) {
+                  <li>{{ p.clave }} {{ p.medicamento }} · {{ p.fecha | date: 'dd/MM HH:mm' }} · {{ p.area }} · receta {{ p.receta }} · {{ p.piezas }} pz</li>
+                }
+              </ul>
+              <label>Justificación para entregarlo otra vez
+                <input [ngModel]="justificacionRepetida()" (ngModelChange)="justificacionRepetida.set($event)" maxlength="300"
+                       placeholder="Ej. cambio de dosis indicado por el médico, se extravió el medicamento…" />
+              </label>
+            </div>
+          }
 
           <div class="card-foot">
             <span>

@@ -26,3 +26,8 @@ td.detalle { white-space: normal; min-width: 240px; }
 /* Lotes marcados para el reporte de varios lotes. */
 .seleccion { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--color-dorado); border-radius: 10px; background: var(--color-dorado-suave); font-size: 13px; }
 .chip-lote { padding: 3px 10px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-card); color: var(--color-guinda); font: inherit; font-size: 12px; cursor: pointer; }
+
+.periodo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.periodo label { display: grid; gap: 3px; }
+.periodo label span { color: var(--color-text-tenue); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.periodo input { padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 8px; font: inherit; }

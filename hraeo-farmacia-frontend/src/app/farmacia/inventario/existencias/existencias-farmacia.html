@@ -53,6 +53,7 @@
                   <th>Medicamento</th>
                   <th>Código de barras</th>
                   <th>Lote</th>
+                  <th>Estante</th>
                   <th>Caducidad</th>
                   <th class="number">Piezas</th>
                   <th class="number">Cajas</th>
@@ -81,6 +82,17 @@
                       }
                     </td>
                     <td>{{ lote.lote }}</td>
+                    <td class="estante">
+                      @if (cambiandoEstante() === lote.id) {
+                        <input class="celda corta" list="estantes-inventario" maxlength="40" aria-label="Nuevo estante" [ngModel]="estanteNuevo()"
+                               (ngModelChange)="estanteNuevo.set($event)" (keyup.enter)="guardarEstante(lote)" (keyup.escape)="cambiandoEstante.set(null)" />
+                        <button class="link" type="button" [disabled]="!estanteNuevo().trim()" (click)="guardarEstante(lote)">Guardar</button>
+                        <button class="link" type="button" (click)="cambiandoEstante.set(null)">Cancelar</button>
+                      } @else {
+                        <strong>{{ lote.ubicacion ?? '—' }}</strong>
+                        <button class="link" type="button" (click)="empezarCambioEstante(lote)">{{ lote.ubicacion ? 'Cambiar' : 'Ponerle estante' }}</button>
+                      }
+                    </td>
                     <td>
                       {{ fecha(lote.caducidad) }}
                       @if (lote.porCaducar) {
@@ -99,9 +111,9 @@
                   </tr>
                 } @empty {
                   @if (lotes().length) {
-                    <tr><td colspan="8" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
+                    <tr><td colspan="9" class="empty">Ningún lote coincide con la búsqueda o el filtro.</td></tr>
                   } @else {
-                    <tr><td colspan="8" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes y la recepción de los despachos de Almacén.' }}</td></tr>
+                    <tr><td colspan="9" class="empty">{{ cargando() ? 'Cargando…' : 'El inventario de Farmacia está vacío. Se llena con el alta inicial de los estantes y la recepción de los despachos de Almacén.' }}</td></tr>
                   }
                 }
               </tbody>
@@ -150,3 +162,6 @@
     </main>
   </div>
 </div>
+<datalist id="estantes-inventario">
+  @for (e of estantes(); track e) { <option [value]="e"></option> }
+</datalist>

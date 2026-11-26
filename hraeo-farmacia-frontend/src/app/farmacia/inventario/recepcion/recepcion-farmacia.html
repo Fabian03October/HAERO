@@ -97,6 +97,20 @@
                 </table>
               </div>
 
+              <div class="field">
+                @if (despacho.piezasEnFarmacia) {
+                  <div class="banner info">Este medicamento ya lo tienes: {{ despacho.piezasEnFarmacia | number }} piezas{{ despacho.ubicacionSugerida ? ', en el estante ' + despacho.ubicacionSugerida : '' }}.
+                    {{ despacho.ubicacionSugerida ? 'Te sugerimos ponerlo ahí; si lo acomodas en otro lugar, cámbialo.' : 'Escribe dónde lo acomodas.' }}</div>
+                } @else {
+                  <div class="banner info">Es nuevo en Farmacia: escribe el estante donde lo acomodas.</div>
+                }
+                <label for="estante">Estante donde se acomoda</label>
+                <input id="estante" list="estantes-farmacia" maxlength="40" [ngModel]="ubicacion()" (ngModelChange)="ubicacion.set($event)" placeholder="Ej. A3" />
+                <datalist id="estantes-farmacia">
+                  @for (e of estantes(); track e) { <option [value]="e"></option> }
+                </datalist>
+              </div>
+
               @if (diferencia() !== 0) {
                 <div class="banner warn">Diferencia de {{ diferencia() > 0 ? '+' : '' }}{{ diferencia() }} cajas contra lo despachado. Escribe el motivo; Almacén lo verá.</div>
               }

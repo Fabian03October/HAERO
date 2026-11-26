@@ -1,6 +1,16 @@
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CONTACTO_ADMINISTRADOR, RUTA_POR_ROL, Session } from '../session';
+import { CONTACTO_ADMINISTRADOR, Rol, RUTA_POR_ROL, Session } from '../session';
+
+/**
+ * A dónde entra el usuario: a la pantalla donde se cerró la sesión solo si es de su módulo o común
+ * (la pudo dejar otra persona con otro rol en la misma computadora); si no, a su panel.
+ */
+export function destinoAlEntrar(rol: Rol, volver: string | null): string {
+  const deOtroModulo = (Object.entries(RUTA_POR_ROL) as [Rol, string][])
+    .some(([otro, ruta]) => otro !== rol && !!volver && (volver === ruta || volver.startsWith(`${ruta}/`) || volver.startsWith(`${ruta}?`)));
+  return volver && !deOtroModulo ? volver : RUTA_POR_ROL[rol];
+}
 import { CampoContrasena } from '../../shared/campo-contrasena/campo-contrasena';
 
 @Component({
@@ -32,7 +42,7 @@ export class Login {
     }
 
     this.error.set(false);
-    const destino = usuario.debeCambiarContrasena ? '/cambiar-contrasena' : (this.volver ?? RUTA_POR_ROL[usuario.rol]);
+    const destino = usuario.debeCambiarContrasena ? '/cambiar-contrasena' : destinoAlEntrar(usuario.rol, this.volver);
     this.router.navigateByUrl(destino);
   }
 

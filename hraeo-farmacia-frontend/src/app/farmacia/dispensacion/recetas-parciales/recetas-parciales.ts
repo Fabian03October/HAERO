@@ -10,6 +10,7 @@ import { FARMACIA_MENU } from '../../farmacia-nav';
 import { ClaveReceta, FarmaciaApi, Receta } from '../../farmacia-api';
 
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
+import { coincide } from '../../../shared/buscar';
 
 type EstadoReceta = 'PARCIAL' | 'NO_DISPENSADA';
 type RecetaPendiente = Receta & { estado: EstadoReceta };
@@ -66,12 +67,12 @@ export class RecetasParciales {
   });
 
   readonly recetasFiltradas = computed(() => {
-    const texto = this.busqueda().trim().toLowerCase();
+    const texto = this.busqueda().trim();
     return this.recetas().filter((receta) => {
       if (this.filtroEstado() && receta.estado !== this.filtroEstado()) return false;
       if (!texto) return true;
       const claves = receta.claves.map((item) => `${item.clave} ${item.medicamento}`).join(' ');
-      return `${receta.folio} ${receta.expediente ?? ''} ${receta.paciente} ${claves}`.toLowerCase().includes(texto);
+      return coincide(`${receta.folio} ${receta.expediente ?? ''} ${receta.paciente} ${claves}`, texto, receta.paciente);
     });
   });
 

@@ -1,6 +1,6 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { AlmacenApi, ComparacionClave, EstadoComparacion, EstadoIntelisis, mensajeDeError } from '../../almacen-api';
+import { AlmacenApi, ComparacionClave, EstadoComparacion, EstadoIntelisis, LoteConciliado, mensajeDeError } from '../../almacen-api';
 import { AvisosIntelisis } from './avisos-intelisis';
 import { Session } from '../../../auth/session';
 import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
@@ -140,6 +140,30 @@ export class ComparacionIntelisis {
   conDiferencia(fila: ComparacionClave): boolean {
     const diferencia = this.diferencia(fila);
     return diferencia === null || diferencia !== 0;
+  }
+
+  // Detalle por lote de la clave abierta (para encontrar qué lote no cuadra).
+  readonly abierta = signal<string | null>(null);
+  readonly lotes = signal<LoteConciliado[] | null>(null);
+  readonly errorLotes = signal('');
+
+  verLotes(clave: string): void {
+    if (this.abierta() === clave) {
+      this.abierta.set(null);
+      return;
+    }
+    this.abierta.set(clave);
+    this.lotes.set(null);
+    this.errorLotes.set('');
+    this.api.lotesConciliacion(clave).subscribe({
+      next: (lotes) => this.abierta() === clave && this.lotes.set(lotes),
+      error: (e) => this.errorLotes.set(mensajeDeError(e, 'No se pudieron cargar los lotes.')),
+    });
+  }
+
+  /** Piezas de más en Intelisis (positivo) o en HAERO (negativo); null si no se sabe cuántas piezas trae la caja. */
+  diferenciaLote(l: LoteConciliado): number | null {
+    return l.haeroPiezas == null ? null : (l.intelisisPiezas ?? 0) - l.haeroPiezas;
   }
 
   segundos(ms: number | null): string {

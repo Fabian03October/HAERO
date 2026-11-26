@@ -85,10 +85,13 @@ tr.fila-solicitud:hover td { background: var(--color-guinda-suave); }
 .pz-captura .btn { padding: 4px 10px; }
 .pz-editar { width: 58px; padding: 4px 6px; border: 1px solid #b9d8c0; border-radius: 6px; background: #f3faf4; font: inherit; font-weight: 700; text-align: right; }
 .pz-editar:focus { border-color: var(--color-guinda); background: var(--color-card); outline: none; box-shadow: 0 0 0 3px rgb(97 18 50 / 12%); }
-.claves-sugeridas { display: flex; flex-wrap: wrap; gap: 4px; }
-.clave-sugerida { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 4px 8px; border: 1px solid var(--color-border-campo); border-radius: 999px; background: var(--color-card); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+/* Cada clave posible es una ficha completa (nombre, forma y concentración): la nota y el catálogo no dicen lo mismo. */
+.claves-sugeridas { display: grid; gap: 6px; }
+.clave-sugerida { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 10px; background: var(--color-card); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .clave-sugerida:hover:not(:disabled) { border-color: var(--color-guinda); background: var(--color-guinda-suave); }
-.clave-sugerida span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; color: var(--color-text-secundario); }
+.clave-sugerida .ficha-linea { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.clave-sugerida .ficha-nombre { color: var(--color-text); white-space: normal; }
+.clave-sugerida .ficha-detalle { color: var(--color-text-secundario); font-size: 11.5px; }
 .clave-sugerida small { color: var(--color-success-text); font-size: 11px; font-weight: 600; }
 .clave-sugerida.sin-piezas small { color: var(--color-error-text); }
 /* Elegida, esperando que se escriban las piezas en el renglón. */
@@ -300,3 +303,19 @@ tr.fila-solicitud:hover td { background: var(--color-guinda-suave); }
 .tabla-nota tr.separador-soluciones td { padding: 10px 12px; border-top: 2px dashed #b8cce6; background: #f1f6fc; }
 .separador-soluciones strong { display: block; color: #2f5f9e; font-size: 13px; }
 .separador-soluciones small { color: #5a6573; font-size: 12px; }
+
+/* Reprogramar: la tarjeta muestra de qué fecha se movió y por qué; el formulario ocupa todo el ancho. */
+.ts-folio small.reprogramada { color: var(--color-warn-strong); font-weight: 700; }
+.ts-acciones { display: grid; gap: 4px; justify-items: stretch; }
+.reprogramar { grid-column: 1 / -1; display: grid; gap: 8px; padding: 12px; border: 1px dashed var(--color-warn-accent); border-radius: 10px; background: var(--color-warn-bg-soft); cursor: default; }
+.reprogramar label { display: grid; gap: 3px; max-width: 280px; }
+.reprogramar label span { color: var(--color-text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.reprogramar input { padding: 8px 10px; border: 1px solid var(--color-border-campo); border-radius: 8px; font: inherit; }
+.reprogramar .motivos { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-motivo { padding: 6px 10px; border: 1px solid var(--color-border-campo); border-radius: 999px; background: var(--color-card); font: inherit; font-size: 12px; cursor: pointer; }
+.chip-motivo.activo { border-color: var(--color-guinda); background: var(--color-guinda-suave); color: var(--color-guinda); font-weight: 700; }
+.reprogramar .acciones { display: flex; gap: 8px; align-items: center; }
+
+.barra-imprimir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.barra-imprimir .sub { flex: 1 1 260px; color: #6f6f6f; font-size: 12px; }
+.ts-folio .elegir { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }

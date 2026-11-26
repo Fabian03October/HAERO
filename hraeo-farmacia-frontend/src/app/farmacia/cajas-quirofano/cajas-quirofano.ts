@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { API_BASE_URL } from '../../api-config';
 import { Session } from '../../auth/session';
+import { diaLocal } from '../../shared/fechas';
 
 // Cajas de anestesia de quirófano (vales de medicamentos para quirófano). Tipos copiados de
 // com.example.backend.farmacia.dto.CajasQuirofanoDtos: los nombres deben coincidir con el backend.
@@ -158,11 +159,11 @@ export const MESES_CAMBIAR_LOTE_CAJA = 3;
 
 /** 'VENCIDO', 'PRONTO' (caduca en 3 meses o menos) o null. */
 export function alertaLote(caducidad: string): 'VENCIDO' | 'PRONTO' | null {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = diaLocal();
   if (caducidad < hoy) return 'VENCIDO';
   const limite = new Date();
   limite.setMonth(limite.getMonth() + MESES_CAMBIAR_LOTE_CAJA);
-  return caducidad <= limite.toISOString().slice(0, 10) ? 'PRONTO' : null;
+  return caducidad <= diaLocal(limite) ? 'PRONTO' : null;
 }
 
 /** Lotes de la caja vencidos o por caducar. */
