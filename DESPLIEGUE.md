@@ -100,9 +100,13 @@ La cámara del celular o la tableta como lector de códigos solo funciona en una
 2. **nginx:** copiar `haero.crt` y `haero.key` a `E:\SICOMED\nginx\conf\ssl\`, usar `despliegue/nginx-haero-windows.conf`
    como `E:\SICOMED\nginx\conf\nginx.conf` y reiniciar nginx. HAERO sigue en el puerto de siempre, ahora seguro:
    **https://172.16.5.190:8090** (quien escriba `http://` se manda solo a `https://`).
-3. **Instalar `haero-ca.crt` una vez en cada equipo** (pasos de la sección 4.1, punto 3). Sin esto el navegador avisa
+3. **Backend:** en `E:\SICOMED\backend\iniciar.bat` la dirección nueva debe estar permitida:
+   `set CORS_ORIGENES=https://172.16.5.190:8090,http://172.16.5.190:8090` y reiniciar el backend. Sin esto el
+   navegador no puede iniciar sesión (el servidor responde "Invalid CORS request" y la pantalla dice
+   "Usuario o contraseña incorrecta").
+4. **Instalar `haero-ca.crt` una vez en cada equipo** (pasos de la sección 4.1, punto 3). Sin esto el navegador avisa
    "conexión no privada" y el celular no presta la cámara.
-4. Los celulares deben estar en el Wi-Fi del hospital.
+5. Los celulares deben estar en el Wi-Fi del hospital.
 
 ## 5. Usuarios
 
