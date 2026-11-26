@@ -242,7 +242,7 @@ public class ServicioSincronizacionIntelisis {
         Map<String, Object[]> filas = new LinkedHashMap<>();
         intelisis.query(sql, rs -> {
             String almacen = texto(rs, 1, 10);
-            String articulo = texto(rs, 2, 20);
+            String articulo = limpiarArticulo(texto(rs, 2, 20));
             String lote = texto(rs, 3, 50);
             if (almacen == null || articulo == null || lote == null) {
                 return;
@@ -271,7 +271,7 @@ public class ServicioSincronizacionIntelisis {
 
         Map<String, Object[]> filas = new LinkedHashMap<>();
         intelisis.query(sql, rs -> {
-            String articulo = texto(rs, 1, 20);
+            String articulo = limpiarArticulo(texto(rs, 1, 20));
             if (articulo == null || filas.containsKey(articulo)) {
                 return;
             }
@@ -329,7 +329,7 @@ public class ServicioSincronizacionIntelisis {
         Map<String, Object[]> filas = new LinkedHashMap<>();
         intelisis.query(sql, rs -> {
             int id = rs.getInt(1);
-            String articulo = texto(rs, 2, 20);
+            String articulo = limpiarArticulo(texto(rs, 2, 20));
             String lote = texto(rs, 3, 50);
             if (articulo == null || lote == null) {
                 return;
@@ -383,7 +383,7 @@ public class ServicioSincronizacionIntelisis {
 
         Map<String, Object[]> filas = new LinkedHashMap<>();
         intelisis.query(sql, rs -> {
-            String articulo = texto(rs, 1, 20);
+            String articulo = limpiarArticulo(texto(rs, 1, 20));
             String nombre = texto(rs, 2, 1000);
             if (articulo == null || nombre == null) {
                 return;
@@ -555,7 +555,7 @@ public class ServicioSincronizacionIntelisis {
         Map<String, Object[]> filas = new LinkedHashMap<>();
         intelisis.query(sql, rs -> {
             int id = rs.getInt(1);
-            String articulo = texto(rs, 2, 20);
+            String articulo = limpiarArticulo(texto(rs, 2, 20));
             String lote = texto(rs, 3, 50);
             BigDecimal cantidad = cero(rs.getBigDecimal(4));
             if (articulo == null || lote == null) {
@@ -600,7 +600,7 @@ public class ServicioSincronizacionIntelisis {
         parametros.addAll(movimientosFarmacia);
         List<Object[]> renglones = new ArrayList<>();
         intelisis.query(sql, rs -> {
-            String articulo = texto(rs, 1, 20);
+            String articulo = limpiarArticulo(texto(rs, 1, 20));
             if (articulo != null) {
                 renglones.add(new Object[]{articulo, rs.getInt(2), rs.getInt(3), cero(rs.getBigDecimal(4))});
             }
@@ -641,7 +641,7 @@ public class ServicioSincronizacionIntelisis {
             int id = rs.getInt(1);
             String mov = texto(rs, 2, 30);
             Date fecha = fecha(rs, 4);
-            String articulo = texto(rs, 5, 20);
+            String articulo = limpiarArticulo(texto(rs, 5, 20));
             String lote = texto(rs, 6, 50);
             BigDecimal cantidad = cero(rs.getBigDecimal(7)).abs();
             if (mov == null || fecha == null || articulo == null || lote == null) {
@@ -938,6 +938,15 @@ public class ServicioSincronizacionIntelisis {
     // ---------- Utilidades ----------
 
     /** Clave sin el sufijo "-N" de Intelisis: 010.000.0101.00-1 -> 010.000.0101.00. */
+    /**
+     * Quita los puntos que se capturaron de más en Intelisis después de la clave ("010.000.5435.00.-1",
+     * "010.000.0269.00-1.", "010.000.1775.00."): son la misma clave y si no, su existencia no se cuenta.
+     */
+    static String limpiarArticulo(String articulo) {
+        return articulo == null ? null
+                : articulo.replaceFirst("^(0[14]0\\.000\\.\\d{4}\\.\\d{2})\\.+", "$1").replaceFirst("\\.+$", "");
+    }
+
     static String claveBase(String articulo) {
         return articulo.replaceFirst("-\\d+$", "");
     }

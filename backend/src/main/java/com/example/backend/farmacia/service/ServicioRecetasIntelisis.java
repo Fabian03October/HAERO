@@ -41,6 +41,16 @@ import java.util.stream.Collectors;
 @Service
 public class ServicioRecetasIntelisis {
 
+    /**
+     * vsa_RecetaD.Cantidad viene en CAJAS (envases), no en piezas: validado en Intelisis el 2026-11-26 (las bajas de
+     * Farmacia salen en múltiplos de la caja; en líquidos "1" es un frasco). Se pasa a piezas con las piezas por caja.
+     * Se redondea hacia arriba y nunca queda en cero; el despachador lo puede corregir.
+     */
+    static int piezasIndicadas(double cantidadReceta, Integer piezasPorCaja) {
+        int cajas = Math.max(1, (int) Math.ceil(cantidadReceta));
+        return piezasPorCaja == null || piezasPorCaja <= 0 ? cajas : cajas * piezasPorCaja;
+    }
+
     private static final Logger log = LoggerFactory.getLogger(ServicioRecetasIntelisis.class);
     private static final int MAXIMO_RECETAS = 20;
     private static final String SUFIJO_FARMACIA = "-1";
@@ -123,11 +133,10 @@ public class ServicioRecetasIntelisis {
                 String estadoEnHaero = folio == null ? null : recetaRepository.findByFolioIgnoreCase(folio).map(Receta::getEstado).orElse(null);
                 List<PartidaRecetaIntelisis> claves = partidas.getOrDefault(id, List.of()).stream().map(p -> {
                     Medicamento medicamento = catalogo.get(claveBase((String) p[0]));
-                    // Lo indicado se redondea hacia arriba y nunca queda en cero; el despachador lo puede corregir.
-                    int cantidad = Math.max(1, (int) Math.ceil((double) p[2]));
                     return medicamento != null
-                            ? new PartidaRecetaIntelisis(medicamento.getClave(), medicamento.getNombreGenerico(), medicamento.getPiezasPorCaja(), cantidad, true)
-                            : new PartidaRecetaIntelisis(null, p[1] != null ? (String) p[1] : (String) p[0], null, cantidad, false);
+                            ? new PartidaRecetaIntelisis(medicamento.getClave(), medicamento.getNombreGenerico(), medicamento.getPiezasPorCaja(),
+                                    piezasIndicadas((double) p[2], medicamento.getPiezasPorCaja()), true)
+                            : new PartidaRecetaIntelisis(null, p[1] != null ? (String) p[1] : (String) p[0], null, piezasIndicadas((double) p[2], null), false);
                 }).toList();
                 respuesta.add(new RecetaIntelisisResponse(folio, String.valueOf(id), (LocalDateTime) r[1], (String) r[2],
                         (PacienteResponse) r[3], estadoEnHaero, claves, (String) r[4], (String) r[5], (String) r[6]));
