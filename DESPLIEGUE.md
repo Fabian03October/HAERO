@@ -98,8 +98,8 @@ La cámara del celular o la tableta como lector de códigos solo funciona en una
    `haero.crt` y `haero.key` (para el servidor), `haero-ca.crt` (para instalar en los equipos) y `haero-ca.key`
    (llave de la autoridad: guardarla en un lugar seguro, sirve para renovar; **no se copia al servidor**). Vence en 825 días.
 2. **nginx:** copiar `haero.crt` y `haero.key` a `E:\SICOMED\nginx\conf\ssl\`, usar `despliegue/nginx-haero-windows.conf`
-   como `E:\SICOMED\nginx\conf\nginx.conf` y reiniciar nginx. HAERO queda en **https://172.16.5.190:8443**
-   (quien entre por `http://172.16.5.190:8090` se manda solo a https). Si el firewall de Windows bloquea el 8443, pedir a TIC que lo abra.
+   como `E:\SICOMED\nginx\conf\nginx.conf` y reiniciar nginx. HAERO sigue en el puerto de siempre, ahora seguro:
+   **https://172.16.5.190:8090** (quien escriba `http://` se manda solo a `https://`).
 3. **Instalar `haero-ca.crt` una vez en cada equipo** (pasos de la sección 4.1, punto 3). Sin esto el navegador avisa
    "conexión no privada" y el celular no presta la cámara.
 4. Los celulares deben estar en el Wi-Fi del hospital.
