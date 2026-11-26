@@ -111,7 +111,9 @@ export class OperacionCaja {
   readonly justificacion = signal('');
   // Una indicación médica (PDF) por paciente: expediente → archivo.
   readonly indicaciones = signal<Record<string, File>>({});
-  readonly devolucionContada = signal(false);
+  // Checklist de devolución: por clave, 'todo' (regresó lo que debía) o las piezas que regresaron; null = sin revisar.
+  readonly regreso = signal<Record<string, number | 'todo' | null>>({});
+  readonly motivoFaltante = signal('');
   readonly pacientesUso = computed(() => {
     const vistos = new Map<string, { expediente: string; nombre: string }>();
     for (const u of this.usos()) vistos.set(u.expediente.toUpperCase(), { expediente: u.expediente, nombre: u.nombre });
@@ -121,13 +123,47 @@ export class OperacionCaja {
   readonly resumenVale = computed(() =>
     this.renglones().map((r) => {
       const utilizado = this.usos().filter((u) => u.clave === r.clave).reduce((t, u) => t + u.piezas, 0);
-      return { ...r, utilizado, devolucion: r.tiene - utilizado };
+      const devolucion = r.tiene - utilizado;
+      const marcado = this.regreso()[r.clave] ?? null;
+      const regreso = marcado === 'todo' ? Math.max(devolucion, 0) : marcado;
+      return { ...r, utilizado, devolucion, regreso, revisado: marcado !== null, faltante: regreso === null ? 0 : Math.max(devolucion - regreso, 0) };
     }),
   );
+  readonly hayFaltantes = computed(() => this.resumenVale().some((r) => r.faltante > 0));
+
+  marcarCompleto(clave: string, completo: boolean): void {
+    this.regreso.update((r) => ({ ...r, [clave]: completo ? 'todo' : null }));
+  }
+
+  escribirRegreso(clave: string, valor: number | string | null): void {
+    const n = valor === null || valor === '' ? null : Number(valor);
+    this.regreso.update((r) => ({ ...r, [clave]: n === null || !Number.isFinite(n) ? null : n }));
+  }
+
+  marcarTodoCompleto(): void {
+    this.regreso.set(Object.fromEntries(this.renglones().map((r) => [r.clave, 'todo' as const])));
+  }
+
+  // Tablero: cajas en quirófano (por regresar) y las que regresaron hoy.
+  readonly porRegresar = computed(() =>
+    this.cajas.cajas().filter((c) => c.estado === 'ENTREGADA' && c.valeAbierto)
+      .sort((a, b) => a.valeAbierto!.entregadoEn.localeCompare(b.valeAbierto!.entregadoEn)));
+  readonly regresaronHoy = computed(() =>
+    this.cajas.cajas().map((c) => ({ caja: c, vale: c.vales.find((v) => v.recibidoEn?.startsWith(this.hoy)) }))
+      .filter((x) => x.vale && x.caja.estado !== 'ENTREGADA'));
+
+  abrirDevolucion(codigo: string): void {
+    this.codigoCaja = codigo;
+    this.escanearCaja();
+    setTimeout(() => document.getElementById('recibir-caja')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 600);
+  }
   readonly faltanParaRecibir = computed(() => {
     const faltan: string[] = [];
     if (this.resumenVale().some((r) => r.devolucion < 0)) faltan.push('corregir lo utilizado (es más de lo que salió)');
-    if (!this.devolucionContada()) faltan.push('contar la devolución');
+    const sinRevisar = this.resumenVale().filter((r) => !r.revisado).length;
+    if (sinRevisar) faltan.push(`revisar en el checklist ${sinRevisar} medicamento(s)`);
+    if (this.resumenVale().some((r) => r.regreso !== null && r.regreso > Math.max(r.devolucion, 0))) faltan.push('corregir lo que regresó (es más de lo que debía quedar)');
+    if (this.hayFaltantes() && !this.motivoFaltante().trim()) faltan.push('el motivo de lo que no regresó');
     if (this.usos().length) {
       if (!this.justificacion().trim()) faltan.push('la justificación');
       const sinPdf = this.pacientesUso().filter((p) => !this.indicaciones()[p.expediente]);
@@ -141,6 +177,7 @@ export class OperacionCaja {
   constructor() {
     this.seguridad.cargar();
     this.cargarBajaDia();
+    this.cajas.cargar().subscribe({ error: () => undefined });
   }
 
   // ---------- Caja ----------
@@ -180,7 +217,8 @@ export class OperacionCaja {
     this.indicaciones.set({});
     this.medicoUsuario.set(null);
     this.medicosSugeridos.set([]);
-    this.devolucionContada.set(false);
+    this.regreso.set({});
+    this.motivoFaltante.set('');
     this.cargarExistencias();
   }
 
@@ -377,13 +415,11 @@ export class OperacionCaja {
     ]);
     this.usoClave.set('');
     this.usoPiezas.set(null);
-    this.devolucionContada.set(false);
     this.mensaje.set('');
   }
 
   quitarUso(id: number): void {
     this.usos.update((lista) => lista.filter((u) => u.id !== id));
-    this.devolucionContada.set(false);
   }
 
   otroPaciente(): void {
@@ -411,16 +447,20 @@ export class OperacionCaja {
     // Solo los PDF de pacientes que siguen en la lista de lo utilizado.
     const pacientes = new Set(this.pacientesUso().map((p) => p.expediente));
     const indicaciones = Object.fromEntries(Object.entries(this.indicaciones()).filter(([expediente]) => pacientes.has(expediente)));
-    this.cajas.recibir(caja.codigo, usos, this.justificacion().trim(), indicaciones).subscribe({
+    const devueltos = this.resumenVale().map((r) => ({ clave: r.clave, piezas: r.regreso ?? 0 }));
+    const faltaron = this.resumenVale().filter((r) => r.faltante > 0).map((r) => `${r.clave} (${r.faltante})`);
+    this.cajas.recibir(caja.codigo, usos, this.justificacion().trim(), indicaciones, devueltos, this.hayFaltantes() ? this.motivoFaltante().trim() : '').subscribe({
       next: (actualizada) => {
         this.ocupado.set(false);
         this.abrir(actualizada);
         this.cargarBajaDia();
+        this.cajas.cargar().subscribe();
         this.mostrar(
-          total
+          (total
             ? `Caja recibida. Se registraron ${total} piezas utilizadas como entrega de Farmacia; repón la caja antes de volver a entregarla.`
-            : 'Caja recibida completa.',
-          'info',
+            : 'Caja recibida completa.')
+            + (faltaron.length ? ` No regresó: ${faltaron.join(', ')}; quedó como extravío y hay que reponerlo.` : ''),
+          faltaron.length ? 'error' : 'info',
         );
       },
       error: (e) => {

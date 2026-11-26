@@ -39,6 +39,47 @@
           </div>
         </section>
 
+        <!-- Tablero: qué cajas siguen en quirófano y cuáles ya regresaron hoy. -->
+        <section class="card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Devoluciones</p>
+              <h2>Cajas en quirófano</h2>
+            </div>
+            <span class="sub">{{ porRegresar().length }} por regresar · {{ regresaronHoy().length }} regresaron hoy</span>
+          </div>
+          @if (porRegresar().length) {
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Caja</th><th>Sala</th><th>Médico</th><th>Salió</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                  @for (c of porRegresar(); track c.codigo) {
+                    <tr>
+                      <td><strong>{{ c.codigo }}</strong><small class="sub">{{ c.nombre }}</small></td>
+                      <td>{{ c.valeAbierto!.sala }}</td>
+                      <td>{{ c.valeAbierto!.medico }}</td>
+                      <td>{{ c.valeAbierto!.entregadoEn | date: 'dd/MM HH:mm' }}<small class="sub">{{ turnoEtiqueta(c.valeAbierto!.turno) }}</small></td>
+                      <td><span class="pill warning">Sin regresar</span></td>
+                      <td><button class="btn chico" type="button" [disabled]="ocupado()" (click)="abrirDevolucion(c.codigo)">Devolución</button></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="sub">No hay cajas en quirófano: todas regresaron.</p>
+          }
+          @if (regresaronHoy().length) {
+            <p class="eyebrow">Regresaron hoy</p>
+            <ul class="historial">
+              @for (r of regresaronHoy(); track r.caja.codigo) {
+                <li><strong>{{ r.caja.codigo }} · {{ r.caja.nombre }}</strong>
+                  <span>{{ r.vale!.recibidoEn | date: 'HH:mm' }} · recibió {{ r.vale!.recibidoPor }} · {{ r.caja.estado === 'COMPLETA' ? 'completa' : 'falta reponer ' + r.caja.piezasFaltantes + ' pz' }}</span></li>
+              }
+            </ul>
+          }
+        </section>
+
         <section class="card">
           <div class="card-heading">
             <div>
@@ -251,7 +292,7 @@
 
             <!-- Recibir de regreso -->
             @if (c.estado === 'ENTREGADA' && c.valeAbierto; as v) {
-              <section class="card">
+              <section class="card" id="recibir-caja">
                 <div class="card-heading">
                   <div>
                     <p class="eyebrow">Paso 4 · regresa de quirófano</p>
@@ -290,25 +331,38 @@
                   </ul>
                 }
 
+                <div class="en-linea">
+                  <p class="eyebrow">Checklist de devolución: revisa cada medicamento que regresó en la caja</p>
+                  <button class="link" type="button" (click)="marcarTodoCompleto()">Todo regresó completo</button>
+                </div>
                 <div class="table-wrap">
-                  <table>
-                    <thead><tr><th>Clave</th><th class="number">Surtido</th><th class="number">Utilizado</th><th class="number">Devolución</th></tr></thead>
+                  <table class="checklist">
+                    <thead><tr><th>Clave</th><th class="number">Surtido</th><th class="number">Utilizado</th><th class="number">Debe regresar</th><th>¿Regresó?</th><th class="number">Falta</th></tr></thead>
                     <tbody>
                       @for (r of resumenVale(); track r.clave) {
-                        <tr [class.usado]="r.utilizado > 0" [class.falta]="r.devolucion < 0">
+                        <tr [class.usado]="r.utilizado > 0" [class.falta]="r.devolucion < 0 || r.faltante > 0" [class.ok]="r.revisado && r.faltante === 0 && r.devolucion >= 0">
                           <td><strong>{{ r.clave }}</strong> <app-marca-seguridad [clave]="r.clave" /><small class="sub">{{ r.medicamento }}</small></td>
                           <td class="number">{{ r.tiene }}</td>
                           <td class="number">{{ r.utilizado }}</td>
-                          <td class="number">{{ r.devolucion }}</td>
+                          <td class="number"><strong>{{ r.devolucion }}</strong></td>
+                          <td class="regreso">
+                            <label class="check"><input type="checkbox" [checked]="regreso()[r.clave] === 'todo'" (change)="marcarCompleto(r.clave, $any($event.target).checked)" [attr.aria-label]="'Regresó completo ' + r.clave" /> Completo</label>
+                            <input class="corta" type="number" min="0" [max]="r.devolucion" placeholder="o cuántas"
+                                   [ngModel]="regreso()[r.clave] === 'todo' ? null : regreso()[r.clave]" (ngModelChange)="escribirRegreso(r.clave, $event)" [attr.aria-label]="'Piezas que regresaron de ' + r.clave" />
+                          </td>
+                          <td class="number">@if (r.faltante > 0) { <strong class="error">{{ r.faltante }}</strong> } @else if (r.revisado) { ✓ }</td>
                         </tr>
                       }
                     </tbody>
                   </table>
                 </div>
-                <label class="check">
-                  <input type="checkbox" [checked]="devolucionContada()" (change)="devolucionContada.set($any($event.target).checked)" />
-                  Conté lo que regresó y coincide con la columna Devolución
-                </label>
+                @if (hayFaltantes()) {
+                  <div class="field">
+                    <label for="motivo-faltante">No regresó todo: ¿qué pasó? (si se usó en un paciente, regístralo arriba como utilizado)</label>
+                    <input id="motivo-faltante" maxlength="300" [ngModel]="motivoFaltante()" (ngModelChange)="motivoFaltante.set($event)" placeholder="Ej. se rompió una ampolleta en sala; el anestesiólogo lo reportará" />
+                    <small class="sub">Lo que falta se da de baja como extravío (queda quién y cuándo) y la caja queda para reponer.</small>
+                  </div>
+                }
                 @if (usos().length) {
                   <div class="field">
                     <label for="justificacion-caja">Justificación</label>

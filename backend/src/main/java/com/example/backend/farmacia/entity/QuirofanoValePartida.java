@@ -43,6 +43,16 @@ public class QuirofanoValePartida {
     @Column(name = "orden", nullable = false)
     private Integer orden;
 
+    // Checklist de devolución: lo que regresó y lo que faltó sin reportarse como utilizado (con su motivo).
+    @Column(name = "devuelto")
+    private Integer devuelto;
+
+    @Column(name = "faltante")
+    private Integer faltante;
+
+    @Column(name = "motivo_faltante", length = 300)
+    private String motivoFaltante;
+
     /** Llave primaria compuesta (vale_id, medicamento_clave). */
     @NoArgsConstructor
     @AllArgsConstructor

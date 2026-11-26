@@ -47,8 +47,16 @@ public final class CajasQuirofanoDtos {
     public record UsoRequest(String expediente, String nombre, String clave, Integer piezas) {
     }
 
-    /** indicaciones: el expediente de cada PDF de la parte "documentos", en el mismo orden (uno por paciente). */
-    public record RecibirRequest(List<UsoRequest> usos, String justificacion, List<String> indicaciones) {
+    /** Lo que regresó de un medicamento en la caja (checklist de devolución). */
+    public record DevueltoRequest(String clave, Integer piezas) {
+    }
+
+    /**
+     * indicaciones: el expediente de cada PDF de la parte "documentos", en el mismo orden (uno por paciente).
+     * devueltos: el checklist (lo que regresó de cada medicamento); si falta algo, motivoFaltante es obligatorio.
+     */
+    public record RecibirRequest(List<UsoRequest> usos, String justificacion, List<String> indicaciones,
+                                 List<DevueltoRequest> devueltos, String motivoFaltante) {
     }
 
     public record MedicoResponse(String usuario, String nombre, String especialidad, String cedula) {

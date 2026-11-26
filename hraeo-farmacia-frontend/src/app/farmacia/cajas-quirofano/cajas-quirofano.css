@@ -56,3 +56,13 @@ td.acciones-renglon .link { padding-left: 0; }
 .cajas-de-baja { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border); }
 .cajas-de-baja > .link { justify-self: start; padding-left: 0; }
 .lista-cajas li.de-baja { opacity: 0.85; background: #f3f1ed; }
+
+/* Checklist de devolución de la caja */
+.checklist td.regreso { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.checklist tr.ok td { background: var(--color-success-bg-soft, #eef8f0); }
+.checklist .error { color: var(--color-error-text, #b42318); }
+/* El nombre del catálogo es larguísimo: en el checklist se corta para que se vean las columnas de conteo. */
+.checklist td:first-child { max-width: 200px; }
+.checklist td:first-child small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.checklist th, .checklist td { padding-left: 6px; padding-right: 6px; }
+.checklist input.corta { width: 70px; }

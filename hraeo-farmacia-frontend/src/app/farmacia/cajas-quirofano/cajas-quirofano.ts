@@ -296,11 +296,15 @@ export class CajasQuirofano {
       .pipe(tap((caja) => this.poner(caja)));
   }
 
-  /** Una indicación médica (PDF) por paciente: indicaciones[expediente] = archivo. */
-  recibir(codigo: string, usos: UsoCaja[], justificacion: string, indicaciones: Record<string, File>): Observable<CajaQuirofano> {
+  /**
+   * Una indicación médica (PDF) por paciente: indicaciones[expediente] = archivo. devueltos: el checklist (lo que
+   * regresó de cada medicamento); si falta algo, motivoFaltante explica qué pasó.
+   */
+  recibir(codigo: string, usos: UsoCaja[], justificacion: string, indicaciones: Record<string, File>,
+          devueltos: { clave: string; piezas: number }[], motivoFaltante: string): Observable<CajaQuirofano> {
     const cuerpo = new FormData();
     const expedientes = Object.keys(indicaciones);
-    cuerpo.append('datos', new Blob([JSON.stringify({ usos, justificacion, indicaciones: expedientes })], { type: 'application/json' }));
+    cuerpo.append('datos', new Blob([JSON.stringify({ usos, justificacion, indicaciones: expedientes, devueltos, motivoFaltante })], { type: 'application/json' }));
     for (const expediente of expedientes) cuerpo.append('documentos', indicaciones[expediente], indicaciones[expediente].name);
     return this.http.post<CajaQuirofano>(`${this.base}/cajas/${encodeURIComponent(codigo)}/recibir`, cuerpo, this.cabeceras())
       .pipe(tap((caja) => this.poner(caja)));

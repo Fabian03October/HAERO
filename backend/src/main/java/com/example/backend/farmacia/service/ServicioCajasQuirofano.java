@@ -7,6 +7,8 @@ import com.example.backend.farmacia.entity.QuirofanoCajaPieza;
 import com.example.backend.farmacia.entity.QuirofanoVale;
 import com.example.backend.farmacia.entity.QuirofanoValeIndicacion;
 import com.example.backend.farmacia.entity.QuirofanoValePartida;
+import com.example.backend.farmacia.dto.CajasQuirofanoDtos.DevueltoRequest;
+import com.example.backend.farmacia.entity.BajaFarmacia;
 import com.example.backend.farmacia.entity.QuirofanoValeUso;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -670,6 +672,70 @@ public class ServicioCajasQuirofano {
             guardar(indicacion);
         }
 
+        // Checklist: lo que regresó de cada medicamento. Lo que debía regresar y no regresó (sin reportarse como
+        // utilizado) sale de la caja como extravío, con su motivo, quién y cuándo; la caja queda para reponer.
+        List<String> faltaron = new ArrayList<>();
+        if (request != null && request.devueltos() != null) {
+            Map<String, Integer> devueltos = new LinkedHashMap<>();
+            for (DevueltoRequest d : request.devueltos()) {
+                String clave = obligatorio(d.clave(), "Falta la clave de un medicamento del checklist");
+                if (!contenido.containsKey(clave)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La clave " + clave + " no está en la caja");
+                }
+                if (d.piezas() == null || d.piezas() < 0) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica cuántas piezas regresaron de " + clave + " (0 si ninguna)");
+                }
+                devueltos.put(clave, d.piezas());
+            }
+            String motivoFaltante = ServicioInventarioFarmacia.texto(request.motivoFaltante());
+            List<Pieza> enCaja = piezas(caja.id);
+            for (Contenido c : contenido.values()) {
+                int esperado = enCaja.stream().filter(p -> p.clave.equals(c.clave)).mapToInt(p -> p.piezas).sum();
+                Integer regreso = devueltos.get(c.clave);
+                if (regreso == null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta revisar en el checklist " + c.clave + " · " + c.mostrado());
+                }
+                if (regreso > esperado) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "De " + c.clave + " regresan " + regreso + " piezas y en la caja debían quedar "
+                            + esperado + ": revisa lo utilizado");
+                }
+                int falta = esperado - regreso;
+                if (falta > 0 && motivoFaltante == null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No regresaron " + falta + " piezas de " + c.clave
+                            + ": escribe qué pasó (o regístralas como utilizadas con su paciente)");
+                }
+                if (motivoFaltante != null && motivoFaltante.length() > 300) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El motivo de lo que faltó no puede pasar de 300 caracteres");
+                }
+                int porSacar = falta;
+                for (Pieza pieza : enCaja.stream().filter(p -> p.clave.equals(c.clave) && p.piezas > 0)
+                        .sorted(Comparator.comparing((Pieza p) -> p.caducidad).thenComparing(p -> p.loteId)).toList()) {
+                    if (porSacar == 0) {
+                        break;
+                    }
+                    int sacar = Math.min(porSacar, pieza.piezas);
+                    porSacar -= sacar;
+                    LoteFarmacia lote = lote(pieza.loteId);
+                    sumarPieza(caja.id, lote.getId(), -sacar);
+                    // Sale de la caja (regresa un momento al lote) y se da de baja por extravío: la bitácora cuadra.
+                    inventario.mover(lote, MOVIMIENTO_CAJA, sacar, caja.id, usuario);
+                    BajaFarmacia baja = inventario.guardarBaja(lote, sacar, BajaFarmacia.EXTRAVIO,
+                            "No regresó en la caja " + caja.codigo + " (vale " + valeId + "): " + motivoFaltante, null, usuario);
+                    inventario.mover(lote, MovimientoFarmacia.BAJA, -sacar, baja.getId(), usuario);
+                }
+                if (falta > 0) {
+                    faltaron.add(c.clave + " (" + falta + ")");
+                }
+                QuirofanoValePartida partida = em.find(QuirofanoValePartida.class, new QuirofanoValePartida.Llave(valeId, c.clave));
+                if (partida != null) {
+                    partida.setDevuelto(regreso);
+                    partida.setFaltante(falta);
+                    partida.setMotivoFaltante(falta > 0 ? motivoFaltante : null);
+                }
+            }
+            em.flush();
+        }
+
         // Lo de red fría que no se usó regresa al refrigerador (estante de Farmacia): no se queda en la caja.
         List<String> regresaron = new ArrayList<>();
         for (Contenido c : contenido.values()) {
@@ -689,9 +755,10 @@ public class ServicioCajasQuirofano {
                 .setParameter("en", LocalDateTime.now()).setParameter("por", usuario).setParameter("justificacion", justificacion)
                 .setParameter("id", valeId).executeUpdate();
         int total = usadasPorClave.values().stream().mapToInt(Integer::intValue).sum();
-        evento(caja.id, "DEVOLUCION", (total == 0 ? "Regresó completa"
+        evento(caja.id, "DEVOLUCION", (total == 0 ? (faltaron.isEmpty() ? "Regresó completa" : "Regresó sin utilizado")
                 : "Utilizado: " + total + " piezas en " + pacientes.size() + " paciente(s) · " + justificacion)
-                + (regresaron.isEmpty() ? "" : " · red fría al refrigerador: " + String.join(", ", regresaron)), usuario);
+                + (regresaron.isEmpty() ? "" : " · red fría al refrigerador: " + String.join(", ", regresaron))
+                + (faltaron.isEmpty() ? "" : " · NO REGRESÓ: " + String.join(", ", faltaron) + " (" + ServicioInventarioFarmacia.texto(request.motivoFaltante()) + ")"), usuario);
         return detalle(caja.codigo);
     }
 
