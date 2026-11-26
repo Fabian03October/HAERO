@@ -35,13 +35,13 @@ public class ServicioIntelisis {
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionIntelisis sincronizacion;
     private final JdbcTemplate haero;
-    // Almacén y Farmacia son un solo inventario en Intelisis, repartido en estos almacenes (25301 y 25301-C).
+    // Almacén y Farmacia son un solo inventario en Intelisis, repartido en estos almacenes (25301, Farmacia Gratuita…; los caducos 25301-C no).
     private final List<String> almacenes;
 
     public ServicioIntelisis(ConexionIntelisis conexion,
                              ServicioSincronizacionIntelisis sincronizacion,
                              JdbcTemplate haero,
-                             @Value("${intelisis.almacenes:25301,25301-C,FG - 25301,G-25301,D25301}") String almacenes) {
+                             @Value("${intelisis.almacenes:25301,FG - 25301,G-25301,D25301}") String almacenes) {
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
         this.haero = haero;

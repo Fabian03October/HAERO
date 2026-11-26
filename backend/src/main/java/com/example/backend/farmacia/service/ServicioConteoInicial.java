@@ -92,7 +92,7 @@ public class ServicioConteoInicial {
     /**
      * Lotes con existencia y caducidad de una clave en el almacén de medicamentos de Intelisis (la copia
      * que llena la sincronización). Almacén y Farmacia son el mismo inventario en Intelisis, así que
-     * salen los de los dos, de todos los almacenes que se sincronizan (25301 y 25301-C), sin restricción. Piezas: la clave "-1" ya viene en piezas; la base, en cajas.
+     * salen los de los dos, de todos los almacenes que se sincronizan (25301, Farmacia Gratuita…; no los caducos 25301-C), sin restricción. Piezas: la clave "-1" ya viene en piezas; la base, en cajas.
      * Los que no traen caducidad en Intelisis también salen (caducidad null): se escribe a mano al elegirlos.
      */
     public List<LoteIntelisis> lotesIntelisis(String clave) {

@@ -74,7 +74,7 @@ public class ServicioSincronizacionIntelisis {
     public ServicioSincronizacionIntelisis(ConexionIntelisis conexion,
                                            JdbcTemplate haero,
                                            PlatformTransactionManager transactionManager,
-                                           @Value("${intelisis.almacenes:25301,25301-C,FG - 25301,G-25301,D25301}") String almacenes,
+                                           @Value("${intelisis.almacenes:25301,FG - 25301,G-25301,D25301}") String almacenes,
                                            @Value("${intelisis.recepciones.dias:400}") int diasRecepciones,
                                            @Value("${intelisis.entradas.movimientos-inv:Donacion FONSABI,Donacion Farmacia,IMSS EntradaTraspaso}")
                                            String movimientosEntradaInv,

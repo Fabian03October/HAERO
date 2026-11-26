@@ -43,7 +43,7 @@ public class ServicioRegistrosIntelisis {
     private final int diasEntradas;
 
     public ServicioRegistrosIntelisis(JdbcTemplate haero,
-                                      @Value("${intelisis.almacenes:25301,25301-C,FG - 25301,G-25301,D25301}") String almacenes,
+                                      @Value("${intelisis.almacenes:25301,FG - 25301,G-25301,D25301}") String almacenes,
                                       @Value("${almacen.entradas.dias:90}") int diasEntradas) {
         this.haero = haero;
         this.almacenPrincipal = almacenes.split(",")[0].trim();
