@@ -519,7 +519,8 @@ public class ServicioTrazabilidad {
 
     static String claveBase(String articulo) {
         String a = recortar(articulo);
-        return a != null && a.endsWith(SUFIJO_FARMACIA) ? a.substring(0, a.length() - SUFIJO_FARMACIA.length()) : a;
+        return a == null ? null : com.example.backend.intelisis.service.ServicioSincronizacionIntelisis.claveBase(
+                com.example.backend.intelisis.service.ServicioSincronizacionIntelisis.limpiarArticulo(a));
     }
 
     private static String recortar(String valor) {

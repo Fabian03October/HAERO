@@ -41,7 +41,7 @@ public class ServicioIntelisis {
     public ServicioIntelisis(ConexionIntelisis conexion,
                              ServicioSincronizacionIntelisis sincronizacion,
                              JdbcTemplate haero,
-                             @Value("${intelisis.almacenes:25301,25301-C}") String almacenes) {
+                             @Value("${intelisis.almacenes:25301,25301-C,FG - 25301,G-25301,D25301}") String almacenes) {
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
         this.haero = haero;

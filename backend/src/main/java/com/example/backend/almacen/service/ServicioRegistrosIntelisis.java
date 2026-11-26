@@ -43,7 +43,7 @@ public class ServicioRegistrosIntelisis {
     private final int diasEntradas;
 
     public ServicioRegistrosIntelisis(JdbcTemplate haero,
-                                      @Value("${intelisis.almacenes:25301,25301-C}") String almacenes,
+                                      @Value("${intelisis.almacenes:25301,25301-C,FG - 25301,G-25301,D25301}") String almacenes,
                                       @Value("${almacen.entradas.dias:90}") int diasEntradas) {
         this.haero = haero;
         this.almacenPrincipal = almacenes.split(",")[0].trim();
@@ -186,7 +186,7 @@ public class ServicioRegistrosIntelisis {
                              LEFT JOIN intelisis_proveedor pr ON pr.proveedor = r.proveedor
                              WHERE rl.serie_lote = s.serie_lote AND rl.articulo IN (?, ?)
                              ORDER BY r.fecha_emision DESC) prov
-                WHERE s.clave_base = ? AND s.almacen = ? AND s.existencia > 0
+                WHERE s.clave_base = ? AND s.existencia > 0
                 """;
         Map<String, Acumulado> grupos = new LinkedHashMap<>();
         haero.query(sql, rs -> {
@@ -204,7 +204,7 @@ public class ServicioRegistrosIntelisis {
                 a.fecha = ultimaEntrada;
             }
             a.sumar(rs.getString("articulo"), rs.getBigDecimal("existencia"), fecha(rs, "fecha_caducidad"), piezasPorCaja);
-        }, clave, clave + "-1", clave, almacenPrincipal);
+        }, clave, clave + "-1", clave);
         return new ArrayList<>(grupos.values());
     }
 

@@ -74,7 +74,7 @@ public class ServicioSincronizacionIntelisis {
     public ServicioSincronizacionIntelisis(ConexionIntelisis conexion,
                                            JdbcTemplate haero,
                                            PlatformTransactionManager transactionManager,
-                                           @Value("${intelisis.almacenes:25301,25301-C}") String almacenes,
+                                           @Value("${intelisis.almacenes:25301,25301-C,FG - 25301,G-25301,D25301}") String almacenes,
                                            @Value("${intelisis.recepciones.dias:400}") int diasRecepciones,
                                            @Value("${intelisis.entradas.movimientos-inv:Donacion FONSABI,Donacion Farmacia,IMSS EntradaTraspaso}")
                                            String movimientosEntradaInv,
@@ -377,8 +377,9 @@ public class ServicioSincronizacionIntelisis {
                              ORDER BY CASE WHEN am.Articulo = k.clave THEN 0 ELSE 1 END) m
                 -- Todas las claves 010/040, con cualquier terminación; de cada clave queda la mejor ficha:
                 -- primero la de piezas (-1), luego la base (cajas) y al final cualquier otra (-2, ...).
-                WHERE a.art LIKE '0[14]0.000.%'
-                ORDER BY CASE WHEN a.art LIKE '%-1' THEN 0 WHEN a.art = k.clave THEN 1 ELSE 2 END, a.art
+                WHERE a.art LIKE '%0[14]0.000.%'
+                ORDER BY CASE WHEN a.art LIKE '0[14]0.000.____.__-1' THEN 0 WHEN a.art LIKE '0[14]0.000.____.__' THEN 1
+                              WHEN a.art LIKE '0[14]0.000.%' THEN 2 ELSE 3 END, a.art
                 """;
 
         Map<String, Object[]> filas = new LinkedHashMap<>();
@@ -938,16 +939,31 @@ public class ServicioSincronizacionIntelisis {
     // ---------- Utilidades ----------
 
     /** Clave sin el sufijo "-N" de Intelisis: 010.000.0101.00-1 -> 010.000.0101.00. */
+    private static final java.util.regex.Pattern CLAVE = java.util.regex.Pattern.compile("0[14]0\\.000\\.\\d{4}\\.\\d{1,2}");
+    private static final java.util.regex.Pattern PIEZAS = java.util.regex.Pattern.compile("^[^0-9-]*-0*1(?![0-9]).*");
+
     /**
-     * Quita los puntos que se capturaron de más en Intelisis después de la clave ("010.000.5435.00.-1",
-     * "010.000.0269.00-1.", "010.000.1775.00."): son la misma clave y si no, su existencia no se cuenta.
+     * El mismo medicamento aparece en Intelisis con el código escrito de varias formas: "G-010.000.0570.00",
+     * "010.000.5435.00.-1", "010.000.2130.00a-1", "010.000.4186.03-01", "010.000.5646.0-1". Todo es la misma clave
+     * (y "-1" o "-01" es la de piezas), así que se deja como "010.000.0570.00" o "010.000.0570.00-1". Lo que no es
+     * un medicamento (material de curación, etc.) se deja como viene.
      */
-    static String limpiarArticulo(String articulo) {
-        return articulo == null ? null
-                : articulo.replaceFirst("^(0[14]0\\.000\\.\\d{4}\\.\\d{2})\\.+", "$1").replaceFirst("\\.+$", "");
+    public static String limpiarArticulo(String articulo) {
+        if (articulo == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = CLAVE.matcher(articulo);
+        if (!m.find()) {
+            return articulo;
+        }
+        String clave = m.group();
+        if (clave.charAt(clave.length() - 2) == '.') {
+            clave = clave + "0";   // "5646.0" → "5646.00"
+        }
+        return PIEZAS.matcher(articulo.substring(m.end())).matches() ? clave + "-1" : clave;
     }
 
-    static String claveBase(String articulo) {
+    public static String claveBase(String articulo) {
         return articulo.replaceFirst("-\\d+$", "");
     }
 

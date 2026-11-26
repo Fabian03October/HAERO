@@ -42,18 +42,19 @@ import java.util.stream.Collectors;
 public class ServicioRecetasIntelisis {
 
     /**
-     * vsa_RecetaD.Cantidad viene en CAJAS (envases), no en piezas: validado en Intelisis el 2026-11-26 (las bajas de
-     * Farmacia salen en múltiplos de la caja; en líquidos "1" es un frasco). Se pasa a piezas con las piezas por caja.
-     * Se redondea hacia arriba y nunca queda en cero; el despachador lo puede corregir.
+     * vsa_RecetaD.Cantidad no trae unidad (Unidad y Factor vienen vacíos). Validado en Intelisis el 2026-11-26 con un
+     * año de recetas: casi siempre son CAJAS (160 de 276 tabletas y demás se surtieron como cajas completas), pero hay
+     * medicamentos que se recetan por pieza (ampolletas sueltas, por ejemplo). Se toma como cajas y el despachador lo
+     * corrige. Se redondea hacia arriba y nunca queda en cero.
+     * shortcut: una regla por medicamento (aprendida de lo que Farmacia surtió en Intelisis) evitaría corregir a mano.
      */
     static int piezasIndicadas(double cantidadReceta, Integer piezasPorCaja) {
-        int cajas = Math.max(1, (int) Math.ceil(cantidadReceta));
-        return piezasPorCaja == null || piezasPorCaja <= 0 ? cajas : cajas * piezasPorCaja;
+        int cantidad = Math.max(1, (int) Math.ceil(cantidadReceta));
+        return piezasPorCaja == null || piezasPorCaja <= 0 ? cantidad : cantidad * piezasPorCaja;
     }
 
     private static final Logger log = LoggerFactory.getLogger(ServicioRecetasIntelisis.class);
     private static final int MAXIMO_RECETAS = 20;
-    private static final String SUFIJO_FARMACIA = "-1";
 
     private final ConexionIntelisis conexion;
     private final MedicamentoRepository medicamentoRepository;
@@ -152,7 +153,8 @@ public class ServicioRecetasIntelisis {
         if (articulo == null) {
             return null;
         }
-        return articulo.endsWith(SUFIJO_FARMACIA) ? articulo.substring(0, articulo.length() - SUFIJO_FARMACIA.length()) : articulo;
+        return com.example.backend.intelisis.service.ServicioSincronizacionIntelisis.claveBase(
+                com.example.backend.intelisis.service.ServicioSincronizacionIntelisis.limpiarArticulo(articulo.trim()));
     }
 
     private static String limpio(String valor) {
