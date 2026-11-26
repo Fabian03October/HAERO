@@ -48,6 +48,7 @@
               <button class="btn" type="button" [disabled]="generandoReporte()" (click)="reporteVarios()">
                 {{ generandoReporte() ? 'Armando reporte…' : 'Reporte de lo marcado (PDF)' }}
               </button>
+              <button class="btn secondary" type="button" [disabled]="generandoReporte()" (click)="reporteVarios('excel')">Excel</button>
               <button class="link" type="button" (click)="limpiarSeleccion()">Quitar todos</button>
             </div>
           }
@@ -119,6 +120,7 @@
                   {{ consultaActualAgregada() ? 'Agregado al reporte' : 'Agregar al reporte' }}
                 </button>
                 <button class="btn secondary" type="button" [disabled]="buscando()" (click)="descargarReporte()">Descargar reporte (PDF)</button>
+                <button class="btn secondary" type="button" [disabled]="buscando()" (click)="descargarReporte('excel')">Excel</button>
               </div>
             </div>
             <!-- La línea de tiempo solo con datos de HAERO; lo que viene solo de Intelisis se muestra en tablas. -->

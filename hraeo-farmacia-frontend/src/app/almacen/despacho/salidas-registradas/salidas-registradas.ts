@@ -81,14 +81,20 @@ export class SalidasRegistradas {
     return pedidos.size === 1 && unico ? unico : null;
   });
 
-  async descargarVale(): Promise<void> {
+  async descargarVale(formato: 'pdf' | 'excel' = 'pdf'): Promise<void> {
     const pedidoId = this.pedidoElegido();
     if (!pedidoId || this.generando()) return;
     this.generando.set(true);
     try {
-      const { cargarLogo, descargarValePedido } = await import('./comprobante-salidas');
+      const { cargarLogo, armarValePedido, descargarValePedido } = await import('./comprobante-salidas');
       const vale = await firstValueFrom(this.api.valePedido(pedidoId));
-      descargarValePedido(folioPedido(pedidoId), vale, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+      const quien = this.session.usuarioActual()?.nombreCompleto ?? '';
+      if (formato === 'pdf') {
+        descargarValePedido(folioPedido(pedidoId), vale, quien, await cargarLogo());
+      } else {
+        const { descargarExcel } = await import('../../../shared/reporte-excel');
+        await descargarExcel(armarValePedido(folioPedido(pedidoId), vale, quien, await cargarLogo()), `vale-${folioPedido(pedidoId)}-${new Date().toLocaleDateString('en-CA')}`);
+      }
     } catch {
       this.notificaciones.error('No se pudo generar el vale. Intenta de nuevo.');
     } finally {
@@ -96,15 +102,21 @@ export class SalidasRegistradas {
     }
   }
 
-  async descargarPdf(): Promise<void> {
+  async descargarPdf(formato: 'pdf' | 'excel' = 'pdf'): Promise<void> {
     const historial = this.solicitudes.salidas();
     const elegidas = historial.filter((salida) => this.elegidas().has(salida.id));
     if (!elegidas.length || this.generando()) return;
     this.generando.set(true);
     try {
       // La librería de PDF se carga solo cuando se usa.
-      const { cargarLogo, descargarComprobante } = await import('./comprobante-salidas');
-      descargarComprobante(elegidas, historial, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+      const { cargarLogo, armarComprobante } = await import('./comprobante-salidas');
+      const { doc, nombre } = armarComprobante(elegidas, historial, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+      if (formato === 'pdf') {
+        doc.save(nombre);
+      } else {
+        const { descargarExcel } = await import('../../../shared/reporte-excel');
+        await descargarExcel(doc, nombre.replace(/\.pdf$/, ''));
+      }
     } catch {
       this.notificaciones.error('No se pudo generar el PDF. Intenta de nuevo.');
     } finally {

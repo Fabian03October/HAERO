@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { anotar } from '../../shared/reporte-excel';
 import {
   DORADO,
   Documento,
@@ -10,6 +10,7 @@ import {
   bloqueDatos,
   encabezadoBase,
   pies,
+  tabla as tablaPdf,
   subtitulo,
 } from '../../almacen/despacho/salidas-registradas/comprobante-salidas';
 import { Trazabilidad } from '../farmacia-api';
@@ -158,6 +159,8 @@ function lineaDeTiempo(doc: Documento, cab: Cabecera, y: number, pasos: Trazabil
     y = cab();
   }
   subtitulo(doc, 'Recorrido del lote', y);
+  anotar(doc, { tipo: 'tabla', head: ['Etapa', 'Fuente', 'Fecha', 'Detalle'],
+    body: pasos.map((paso, i) => [bloques[i].etapa.join(' '), paso.fuente ?? '', paso.fecha ? fecha(paso.fecha) : 'Sin datos', bloques[i].detalle.join(' ')]) });
   const lineaY = y + 9;
   doc.setDrawColor(228, 221, 211);
   doc.setLineWidth(0.8);
@@ -200,7 +203,7 @@ function tabla(doc: Documento, cab: Cabecera, y: number, titulo: string, encabez
     y = cab();
   }
   subtitulo(doc, titulo, y);
-  autoTable(doc, {
+  tablaPdf(doc, {
     ...ESTILO_TABLA,
     startY: y + 3,
     // Si la tabla sigue en otra hoja, esa hoja también lleva el encabezado del hospital.

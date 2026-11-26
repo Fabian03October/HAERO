@@ -511,6 +511,8 @@ public class ServicioSincronizacionIntelisis {
         return filas.values();
     }
 
+    // Pedidos a proveedor, entradas (donación/traspaso) y avisos de lotes nuevos: solo el almacén principal (25301). Farmacia
+    // Gratuita recibe por traspaso desde ahí; si se leyera, cada traspaso interno saldría como una entrada nueva.
     private String filtroEntradasInv() {
         return "i.Almacen = ? AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
                 + "AND i.Mov IN (" + marcadores(movimientosEntradaInv.size()) + ")";
@@ -592,11 +594,11 @@ public class ServicioSincronizacionIntelisis {
                 + "SUM(CASE WHEN i.Mov IN (" + marcadores(movimientosConsumo.size()) + ") THEN ABS(m.Cantidad) ELSE -ABS(m.Cantidad) END) "
                 + "FROM SerieLoteMov m WITH (NOLOCK) "
                 + "JOIN Inv i WITH (NOLOCK) ON i.ID = m.ID "
-                + "WHERE m.Modulo = 'INV' AND i.Almacen = ? AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
+                + "WHERE m.Modulo = 'INV' AND i.Almacen IN (" + marcadores(almacenes.size()) + ") AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
                 + "AND i.Mov IN (" + marcadores(movimientosFarmacia.size()) + ") "
                 + "GROUP BY m.Articulo, YEAR(i.FechaEmision), MONTH(i.FechaEmision)";
         List<Object> parametros = new ArrayList<>(movimientosConsumo);
-        parametros.add(almacenPrincipal);
+        parametros.addAll(almacenes);
         parametros.add(Date.valueOf(java.time.YearMonth.now().minusMonths(6).atDay(1)));
         parametros.addAll(movimientosFarmacia);
         List<Object[]> renglones = new ArrayList<>();
@@ -630,11 +632,10 @@ public class ServicioSincronizacionIntelisis {
         String sql = "SELECT i.ID, i.Mov, i.MovID, i.FechaEmision, m.Articulo, m.SerieLote, SUM(m.Cantidad) AS cantidad "
                 + "FROM SerieLoteMov m WITH (NOLOCK) "
                 + "JOIN Inv i WITH (NOLOCK) ON i.ID = m.ID "
-                + "WHERE m.Modulo = 'INV' AND i.Almacen = ? AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
+                + "WHERE m.Modulo = 'INV' AND i.Almacen IN (" + marcadores(almacenes.size()) + ") AND i.Estatus = 'CONCLUIDO' AND i.FechaEmision >= ? "
                 + "AND i.Mov IN (" + marcadores(movimientosFarmacia.size()) + ") "
                 + "GROUP BY i.ID, i.Mov, i.MovID, i.FechaEmision, m.Articulo, m.SerieLote";
-        List<Object> parametros = new ArrayList<>();
-        parametros.add(almacenPrincipal);
+        List<Object> parametros = new ArrayList<>(almacenes);
         parametros.add(Date.valueOf(desde));
         parametros.addAll(movimientosFarmacia);
         Map<String, Object[]> filas = new LinkedHashMap<>();

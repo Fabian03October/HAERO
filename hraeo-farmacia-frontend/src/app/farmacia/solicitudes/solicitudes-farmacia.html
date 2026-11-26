@@ -148,6 +148,7 @@
                       <td>
                         @if (solicitud.pedidoId && solicitud.cantidadAtendida > 0) {
                           <button type="button" class="link-cancelar" [disabled]="generandoVale()" (click)="imprimirVale(solicitud.pedidoId)">🖨 Vale</button>
+                          <button type="button" class="link-cancelar" [disabled]="generandoVale()" (click)="imprimirVale(solicitud.pedidoId, 'excel')">Excel</button>
                         }
                         @if (abierta(solicitud.estatus)) {
                           <button type="button" class="link-cancelar" (click)="cancelar(solicitud)">Cancelar</button>

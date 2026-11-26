@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { MovimientoSalida, TIPO_SALIDA_TEXTO, formatoCaducidad } from '../../solicitudes-almacen';
 import type { ValePedido } from '../../almacen-api';
+import { anotar } from '../../../shared/reporte-excel';
 
 export const GUINDA: [number, number, number] = [97, 18, 50];
 export const DORADO: [number, number, number] = [165, 127, 44];
@@ -9,6 +10,17 @@ export const GRIS: [number, number, number] = [111, 114, 113];
 export const MARGEN = 16;
 
 export type Documento = jsPDF & { lastAutoTable: { finalY: number } };
+
+type OpcionesTabla = Parameters<typeof autoTable>[1];
+
+/** Dibuja una tabla del reporte y la anota para el Excel (mismas columnas, filas, total y color de encabezado). */
+export function tabla(doc: Documento, opciones: OpcionesTabla): void {
+  const o = opciones as { head?: unknown[][]; body?: unknown[][]; foot?: unknown[][]; headStyles?: { fillColor?: [number, number, number] }; theme?: string };
+  if (o.head?.length) {
+    anotar(doc, { tipo: 'tabla', head: o.head[0] as never, body: (o.body ?? []) as never, foot: o.foot?.[0] as never, color: o.headStyles?.fillColor });
+  }
+  autoTable(doc, opciones);
+}
 
 // Estilo de las tablas de los reportes (guinda y dorado), para que todos se vean igual.
 export const ESTILO_TABLA = {
@@ -29,7 +41,7 @@ export const ESTILO_TABLA = {
  * @param generadoPor nombre de quien descarga el comprobante
  * @param logo logo del hospital como data URL (ver cargarLogo); sin él solo va el texto
  */
-export function descargarComprobante(elegidas: MovimientoSalida[], historial: MovimientoSalida[], generadoPor: string, logo?: string): void {
+export function armarComprobante(elegidas: MovimientoSalida[], historial: MovimientoSalida[], generadoPor: string, logo?: string): { doc: Documento; nombre: string } {
   const doc = new jsPDF({ unit: 'mm', format: 'letter' }) as Documento;
   const generado = new Date();
 
@@ -54,7 +66,12 @@ export function descargarComprobante(elegidas: MovimientoSalida[], historial: Mo
   });
 
   pies(doc, generado, generadoPor);
-  doc.save(nombreArchivo(grupos, generado));
+  return { doc, nombre: nombreArchivo(grupos, generado) };
+}
+
+export function descargarComprobante(elegidas: MovimientoSalida[], historial: MovimientoSalida[], generadoPor: string, logo?: string): void {
+  const { doc, nombre } = armarComprobante(elegidas, historial, generadoPor, logo);
+  doc.save(nombre);
 }
 
 /**
@@ -95,7 +112,7 @@ export function armarValePedido(folio: string, vale: ValePedido, generadoPor: st
     ...(vale.noSurtido.length ? [['Claves no surtidas o incompletas', `${vale.noSurtido.length} (faltan ${faltan} cajas)`] as [string, string]] : []),
   ]);
   subtitulo(doc, 'Entregas de Almacén', y);
-  autoTable(doc, {
+  tabla(doc, {
     startY: y + 3,
     margin: { left: MARGEN, right: MARGEN },
     head: [['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Ubicación', 'Cajas', 'Despachó']],
@@ -111,7 +128,7 @@ export function armarValePedido(folio: string, vale: ValePedido, generadoPor: st
   if (vale.noSurtido.length) {
     y = asegurarEspacio(doc, y, 30, referencia, logo, TITULO_VALE);
     subtitulo(doc, 'No surtido', y);
-    autoTable(doc, {
+    tabla(doc, {
       startY: y + 3,
       margin: { left: MARGEN, right: MARGEN },
       head: [['Clave', 'Medicamento', 'Pedidas', 'Surtidas', 'Faltan', 'Motivo']],
@@ -159,6 +176,7 @@ function encabezado(doc: Documento, salida: MovimientoSalida, logo?: string): nu
 
 /** Encabezado común de los reportes: logo, título, folio y tipo, con la franja guinda y dorada. */
 export function encabezadoBase(doc: Documento, titulo: string, folio: string, tipo: string, logo?: string): number {
+  anotar(doc, { tipo: 'titulo', titulo, folio, subtitulo: tipo, logo });
   const ancho = doc.internal.pageSize.getWidth();
   let x = MARGEN;
   if (logo) {
@@ -238,6 +256,7 @@ function datosMovimiento(doc: Documento, salida: MovimientoSalida, y: number): n
 
 export function bloqueDatos(doc: Documento, titulo: string, y: number, filas: [string, string][]): number {
   subtitulo(doc, titulo, y);
+  anotar(doc, { tipo: 'datos', filas });
   autoTable(doc, {
     startY: y + 3,
     margin: { left: MARGEN, right: MARGEN },
@@ -281,6 +300,7 @@ function leyenda(doc: Documento, grupo: MovimientoSalida[], y: number, logo?: st
   doc.rect(MARGEN, y, 1.2, alto, 'F');
   doc.setTextColor(43, 43, 43);
   doc.text(lineas, MARGEN + 5, y + 6.5, { lineHeightFactor: 1.5 });
+  anotar(doc, { tipo: 'texto', texto });
   return y + alto + 8;
 }
 
@@ -288,7 +308,7 @@ function tablaEntregas(doc: Documento, grupo: MovimientoSalida[], y: number): nu
   const esSolicitud = grupo[0].solicitudId != null;
   subtitulo(doc, esSolicitud ? 'Entregas de Almacén' : 'Detalle de la salida', y);
   const total = grupo.reduce((suma, salida) => suma + salida.cajas, 0);
-  autoTable(doc, {
+  tabla(doc, {
     startY: y + 3,
     margin: { left: MARGEN, right: MARGEN },
     head: [['Fecha y hora', 'Lote', 'Caducidad', 'Ubicación', 'Cajas', esSolicitud ? 'Despachó (Almacén)' : 'Registró']],
@@ -326,6 +346,7 @@ function firmas(doc: Documento, grupo: MovimientoSalida[], y: number, logo?: str
         ];
   doc.setDrawColor(...GRIS);
   doc.setLineWidth(0.3);
+  anotar(doc, { tipo: 'firmas', firmantes });
   firmantes.forEach(([cargo, nombre], i) => {
     const centro = MARGEN + i * (columna + 20) + columna / 2;
     doc.line(centro - columna / 2, lineaY, centro + columna / 2, lineaY);
@@ -341,6 +362,7 @@ function firmas(doc: Documento, grupo: MovimientoSalida[], y: number, logo?: str
 }
 
 export function pies(doc: Documento, generado: Date, generadoPor: string): void {
+  anotar(doc, { tipo: 'pie', texto: `Generado el ${fechaHora(generado)} por ${generadoPor || 'usuario del sistema'}.` });
   const paginas = doc.getNumberOfPages();
   const ancho = doc.internal.pageSize.getWidth();
   const alto = doc.internal.pageSize.getHeight();
@@ -357,6 +379,7 @@ export function pies(doc: Documento, generado: Date, generadoPor: string): void 
 }
 
 export function subtitulo(doc: Documento, texto: string, y: number): void {
+  anotar(doc, { tipo: 'subtitulo', texto });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(...GUINDA);

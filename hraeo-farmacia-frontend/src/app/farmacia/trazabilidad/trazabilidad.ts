@@ -9,7 +9,7 @@ import { mensajeDeError } from '../../almacen/almacen-api';
 import { Paginacion, Paginador } from '../../shared/paginador/paginador';
 import { FARMACIA_MENU } from '../farmacia-nav';
 import { cargarLogo } from '../../almacen/despacho/salidas-registradas/comprobante-salidas';
-import { conDatosHaero, descargarReporteTrazabilidad, descargarReporteVarios } from './reporte-trazabilidad';
+import { armarReporteTrazabilidad, armarReporteVarios, conDatosHaero } from './reporte-trazabilidad';
 import { FarmaciaApi, LoteTrazable, PasoRecorrido, PeriodoTrazabilidad, Trazabilidad as TrazabilidadApi } from '../farmacia-api';
 
 type Modo = TrazabilidadApi['modo'];
@@ -349,14 +349,15 @@ export class Trazabilidad {
   }
 
   /** Vuelve a consultar cada elemento marcado y arma un solo PDF con todos. */
-  reporteVarios(): void {
+  reporteVarios(formato: 'pdf' | 'excel' = 'pdf'): void {
     const elegidos = [...this.seleccion().values()];
     if (!elegidos.length) return;
     this.generandoReporte.set(true);
     forkJoin(elegidos.map((e) => this.consultaDe(e))).subscribe({
       next: async (resultados) => {
-        descargarReporteVarios(resultados.map((resultado, i) => ({ resultado, titulo: elegidos[i].titulo })),
+        const { doc, nombre } = armarReporteVarios(resultados.map((resultado, i) => ({ resultado, titulo: elegidos[i].titulo })),
           this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+        await this.guardar(doc, nombre, formato);
         this.generandoReporte.set(false);
       },
       error: (error) => {
@@ -366,10 +367,21 @@ export class Trazabilidad {
     });
   }
 
-  async descargarReporte(): Promise<void> {
+  async descargarReporte(formato: 'pdf' | 'excel' = 'pdf'): Promise<void> {
     const resultado = this.resultado();
     if (!resultado) return;
-    descargarReporteTrazabilidad(resultado, this.titulo(), this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+    const { doc, nombre } = armarReporteTrazabilidad(resultado, this.titulo(), this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+    await this.guardar(doc, nombre, formato);
+  }
+
+  /** El mismo reporte en PDF o en Excel (mismos datos y colores). */
+  private async guardar(doc: { save(nombre: string): unknown }, nombre: string, formato: 'pdf' | 'excel'): Promise<void> {
+    if (formato === 'pdf') {
+      doc.save(nombre);
+      return;
+    }
+    const { descargarExcel } = await import('../../shared/reporte-excel');
+    await descargarExcel(doc, nombre.replace(/\.pdf$/, ''));
   }
 
   fechaCorta(valor: string | null): string {

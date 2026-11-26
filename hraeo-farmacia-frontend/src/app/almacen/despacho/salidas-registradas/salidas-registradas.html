@@ -40,8 +40,10 @@
     <button type="button" class="btn" [disabled]="!elegidas().size || generando()" (click)="descargarPdf()">
       {{ generando() ? 'Generando…' : 'Descargar PDF' }}
     </button>
+    <button type="button" class="btn secondary" [disabled]="!elegidas().size || generando()" (click)="descargarPdf('excel')">Excel</button>
     @if (pedidoElegido(); as pedido) {
       <button type="button" class="btn" [disabled]="generando()" (click)="descargarVale()">Vale del pedido</button>
+      <button type="button" class="btn secondary" [disabled]="generando()" (click)="descargarVale('excel')">Vale en Excel</button>
     }
   </div>
 

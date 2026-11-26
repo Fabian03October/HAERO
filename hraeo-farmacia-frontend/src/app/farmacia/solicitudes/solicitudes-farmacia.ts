@@ -212,13 +212,19 @@ export class SolicitudesFarmacia {
   // El mismo vale que imprime Almacén: lo entregado y lo que no se surtió con su motivo.
   readonly generandoVale = signal(false);
 
-  async imprimirVale(pedidoId: number): Promise<void> {
+  async imprimirVale(pedidoId: number, formato: 'pdf' | 'excel' = 'pdf'): Promise<void> {
     if (this.generandoVale()) return;
     this.generandoVale.set(true);
     try {
-      const { cargarLogo, descargarValePedido } = await import('../../almacen/despacho/salidas-registradas/comprobante-salidas');
+      const { cargarLogo, armarValePedido, descargarValePedido } = await import('../../almacen/despacho/salidas-registradas/comprobante-salidas');
       const vale = await firstValueFrom(this.api.valePedido(pedidoId, 'farmacia'));
-      descargarValePedido(folioPedido(pedidoId), vale, this.session.usuarioActual()?.nombreCompleto ?? '', await cargarLogo());
+      const quien = this.session.usuarioActual()?.nombreCompleto ?? '';
+      if (formato === 'pdf') {
+        descargarValePedido(folioPedido(pedidoId), vale, quien, await cargarLogo());
+      } else {
+        const { descargarExcel } = await import('../../shared/reporte-excel');
+        await descargarExcel(armarValePedido(folioPedido(pedidoId), vale, quien, await cargarLogo()), `vale-${folioPedido(pedidoId)}-${new Date().toLocaleDateString('en-CA')}`);
+      }
     } catch {
       this.notificaciones.error('No se pudo generar el vale. Intenta de nuevo.');
     } finally {
