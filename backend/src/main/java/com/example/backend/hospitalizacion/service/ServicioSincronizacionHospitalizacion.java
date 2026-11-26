@@ -1,6 +1,7 @@
-package com.example.backend.hospitalizacion;
+package com.example.backend.hospitalizacion.service;
 
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
+import com.example.backend.intelisis.service.NombrePaciente;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -111,11 +112,11 @@ public class ServicioSincronizacionHospitalizacion {
                     WHERE ce.Activo = 1 AND (e.Estatus IS NULL OR e.Estatus = 'ALTA')
                     """, (rs, n) -> new Object[]{texto(rs, 1), texto(rs, 2), texto(rs, 3), texto(rs, 4)});
             Map<Integer, Estancia> estancias = new LinkedHashMap<>();
-            intelisis.query("SELECT a.ID_IngArea, a.ID_IngHosp, a.Espacio, a.Servicio, a.FechaIngreso, i.ExpKey, c.Nombre, a.Usuario "
+            intelisis.query("SELECT a.ID_IngArea, a.ID_IngHosp, a.Espacio, a.Servicio, a.FechaIngreso, i.ExpKey, " + NombrePaciente.SQL + ", a.Usuario, c.CURP "
                     + INTERNADOS.replace("WHERE", "LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = i.ExpKey WHERE"), rs -> {
                 Timestamp fecha = rs.getTimestamp(5);
                 estancias.put(rs.getInt(1), new Estancia(rs.getInt(1), rs.getInt(2), texto(rs, 3), texto(rs, 4),
-                        fecha == null ? null : fecha.toLocalDateTime(), texto(rs, 6), texto(rs, 7), texto(rs, 8)));
+                        fecha == null ? null : fecha.toLocalDateTime(), texto(rs, 6), NombrePaciente.ordenar(texto(rs, 7), rs.getString(9)), texto(rs, 8)));
             });
             // Intelisis deja abiertas estancias que ya terminaron: se cierran con lo que sí se sabe.
             Depuracion depuracion = depurar(estancias, LocalDateTime.now(), diasFantasma);

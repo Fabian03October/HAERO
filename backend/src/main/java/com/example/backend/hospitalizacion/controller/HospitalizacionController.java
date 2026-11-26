@@ -1,5 +1,7 @@
-package com.example.backend.hospitalizacion;
+package com.example.backend.hospitalizacion.controller;
 
+
+import com.example.backend.hospitalizacion.service.ServicioHospitalizacion;
 import com.example.backend.hospitalizacion.dto.AreaHospitalizacion;
 import com.example.backend.hospitalizacion.dto.CamaHospitalizacion;
 import com.example.backend.hospitalizacion.dto.DetalleCama;

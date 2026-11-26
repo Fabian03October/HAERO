@@ -1,5 +1,7 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.intelisis.service.NombrePaciente;
+
 import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.farmacia.dto.DevolucionResponse;
 import com.example.backend.farmacia.dto.EntregaEncontradaResponse;
@@ -86,8 +88,12 @@ public class ServicioDevoluciones {
             entregaRepository.findTop20ByRecetaPacienteCurpIgnoreCaseOrderByFechaDesc(busqueda).forEach(e -> encontradas.putIfAbsent(e.getId(), e));
         }
         if (busqueda.matches("[\\p{L} ]{4,}")) {
-            entregaRepository.findTop20ByRecetaPacienteNombreContainingIgnoreCaseOrderByFechaDesc(busqueda)
-                    .forEach(e -> encontradas.putIfAbsent(e.getId(), e));
+            // En cualquier orden de nombre y apellidos, o guardado con menos palabras: por pares y luego contiene().
+            for (String[] par : NombrePaciente.pares(busqueda)) {
+                entregaRepository.conPalabrasEnElNombre(par[0], par[1]).stream()
+                        .filter(e -> NombrePaciente.contiene(e.getReceta().getPacienteNombre(), busqueda))
+                        .forEach(e -> encontradas.putIfAbsent(e.getId(), e));
+            }
         }
         List<Long> lotes = loteFarmaciaRepository.findByNumeroLoteIgnoreCase(busqueda).stream().map(l -> l.getId()).toList();
         if (!lotes.isEmpty()) {

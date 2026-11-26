@@ -18,6 +18,11 @@ public interface MovimientoRepository extends JpaRepository<Movimiento, Long> {
 
     List<Movimiento> findByTipoInOrderByFechaDesc(List<String> tipos);
 
+    /** Lo que Almacén despachó a las claves de un pedido de Farmacia. */
+    @org.springframework.data.jpa.repository.Query("SELECT m FROM Movimiento m WHERE m.tipo = 'SALIDA' AND m.solicitud.pedido.id = :pedido "
+            + "ORDER BY m.solicitud.medicamento.clave, m.fecha")
+    List<Movimiento> salidasDelPedido(@org.springframework.data.repository.query.Param("pedido") Long pedidoId);
+
     Optional<Movimiento> findFirstByTipoOrderByFechaAsc(String tipo);
 
     List<Movimiento> findByExpedienteIdInOrderByFechaAsc(Collection<Long> expedientes);

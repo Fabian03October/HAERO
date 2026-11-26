@@ -1,4 +1,4 @@
-package com.example.backend.intelisis;
+package com.example.backend.intelisis.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;

@@ -30,7 +30,7 @@ class ServicioInventarioFarmaciaCodigosTest {
 
     @BeforeEach
     void configurar() {
-        servicio = new ServicioInventarioFarmacia(null, null, null, null, null, null, codigoBarrasRepository);
+        servicio = new ServicioInventarioFarmacia(null, null, null, null, null, null, codigoBarrasRepository, null);
     }
 
     private static Medicamento medicamento(String clave) {

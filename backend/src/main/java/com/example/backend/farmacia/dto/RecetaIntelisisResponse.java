@@ -23,4 +23,6 @@ public class RecetaIntelisisResponse {
     // Médico que hizo la receta (vsa_Receta.Usuario) y, si es otro, su médico adscrito.
     private String medico;
     private String medicoAdscrito;
+    // Estatus en Intelisis (FIRMADO, SINFIRMAR…): por folio sale aunque no esté firmada, y Ventanilla avisa.
+    private String estatus;
 }

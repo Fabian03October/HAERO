@@ -3,9 +3,10 @@ package com.example.backend.farmacia.controller;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.EstadoQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.QuimioResponse;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.RegistrarQuimioRequest;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.ReprogramarQuimioRequest;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.ResumenQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SesionesSolicitud;
-import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimioDetalle;
 import com.example.backend.farmacia.service.ServicioQuimioterapia;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,13 @@ public class QuimioterapiaController {
     public ResponseEntity<List<QuimioResponse>> recientes(@RequestParam(required = false) LocalDate dia,
                                                          @RequestParam(required = false) String buscar) {
         return ResponseEntity.ok(servicio.recientes(dia, buscar));
+    }
+
+    // El paciente no puede pasar hoy: nueva fecha que dio Oncología Médica y el motivo.
+    @PostMapping("/solicitudes/{folio}/reprogramar")
+    public ResponseEntity<SolicitudQuimio> reprogramar(@PathVariable String folio, @RequestBody ReprogramarQuimioRequest request,
+                                                       Authentication authentication) {
+        return ResponseEntity.ok(servicio.reprogramar(folio, request, authentication.getName()));
     }
 
     // Sesiones ya surtidas de una solicitud (una solicitud puede cubrir varios ciclos).

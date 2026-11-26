@@ -1,8 +1,12 @@
-package com.example.backend.intelisis;
+package com.example.backend.intelisis.service;
 
+
+import com.example.backend.intelisis.config.ConexionIntelisis;
 import com.example.backend.intelisis.dto.AvisoIntelisisResponse;
 import com.example.backend.intelisis.dto.ComparacionClaveResponse;
 import com.example.backend.intelisis.dto.EstadoIntelisisResponse;
+import com.example.backend.intelisis.dto.LoteConciliadoResponse;
+import com.example.backend.farmacia.service.ServicioTrazabilidad;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -13,6 +17,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.TreeSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +35,8 @@ public class ServicioIntelisis {
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionIntelisis sincronizacion;
     private final JdbcTemplate haero;
-    private final String almacenPrincipal;
+    // Almacén y Farmacia son un solo inventario en Intelisis, repartido en estos almacenes (25301 y 25301-C).
+    private final List<String> almacenes;
 
     public ServicioIntelisis(ConexionIntelisis conexion,
                              ServicioSincronizacionIntelisis sincronizacion,
@@ -36,7 +45,7 @@ public class ServicioIntelisis {
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
         this.haero = haero;
-        this.almacenPrincipal = almacenes.split(",")[0].trim();
+        this.almacenes = java.util.Arrays.stream(almacenes.split(",")).map(String::trim).filter(a -> !a.isEmpty()).toList();
     }
 
     public EstadoIntelisisResponse estado() {
@@ -66,8 +75,8 @@ public class ServicioIntelisis {
     }
 
     /**
-     * Compara en cajas, por clave, la existencia vigente de HAERO contra la del almacen
-     * principal en Intelisis (diseno aprobado: HAERO lleva el control y Supervision ve,
+     * Compara en cajas, por clave, la existencia vigente de HAERO contra la de los almacenes
+     * del hospital en Intelisis (diseno aprobado: HAERO lleva el control y Supervision ve,
      * por ejemplo, 20 contra 50). Intelisis guarda piezas en la clave "-1" y cajas en la
      * clave base (antes de la Conversion); se pasa todo a cajas con las piezas por caja
      * del catalogo. En ambos lados se ignoran los lotes ya caducados.
@@ -113,7 +122,7 @@ public class ServicioIntelisis {
                            COUNT(DISTINCT x.serie_lote) AS lotes, MIN(x.fecha_caducidad) AS proxima
                     FROM intelisis_existencia_lote x
                     LEFT JOIN medicamento m ON m.clave = x.clave_base AND m.piezas_por_caja > 0
-                    WHERE x.almacen = ? AND x.articulo IN (x.clave_base, x.clave_base + '-1')
+                    WHERE x.almacen IN ({ALMACENES}) AND x.articulo IN (x.clave_base, x.clave_base + '-1')
                       AND (x.fecha_caducidad IS NULL OR x.fecha_caducidad >= CAST(GETDATE() AS date))
                     GROUP BY x.clave_base
                 )
@@ -127,7 +136,7 @@ public class ServicioIntelisis {
                 LEFT JOIN medicamento m ON m.clave = COALESCE(h.clave, i.clave)
                 LEFT JOIN intelisis_articulo a ON a.articulo = i.articulo
                 ORDER BY COALESCE(h.clave, i.clave)
-                """;
+                """.replace("{ALMACENES}", marcas());
 
         return haero.query(sql, (rs, n) -> {
             boolean enHaero = rs.getObject("cajas") != null;
@@ -139,7 +148,72 @@ public class ServicioIntelisis {
                     enteroONull(rs, "h_lotes"), fecha(rs, "h_proxima"), enteroONull(rs, "piezas_por_caja"),
                     rs.getString("articulo"), rs.getBigDecimal("piezas"), rs.getBigDecimal("i_cajas"),
                     enteroONull(rs, "i_lotes"), fecha(rs, "i_proxima"));
-        }, almacenPrincipal);
+        }, almacenes.toArray());
+    }
+
+    private String marcas() {
+        return String.join(", ", Collections.nCopies(almacenes.size(), "?"));
+    }
+
+    /** Detalle por lote de una clave (los mismos lotes vigentes que suma comparacion()). */
+    public List<LoteConciliadoResponse> lotes(String clave) {
+        Integer porCaja = haero.query("SELECT piezas_por_caja FROM medicamento WHERE clave = ? AND piezas_por_caja > 0",
+                (rs, n) -> rs.getInt(1), clave).stream().findFirst().orElse(null);
+        List<FilaLote> filas = new ArrayList<>();
+        haero.query("SELECT l.numero_lote, l.caducidad, SUM(e.cantidad_cajas) FROM existencia e JOIN lote l ON l.id = e.lote_id "
+                        + "WHERE l.medicamento_clave = ? AND e.cantidad_cajas > 0 AND l.caducidad >= CAST(GETDATE() AS date) "
+                        + "GROUP BY l.numero_lote, l.caducidad",
+                rs -> { filas.add(new FilaLote(rs.getString(1), fechaDe(rs.getDate(2)), rs.getInt(3), 0, 0, null)); }, clave);
+        haero.query("SELECT f.numero_lote, f.caducidad, SUM(f.piezas + COALESCE(qc.piezas, 0)) FROM farmacia_lote f "
+                        + "LEFT JOIN (SELECT farmacia_lote_id, SUM(piezas) AS piezas FROM quirofano_caja_pieza GROUP BY farmacia_lote_id) qc "
+                        + "ON qc.farmacia_lote_id = f.id "
+                        + "WHERE f.medicamento_clave = ? AND f.piezas + COALESCE(qc.piezas, 0) > 0 AND f.caducidad >= CAST(GETDATE() AS date) "
+                        + "GROUP BY f.numero_lote, f.caducidad",
+                rs -> { filas.add(new FilaLote(rs.getString(1), fechaDe(rs.getDate(2)), 0, rs.getInt(3), 0, null)); }, clave);
+        List<Object> parametros = new ArrayList<>(almacenes);
+        parametros.add(0, porCaja);
+        parametros.add(clave);
+        haero.query("SELECT x.serie_lote, MIN(x.fecha_caducidad), "
+                        // shortcut: sin piezas por caja, las cajas de la clave base cuentan como 1 pieza; casi no pasa (la clave sin factor).
+                        + "SUM(CASE WHEN x.articulo = x.clave_base THEN x.existencia * COALESCE(?, 1) ELSE x.existencia END) "
+                        + "FROM intelisis_existencia_lote x WHERE x.almacen IN (" + marcas() + ") AND x.clave_base = ? "
+                        + "AND x.articulo IN (x.clave_base, x.clave_base + '-1') "
+                        + "AND (x.fecha_caducidad IS NULL OR x.fecha_caducidad >= CAST(GETDATE() AS date)) GROUP BY x.serie_lote",
+                rs -> { filas.add(new FilaLote(rs.getString(1), fechaDe(rs.getDate(2)), 0, 0, rs.getBigDecimal(3).intValue(), rs.getString(1))); },
+                parametros.toArray());
+        return juntarPorLote(filas, porCaja);
+    }
+
+    /** Un lote de un lado: cajas de Almacén, piezas de Farmacia o piezas de Intelisis (con su nombre tal cual). */
+    record FilaLote(String lote, LocalDate caducidad, int almacenCajas, int farmaciaPiezas, int intelisisPiezas, String loteIntelisis) {
+    }
+
+    /** Junta los tres lados por lote base, sin importar mayúsculas ni el sufijo de Intelisis. */
+    static List<LoteConciliadoResponse> juntarPorLote(List<FilaLote> filas, Integer porCaja) {
+        Map<String, List<FilaLote>> porLote = new LinkedHashMap<>();
+        for (FilaLote f : filas) {
+            String llave = ServicioTrazabilidad.loteBase(f.lote()).toUpperCase(Locale.ROOT);
+            porLote.computeIfAbsent(llave, k -> new ArrayList<>()).add(f);
+        }
+        List<LoteConciliadoResponse> lotes = new ArrayList<>();
+        porLote.forEach((llave, grupo) -> {
+            int cajas = 0, farmacia = 0, intelisis = 0;
+            LocalDate caducidad = null;
+            TreeSet<String> nombres = new TreeSet<>();
+            for (FilaLote f : grupo) {
+                cajas += f.almacenCajas();
+                farmacia += f.farmaciaPiezas();
+                intelisis += f.intelisisPiezas();
+                if (f.loteIntelisis() != null) nombres.add(f.loteIntelisis().trim());
+                if (f.caducidad() != null && (caducidad == null || f.caducidad().isBefore(caducidad))) caducidad = f.caducidad();
+            }
+            Integer haeroPiezas = cajas > 0 && porCaja == null ? null : cajas * (porCaja == null ? 0 : porCaja) + farmacia;
+            boolean enIntelisis = !nombres.isEmpty();
+            lotes.add(new LoteConciliadoResponse(ServicioTrazabilidad.loteBase(grupo.get(0).lote()), caducidad, cajas, farmacia, haeroPiezas,
+                    enIntelisis ? intelisis : null, List.copyOf(nombres)));
+        });
+        lotes.sort(java.util.Comparator.comparing(LoteConciliadoResponse::caducidad, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+        return lotes;
     }
 
     // ---------- Avisos de cambios en Intelisis ----------
@@ -214,6 +288,10 @@ public class ServicioIntelisis {
             return l;
         }
         return null;
+    }
+
+    private static LocalDate fechaDe(Date valor) {
+        return valor == null ? null : valor.toLocalDate();
     }
 
     private static Integer entero(Object valor) {

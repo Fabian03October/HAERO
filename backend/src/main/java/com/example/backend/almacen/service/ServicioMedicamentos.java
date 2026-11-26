@@ -58,7 +58,7 @@ public class ServicioMedicamentos {
     }
 
     /**
-     * Farmacia marca o desmarca una clave como de alto riesgo o de red fria. altoRiesgo null
+     * Almacen marca o desmarca una clave como de alto riesgo o de red fria. altoRiesgo null
      * vuelve a usar lo que dice Intelisis.
      */
     @Transactional

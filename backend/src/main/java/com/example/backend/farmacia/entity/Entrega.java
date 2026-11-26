@@ -35,6 +35,10 @@ public class Entrega {
     // lectura: la asigna "terminar" con SQL.
     @Column(name = "baja_volumen_folio", insertable = false, updatable = false)
     private Integer bajaVolumenFolio;
+    // Por qué se volvió a entregar una clave que el paciente ya recibió en los últimos días (Ventanilla).
+    @org.hibernate.annotations.Nationalized
+    @Column(name = "justificacion_repetida", length = 300)
+    private String justificacionRepetida;
 
     @OneToMany(mappedBy = "entrega", cascade = CascadeType.ALL)
     @OrderBy("id")

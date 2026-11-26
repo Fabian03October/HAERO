@@ -53,4 +53,9 @@ public class SolicitudAlmacenController {
                                                                  Authentication authentication) {
         return ResponseEntity.ok(servicioDespacho.despachar(id, request, authentication.getName()));
     }
+    // Vale del pedido (entregado y no surtido con su motivo), para imprimirlo al despachar o después.
+    @GetMapping("/pedidos/{pedidoId}/vale")
+    public ResponseEntity<com.example.backend.almacen.dto.ValePedidoResponse> vale(@PathVariable Long pedidoId) {
+        return ResponseEntity.ok(servicioDespacho.valePedido(pedidoId));
+    }
 }

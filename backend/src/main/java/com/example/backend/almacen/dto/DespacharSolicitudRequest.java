@@ -17,4 +17,6 @@ public class DespacharSolicitudRequest {
     private boolean confirmarFueraDeFefo;
     // HU15 CA2: obligatorio si de verdad se sale del orden FEFO; queda en el movimiento.
     private String motivoFueraDeFefo;
+    // Parcial: por qué no se surte lo que falta (si ya no hay existencia, se pone solo "Sin existencia en Almacén").
+    private String motivoFaltante;
 }

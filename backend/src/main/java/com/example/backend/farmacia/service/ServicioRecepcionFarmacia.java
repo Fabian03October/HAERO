@@ -70,9 +70,10 @@ public class ServicioRecepcionFarmacia {
                         m.getFecha(), m.getUsuario().getNombreCompleto());
             }).toList();
             int despachadas = movimientos.stream().mapToInt(Movimiento::getCantidadCajas).sum();
+            int enFarmacia = inventario.existenciaDe(medicamento.getClave());
             return new DespachoPorRecibirResponse(solicitud.getId(), solicitud.getFecha(), medicamento.getClave(),
                     medicamento.getNombreGenerico(), medicamento.getPiezasPorCaja(), solicitud.getCantidadSolicitada(),
-                    despachadas, partidas);
+                    despachadas, partidas, enFarmacia > 0 ? enFarmacia : null, inventario.ubicacionDe(medicamento.getClave()));
         }).toList();
     }
 
@@ -100,6 +101,9 @@ public class ServicioRecepcionFarmacia {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Parte de este despacho ya se recibió en Farmacia; vuelve a cargar la lista");
         }
 
+        if (ServicioInventarioFarmacia.texto(request.getUbicacion()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica el estante donde se acomoda el medicamento");
+        }
         Usuario usuario = inventario.usuario(nombreUsuario);
         RecepcionFarmacia recepcion = new RecepcionFarmacia();
         recepcion.setSolicitud(solicitud);
@@ -145,6 +149,16 @@ public class ServicioRecepcionFarmacia {
 
         for (PartidaRecepcionFarmacia partida : recepcion.getPartidas()) {
             if (partida.getPiezasRecibidas() > 0) {
+                // Si de ese lote ya había piezas en otro estante, lo nuevo no las mueve: queda en los dos ("A3 / C7").
+                String estante = request.getUbicacion().trim().toUpperCase(java.util.Locale.ROOT);
+                String actual = partida.getLote().getUbicacion();
+                if (actual != null && partida.getLote().getPiezas() > 0 && !java.util.Arrays.asList(actual.split(" / ")).contains(estante)
+                        && (actual + " / " + estante).length() <= 40) {
+                    estante = actual + " / " + estante;
+                } else if (actual != null && java.util.Arrays.asList(actual.split(" / ")).contains(estante)) {
+                    estante = actual;
+                }
+                inventario.ubicar(partida.getLote(), estante, ServicioInventarioFarmacia.CAMBIO_RECEPCION, usuario);
                 inventario.mover(partida.getLote(), MovimientoFarmacia.RECEPCION, partida.getPiezasRecibidas(), partida.getId(), usuario);
             }
         }

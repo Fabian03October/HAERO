@@ -31,4 +31,6 @@ public class LineaCarrito {
     // Cuándo y qué médico lo canceló, si se canceló.
     private LocalDateTime canceladoEn;
     private String canceladoPor;
+    // Piezas del día: dosis ÷ lo que trae cada pieza × dosis en 24 h (null si no se puede saber; entonces vale dosis24h).
+    private Integer piezasDia;
 }

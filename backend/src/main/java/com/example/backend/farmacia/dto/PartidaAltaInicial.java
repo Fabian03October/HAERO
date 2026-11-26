@@ -14,4 +14,6 @@ public class PartidaAltaInicial {
     private Integer piezas;
     // HU42: código de barras escaneado de la caja; se liga a la clave si es nuevo.
     private String codigo;
+    // Estante donde quedó (del conteo inicial); opcional en el alta directa.
+    private String ubicacion;
 }

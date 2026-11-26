@@ -1,5 +1,7 @@
-package com.example.backend.intelisis;
+package com.example.backend.intelisis.service;
 
+
+import com.example.backend.intelisis.config.ConexionIntelisis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -348,6 +350,8 @@ public class ServicioSincronizacionIntelisis {
      * Catalogo de Farmacia: las claves "-1" de Art (sin las G- de Farmacia
      * Gratuita), con la ficha de ArtMedicamento cuando existe; si no, los datos
      * de Art. La clave de HAERO es la de Intelisis sin el "-1".
+     * Tambien entran las claves 010/040 que en Intelisis solo existen para Almacen (sin su "-1",
+     * porque nunca se les dio de alta para Consumo Farmacia): antes no aparecian en ninguna pantalla.
      */
     private Collection<Object[]> leerCatalogo(JdbcTemplate intelisis) {
         String sql = """
@@ -364,13 +368,17 @@ public class ServicioSincronizacionIntelisis {
                        COALESCE(x.Descripcion1, b.Descripcion1) AS descripcion_completa,
                        m.UnidadesEnvase
                 FROM Art x WITH (NOLOCK)
-                CROSS APPLY (SELECT LEFT(RTRIM(REPLACE(x.Articulo, CHAR(9), '')), LEN(RTRIM(REPLACE(x.Articulo, CHAR(9), ''))) - 2) AS clave) k
+                CROSS APPLY (SELECT RTRIM(REPLACE(x.Articulo, CHAR(9), '')) AS art) a
+                CROSS APPLY (SELECT CASE WHEN a.art LIKE '%-[0-9]' THEN LEFT(a.art, LEN(a.art) - 2) ELSE a.art END AS clave) k
                 LEFT JOIN Art b WITH (NOLOCK) ON b.Articulo = k.clave
                 -- La ficha se busca por su clave y, si no, por la clave de Cuadro Basico que trae.
                 OUTER APPLY (SELECT TOP 1 am.* FROM ArtMedicamento am WITH (NOLOCK)
                              WHERE am.Articulo = k.clave OR am.CuadrobasicoClave = k.clave
                              ORDER BY CASE WHEN am.Articulo = k.clave THEN 0 ELSE 1 END) m
-                WHERE RTRIM(REPLACE(x.Articulo, CHAR(9), '')) LIKE '0[14]0.000.%-1'
+                -- Todas las claves 010/040, con cualquier terminación; de cada clave queda la mejor ficha:
+                -- primero la de piezas (-1), luego la base (cajas) y al final cualquier otra (-2, ...).
+                WHERE a.art LIKE '0[14]0.000.%'
+                ORDER BY CASE WHEN a.art LIKE '%-1' THEN 0 WHEN a.art = k.clave THEN 1 ELSE 2 END, a.art
                 """;
 
         Map<String, Object[]> filas = new LinkedHashMap<>();

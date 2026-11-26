@@ -30,6 +30,11 @@ public class ConteoInicialController {
     }
 
     /** Lotes de una clave que Intelisis tiene en existencia, para elegir lote y caducidad. */
+    @GetMapping("/codigos/{codigo}")
+    public ResponseEntity<java.util.Map<String, String>> codigo(@PathVariable String codigo) {
+        return ResponseEntity.ok(servicio.clavePorCodigo(codigo));
+    }
+
     @GetMapping("/lotes")
     public ResponseEntity<java.util.List<ServicioConteoInicial.LoteIntelisis>> lotes(@RequestParam String clave) {
         return ResponseEntity.ok(servicio.lotesIntelisis(clave));
@@ -45,6 +50,13 @@ public class ConteoInicialController {
     public ResponseEntity<ServicioConteoInicial.Renglon> cantidad(@PathVariable long id, @RequestBody Cantidad cantidad,
                                                                   HttpServletRequest request, Authentication authentication) {
         return ResponseEntity.ok(servicio.capturarCantidad(area(request), id, cantidad.cantidad(), authentication.getName()));
+    }
+
+    /** Verificación antes de guardar: corrige clave, lote o caducidad del renglón. */
+    @PutMapping("/renglones/{id}")
+    public ResponseEntity<ServicioConteoInicial.Renglon> corregir(@PathVariable long id, @RequestBody ServicioConteoInicial.Correccion correccion,
+                                                                  HttpServletRequest request, Authentication authentication) {
+        return ResponseEntity.ok(servicio.corregir(area(request), id, correccion, authentication.getName()));
     }
 
     public record Ubicacion(String ubicacion) {

@@ -1,6 +1,7 @@
 package com.example.backend.farmacia.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -61,15 +62,31 @@ public final class QuimioterapiaDtos {
     }
 
     /** Sesiones anteriores de la misma solicitud (para avisar y validar que sea el mismo paciente). */
+    /** El paciente no puede pasar: nueva fecha que dio Oncología Médica y el motivo. */
+    public record ReprogramarQuimioRequest(LocalDate fechaNueva, String motivo) {
+    }
+
     public record SesionesSolicitud(String folio, String pacienteExpediente, String pacienteNombre, List<QuimioResponse> sesiones) {
     }
 
     // ---------- Solicitudes de Oncología leídas de Intelisis ----------
 
     /** Una solicitud de la lista. folio es el "Folio" de la hoja impresa (ID_AuxTxSol en Intelisis). */
+    /**
+     * fechaRequerida = la que manda (la reprogramada si la hay); fechaOriginal = la de Intelisis cuando se
+     * reprogramó (null si no) y motivoReprogramacion el porqué.
+     */
     public record SolicitudQuimio(int folio, LocalDateTime fecha, LocalDateTime fechaRequerida, String estatus, String expediente,
                                   String paciente, String servicioSolicita, String medico, int sesionesSurtidas,
-                                  LocalDateTime ultimaSesion, List<MedicamentoLista> medicamentos, int pendientes) {
+                                  LocalDateTime ultimaSesion, List<MedicamentoLista> medicamentos, int pendientes,
+                                  LocalDateTime fechaOriginal, String motivoReprogramacion) {
+        public SolicitudQuimio(int folio, LocalDateTime fecha, LocalDateTime fechaRequerida, String estatus, String expediente,
+                               String paciente, String servicioSolicita, String medico, int sesionesSurtidas,
+                               LocalDateTime ultimaSesion, List<MedicamentoLista> medicamentos, int pendientes) {
+            this(folio, fecha, fechaRequerida, estatus, expediente, paciente, servicioSolicita, medico, sesionesSurtidas,
+                    ultimaSesion, medicamentos, pendientes, null, null);
+        }
+
         /** Sin los medicamentos de la nota (detalle o solicitud leída directo de Intelisis). */
         public SolicitudQuimio(int folio, LocalDateTime fecha, LocalDateTime fechaRequerida, String estatus, String expediente,
                                String paciente, String servicioSolicita, String medico, int sesionesSurtidas,

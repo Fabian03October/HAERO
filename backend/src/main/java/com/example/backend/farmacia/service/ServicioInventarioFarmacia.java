@@ -14,6 +14,7 @@ import com.example.backend.farmacia.dto.LoteFarmaciaResponse;
 import com.example.backend.farmacia.dto.PartidaAltaInicial;
 import com.example.backend.farmacia.dto.RegistrarBajaRequest;
 import com.example.backend.farmacia.entity.BajaFarmacia;
+import com.example.backend.farmacia.entity.CambioUbicacionFarmacia;
 import com.example.backend.farmacia.entity.LoteFarmacia;
 import com.example.backend.farmacia.entity.MovimientoFarmacia;
 import com.example.backend.farmacia.entity.PartidaDevolucion;
@@ -55,6 +56,7 @@ public class ServicioInventarioFarmacia {
     private final UsuarioRepository usuarioRepository;
 
     private final CodigoBarrasRepository codigoBarrasRepository;
+    private final com.example.backend.farmacia.repository.CambioUbicacionFarmaciaRepository cambiosUbicacion;
 
     public ServicioInventarioFarmacia(LoteFarmaciaRepository loteFarmaciaRepository,
                                       MovimientoFarmaciaRepository movimientoFarmaciaRepository,
@@ -62,8 +64,10 @@ public class ServicioInventarioFarmacia {
                                       MedicamentoRepository medicamentoRepository,
                                       LoteRepository loteRepository,
                                       UsuarioRepository usuarioRepository,
-                                      CodigoBarrasRepository codigoBarrasRepository) {
+                                      CodigoBarrasRepository codigoBarrasRepository,
+                                      com.example.backend.farmacia.repository.CambioUbicacionFarmaciaRepository cambiosUbicacion) {
         this.codigoBarrasRepository = codigoBarrasRepository;
+        this.cambiosUbicacion = cambiosUbicacion;
         this.loteFarmaciaRepository = loteFarmaciaRepository;
         this.movimientoFarmaciaRepository = movimientoFarmaciaRepository;
         this.bajaRepository = bajaRepository;
@@ -180,7 +184,62 @@ public class ServicioInventarioFarmacia {
         boolean porCaducar = !vencido && !lote.getCaducidad().isAfter(hoy.plusMonths(MESES_POR_CADUCAR));
         return new LoteFarmaciaResponse(lote.getId(), medicamento.getClave(), medicamento.getNombreGenerico(),
                 piezasPorCaja, lote.getNumeroLote(), lote.getCaducidad(), lote.getPiezas(), cajas, estado, porCaducar,
-                lote.getLoteAlmacen() != null ? lote.getLoteAlmacen().getId() : null, codigos);
+                lote.getLoteAlmacen() != null ? lote.getLoteAlmacen().getId() : null, codigos, lote.getUbicacion());
+    }
+
+    // ---------- Estante de cada lote ----------
+
+    static final String CAMBIO_ALTA_INICIAL = "ALTA_INICIAL";
+    static final String CAMBIO_RECEPCION = "RECEPCION";
+    static final String CAMBIO_INVENTARIO = "CAMBIO";
+
+    /** Pone el lote en ese estante y deja el rastro (de dónde a dónde, quién y cuándo). Mismo estante: no hace nada. */
+    void ubicar(LoteFarmacia lote, String ubicacion, String origen, Usuario usuario) {
+        String nueva = texto(ubicacion);
+        if (nueva == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica el estante donde queda el medicamento");
+        }
+        nueva = nueva.toUpperCase(java.util.Locale.ROOT);
+        if (nueva.length() > 40) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El estante puede tener hasta 40 caracteres");
+        }
+        if (nueva.equals(lote.getUbicacion())) {
+            return;
+        }
+        CambioUbicacionFarmacia cambio = new CambioUbicacionFarmacia();
+        cambio.setLote(lote);
+        cambio.setAnterior(lote.getUbicacion());
+        cambio.setNueva(nueva);
+        cambio.setOrigen(origen);
+        cambio.setUsuario(usuario);
+        cambiosUbicacion.save(cambio);
+        lote.setUbicacion(nueva);
+    }
+
+    /** Cambiar de estante un lote desde el inventario. */
+    @Transactional
+    public LoteFarmaciaResponse cambiarUbicacion(Long loteId, String ubicacion, String nombreUsuario) {
+        LoteFarmacia lote = loteFarmaciaRepository.findById(loteId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese lote no está en Farmacia"));
+        ubicar(lote, ubicacion, CAMBIO_INVENTARIO, usuario(nombreUsuario));
+        return aRespuesta(lote, lotesFefo(loteFarmaciaRepository.findByMedicamentoClave(lote.getMedicamento().getClave())));
+    }
+
+    /** Dónde está ya la clave en Farmacia (para sugerir el mismo estante al recibir); null si no hay. */
+    public String ubicacionDe(String clave) {
+        return loteFarmaciaRepository.findFirstByMedicamentoClaveAndPiezasGreaterThanAndUbicacionIsNotNullOrderByIdDesc(clave, 0)
+                .map(LoteFarmacia::getUbicacion).orElse(null);
+    }
+
+    /** Piezas vigentes de la clave en Farmacia. */
+    public int existenciaDe(String clave) {
+        LocalDate hoy = LocalDate.now();
+        return loteFarmaciaRepository.findByMedicamentoClave(clave).stream()
+                .filter(l -> !l.getCaducidad().isBefore(hoy)).mapToInt(LoteFarmacia::getPiezas).sum();
+    }
+
+    public List<String> estantes() {
+        return loteFarmaciaRepository.estantes();
     }
 
     // ---------- HU25: alta inicial ----------
@@ -205,6 +264,9 @@ public class ServicioInventarioFarmacia {
             aprenderCodigo(texto(partida.getCodigo()), medicamento);
             // CA3: un lote vencido sí se da de alta (queda registrado), pero no estará disponible.
             LoteFarmacia lote = loteParaEntrada(medicamento, numeroLote, partida.getCaducidad(), null);
+            if (texto(partida.getUbicacion()) != null) {
+                ubicar(lote, partida.getUbicacion(), CAMBIO_ALTA_INICIAL, usuario);
+            }
             mover(lote, MovimientoFarmacia.ALTA_INICIAL, partida.getPiezas(), null, usuario);
             piezas += partida.getPiezas();
             lotes.add(lote.getId());

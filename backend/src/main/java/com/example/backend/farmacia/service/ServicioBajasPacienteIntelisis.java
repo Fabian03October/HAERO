@@ -1,7 +1,8 @@
 package com.example.backend.farmacia.service;
 
 import com.example.backend.farmacia.dto.EntregaPacienteResponse;
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
+import com.example.backend.intelisis.service.NombrePaciente;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,55 +55,91 @@ public class ServicioBajasPacienteIntelisis {
     }
 
     /** Pacientes a los que Farmacia dio de baja ese lote (con o sin el sufijo de Intelisis). */
-    public Resultado delLote(String lote, String clave, LocalDateTime antesDe) {
+    public Resultado delLote(String lote, String clave, LocalDateTime desde, LocalDateTime antesDe) {
         String where = "(m.SerieLote = CAST(? AS VARCHAR(50)) OR m.SerieLote LIKE CAST(? AS VARCHAR(60)))";
-        Resultado r = consultar(where, antesDe, lote, conSufijo(lote));
+        Resultado r = consultar(where, desde, antesDe, lote, conSufijo(lote));
         return clave == null ? r
                 : new Resultado(r.entregas().stream().filter(e -> clave.equals(e.getClave())).toList(), r.aviso());
     }
 
-    /** Lo que se le dio de baja a un paciente, por su nombre exacto (como está en Cte). */
-    public Resultado delPacientePorNombreExacto(String nombre, LocalDateTime antesDe) {
-        return consultar("i.Referencia = CAST(? AS VARCHAR(100))", antesDe, nombre);
+    /** Lo que se le dio de baja a un paciente por su nombre completo, escrito en cualquier orden (mismas palabras). */
+    public Resultado delPacientePorNombreExacto(String nombre, LocalDateTime desde, LocalDateTime antesDe) {
+        Resultado r = delPacientePorPalabras(nombre, desde, antesDe);
+        String llave = NombrePaciente.llave(nombre);
+        return new Resultado(r.entregas().stream().filter(e -> llave.equals(NombrePaciente.llave(e.getPaciente()))).toList(), r.aviso());
     }
 
     /** Por expediente: se toma el nombre del paciente en Cte y se buscan sus bajas. */
-    public Resultado delExpediente(String expediente, LocalDateTime antesDe) {
-        return delPacienteSegun("c.Cliente = CAST(? AS VARCHAR(50))", expediente, antesDe);
+    public Resultado delExpediente(String expediente, LocalDateTime desde, LocalDateTime antesDe) {
+        return delPacienteSegun("c.Cliente = CAST(? AS VARCHAR(50))", expediente, desde, antesDe);
     }
 
-    public Resultado delCurp(String curp, LocalDateTime antesDe) {
-        return delPacienteSegun("c.CURP = CAST(? AS VARCHAR(30))", curp.toUpperCase(Locale.ROOT), antesDe);
+    public Resultado delCurp(String curp, LocalDateTime desde, LocalDateTime antesDe) {
+        return delPacienteSegun("c.CURP = CAST(? AS VARCHAR(30))", curp.toUpperCase(Locale.ROOT), desde, antesDe);
     }
 
-    /** Por parte del nombre: cada palabra debe aparecer en el nombre que quedó en la baja (sin distinguir acentos). */
-    public Resultado delPacientePorPalabras(String texto, LocalDateTime antesDe) {
-        String[] palabras = texto.trim().toUpperCase(Locale.ROOT).split("\\s+");
-        String where = Arrays.stream(palabras).map(p -> "i.Referencia COLLATE Latin1_General_CI_AI LIKE CAST(? AS VARCHAR(110)) COLLATE Latin1_General_CI_AI").collect(Collectors.joining(" AND "));
-        Object[] parametros = Arrays.stream(palabras).map(p -> "%" + escapar(p) + "%").toArray();
-        return consultar(where, antesDe, parametros);
+    /**
+     * Por nombre, en cualquier orden y aunque la baja tenga menos palabras ("FABIAN JIMENEZ" para "fabian jimenez castillejos"):
+     * la baja debe traer algún par de las palabras (sin acentos) y luego se revisa con NombrePaciente.contiene().
+     */
+    public Resultado delPacientePorPalabras(String texto, LocalDateTime desde, LocalDateTime antesDe) {
+        String like = "i.Referencia COLLATE Latin1_General_CI_AI LIKE CAST(? AS VARCHAR(110)) COLLATE Latin1_General_CI_AI";
+        List<Object> parametros = new ArrayList<>();
+        String where = "(" + NombrePaciente.pares(texto).stream().map(par -> {
+            parametros.add("%" + escapar(par[0]) + "%");
+            parametros.add("%" + escapar(par[1]) + "%");
+            return "(" + like + " AND " + like + ")";
+        }).collect(Collectors.joining(" OR ")) + ")";
+        Resultado r = consultar(where, desde, antesDe, parametros.toArray());
+        return new Resultado(r.entregas().stream().filter(e -> NombrePaciente.contiene(e.getPaciente(), texto)).toList(), r.aviso());
     }
 
-    private Resultado delPacienteSegun(String filtroCte, String valor, LocalDateTime antesDe) {
+    private Resultado delPacienteSegun(String filtroCte, String valor, LocalDateTime desde, LocalDateTime antesDe) {
         JdbcTemplate intelisis = conexion.plantilla().orElse(null);
         if (intelisis == null) {
             return Resultado.sinConexion("Sin conexión con Intelisis: no se muestran las entregas anteriores a HAERO. " + conexion.motivoNoDisponible());
         }
         try {
-            List<String> nombres = intelisis.queryForList("SELECT TOP (5) LTRIM(RTRIM(c.Nombre)) FROM Cte c WITH (NOLOCK) WHERE " + filtroCte, String.class, valor)
-                    .stream().filter(n -> n != null && !n.isBlank()).distinct().toList();
-            if (nombres.isEmpty()) {
+            // La misma persona puede estar dos veces en Cte (otro expediente, el nombre en otro orden): se juntan
+            // los que comparten CURP y la baja se reconoce por sus palabras, en cualquier orden.
+            Map<String, java.util.Set<String>> expedientesPorLlave = new HashMap<>();
+            intelisis.query("SELECT TOP (20) LTRIM(RTRIM(c.Nombre)), " + NombrePaciente.SQL + ", c.Cliente FROM Cte c WITH (NOLOCK) WHERE (" + filtroCte
+                            + ") OR (NULLIF(LTRIM(c.CURP), '') IS NOT NULL AND c.CURP IN (SELECT c.CURP FROM Cte c WITH (NOLOCK) WHERE " + filtroCte + "))",
+                    rs -> {
+                        for (String nombre : new String[]{rs.getString(1), rs.getString(2)}) {
+                            String llave = NombrePaciente.llave(nombre);
+                            if (!llave.isEmpty()) {
+                                expedientesPorLlave.computeIfAbsent(llave, k -> new java.util.TreeSet<>()).add(limpio(rs.getString(3)));
+                            }
+                        }
+                    }, valor, valor);
+            if (expedientesPorLlave.isEmpty()) {
                 return new Resultado(List.of(), null);
             }
-            String where = "i.Referencia IN (" + nombres.stream().map(n -> "CAST(? AS VARCHAR(100))").collect(Collectors.joining(", ")) + ")";
-            return consultar(where, antesDe, nombres.toArray());
+            List<String> llaves = List.copyOf(expedientesPorLlave.keySet());
+            List<Object> parametros = new ArrayList<>();
+            String where = "(" + llaves.stream().map(llave -> {
+                List<String> palabras = Arrays.asList(llave.split(" "));
+                palabras.forEach(p -> parametros.add("%" + escapar(p) + "%"));
+                return "(" + palabras.stream().map(p -> "i.Referencia COLLATE Latin1_General_CI_AI LIKE CAST(? AS VARCHAR(110)) COLLATE Latin1_General_CI_AI")
+                        .collect(Collectors.joining(" AND ")) + ")";
+            }).collect(Collectors.joining(" OR ")) + ")";
+            Resultado r = consultar(where, desde, antesDe, parametros.toArray());
+            // Solo las bajas con exactamente esas palabras (no "MARIA GARCIA" dentro de "ANA MARIA GARCIA"); sin expediente, el de la persona.
+            List<EntregaPacienteResponse> deLaPersona = r.entregas().stream()
+                    .filter(e -> expedientesPorLlave.containsKey(NombrePaciente.llave(e.getPaciente())))
+                    .map(e -> e.getExpediente() != null ? e : new EntregaPacienteResponse(e.getFecha(), e.getFolio(), e.getPaciente(),
+                            String.join(" / ", expedientesPorLlave.get(NombrePaciente.llave(e.getPaciente()))), e.getClave(), e.getLote(),
+                            e.getPiezas(), e.getDespachador(), e.getFuente()))
+                    .toList();
+            return new Resultado(deLaPersona, r.aviso());
         } catch (DataAccessException e) {
             log.warn("No se pudo buscar al paciente en Intelisis: {}", e.getMostSpecificCause().getMessage());
             return Resultado.sinConexion("Intelisis no respondió: no se muestran las entregas anteriores a HAERO.");
         }
     }
 
-    private Resultado consultar(String filtro, LocalDateTime antesDe, Object... parametros) {
+    private Resultado consultar(String filtro, LocalDateTime desde, LocalDateTime antesDe, Object... parametros) {
         JdbcTemplate intelisis = conexion.plantilla().orElse(null);
         if (intelisis == null) {
             return Resultado.sinConexion("Sin conexión con Intelisis: no se muestran las entregas anteriores a HAERO. " + conexion.motivoNoDisponible());
@@ -110,8 +147,12 @@ public class ServicioBajasPacienteIntelisis {
         List<Object> args = new ArrayList<>(movimientosConsumo);
         args.addAll(Arrays.asList(parametros));
         String corte = "";
+        if (desde != null) {
+            corte += " AND i.FechaEmision >= ?";
+            args.add(Timestamp.valueOf(desde));
+        }
         if (antesDe != null) {
-            corte = " AND i.FechaEmision < ?";
+            corte += " AND i.FechaEmision < ?";
             args.add(Timestamp.valueOf(antesDe));
         }
         String sql = "SELECT TOP (" + MAXIMO + ") i.FechaEmision, i.Mov, i.MovID, LTRIM(RTRIM(i.Referencia)), m.Articulo, m.SerieLote, "

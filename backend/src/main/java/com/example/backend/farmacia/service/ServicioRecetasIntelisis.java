@@ -7,7 +7,8 @@ import com.example.backend.farmacia.dto.PartidaRecetaIntelisis;
 import com.example.backend.farmacia.dto.RecetaIntelisisResponse;
 import com.example.backend.farmacia.entity.Receta;
 import com.example.backend.farmacia.repository.RecetaRepository;
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
+import com.example.backend.intelisis.service.NombrePaciente;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,16 +90,16 @@ public class ServicioRecetasIntelisis {
         try {
             Map<Integer, Object[]> recetas = new LinkedHashMap<>();
             // Médico: quien hizo la receta (siempre viene); el adscrito solo en algunas (unas 1 de cada 4).
-            intelisis.query("SELECT TOP (" + MAXIMO_RECETAS + ") r.ID_Receta, r.Folio, r.Fecha, r.Origen, c.Cliente, c.Nombre, c.CURP, "
-                    + "COALESCE(um.Nombre, r.Usuario), CASE WHEN r.MedicoAdscrito <> r.Usuario THEN COALESCE(ua.Nombre, r.MedicoAdscrito) END "
+            intelisis.query("SELECT TOP (" + MAXIMO_RECETAS + ") r.ID_Receta, r.Folio, r.Fecha, r.Origen, c.Cliente, " + NombrePaciente.SQL + ", c.CURP, "
+                    + "COALESCE(um.Nombre, r.Usuario), CASE WHEN r.MedicoAdscrito <> r.Usuario THEN COALESCE(ua.Nombre, r.MedicoAdscrito) END, r.Estatus "
                     + "FROM vsa_Receta r WITH (NOLOCK) LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = r.ExpKey "
                     + "LEFT JOIN Usuario um WITH (NOLOCK) ON um.Usuario = r.Usuario "
                     + "LEFT JOIN Usuario ua WITH (NOLOCK) ON ua.Usuario = r.MedicoAdscrito "
                     + where + " ORDER BY r.Fecha DESC", rs -> {
                 Timestamp fecha = rs.getTimestamp(3);
                 recetas.put(rs.getInt(1), new Object[]{limpio(rs.getString(2)), fecha == null ? null : fecha.toLocalDateTime(),
-                        limpio(rs.getString(4)), new PacienteResponse(limpio(rs.getString(6)), limpio(rs.getString(5)), limpio(rs.getString(7))),
-                        limpio(rs.getString(8)), limpio(rs.getString(9))});
+                        limpio(rs.getString(4)), new PacienteResponse(NombrePaciente.ordenar(limpio(rs.getString(6)), rs.getString(7)), limpio(rs.getString(5)), limpio(rs.getString(7))),
+                        limpio(rs.getString(8)), limpio(rs.getString(9)), limpio(rs.getString(10))});
             }, parametros);
             if (recetas.isEmpty()) {
                 return List.of();
@@ -129,7 +130,7 @@ public class ServicioRecetasIntelisis {
                             : new PartidaRecetaIntelisis(null, p[1] != null ? (String) p[1] : (String) p[0], null, cantidad, false);
                 }).toList();
                 respuesta.add(new RecetaIntelisisResponse(folio, String.valueOf(id), (LocalDateTime) r[1], (String) r[2],
-                        (PacienteResponse) r[3], estadoEnHaero, claves, (String) r[4], (String) r[5]));
+                        (PacienteResponse) r[3], estadoEnHaero, claves, (String) r[4], (String) r[5], (String) r[6]));
             });
             return respuesta;
         } catch (DataAccessException e) {

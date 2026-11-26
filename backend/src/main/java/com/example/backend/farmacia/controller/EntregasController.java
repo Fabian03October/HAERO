@@ -1,5 +1,6 @@
 package com.example.backend.farmacia.controller;
 
+import com.example.backend.farmacia.dto.EntregaPreviaResponse;
 import com.example.backend.farmacia.dto.ClavePendienteResponse;
 import com.example.backend.farmacia.dto.EntregaEncontradaResponse;
 import com.example.backend.farmacia.dto.EntregaResponse;
@@ -60,6 +61,22 @@ public class EntregasController {
     @PostMapping("/entregas")
     public ResponseEntity<EntregaResponse> registrar(@RequestBody RegistrarEntregaRequest request, Authentication authentication) {
         return ResponseEntity.status(HttpStatus.CREATED).body(servicioEntregas.registrar(request, authentication.getName()));
+    }
+
+    public record ResurtirRequest(String motivo) {
+    }
+
+    // Reabre una receta de Ventanilla ya surtida con las mismas cantidades (paciente crónico con la misma receta).
+    @PostMapping("/recetas/{folio}/resurtir")
+    public ResponseEntity<RecetaResponse> resurtir(@PathVariable String folio, @RequestBody ResurtirRequest request, Authentication authentication) {
+        return ResponseEntity.ok(servicioEntregas.resurtir(folio, request.motivo(), authentication.getName()));
+    }
+
+    // Lo que ya se le entregó al paciente de esas claves en los últimos 7 días (cualquier área), para avisar antes de repetir.
+    @GetMapping("/entregas/previas")
+    public ResponseEntity<List<EntregaPreviaResponse>> entregasPrevias(@RequestParam String expediente, @RequestParam List<String> claves,
+                                                                       @RequestParam(required = false) String excluirReceta) {
+        return ResponseEntity.ok(servicioEntregas.entregasPrevias(expediente, claves, excluirReceta));
     }
 
     // HU34 CA1: por folio de la entrega, folio de la receta, expediente o lote.

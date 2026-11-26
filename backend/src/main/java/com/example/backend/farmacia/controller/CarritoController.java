@@ -4,6 +4,7 @@ import com.example.backend.farmacia.dto.CarritoResponse;
 import com.example.backend.farmacia.dto.EscanearCarritoRequest;
 import com.example.backend.farmacia.dto.EscaneoCarritoResponse;
 import com.example.backend.farmacia.dto.HojaBajaResponse;
+import com.example.backend.farmacia.dto.HistorialCamaResponse;
 import com.example.backend.farmacia.dto.HojaIndicacionesResponse;
 import com.example.backend.farmacia.dto.QuitarCarritoRequest;
 import com.example.backend.farmacia.dto.SurtidoCarritoResponse;
@@ -55,11 +56,18 @@ public class CarritoController {
         return ResponseEntity.ok(servicio.quitar(request, authentication.getName()));
     }
 
-    // "Indicaciones médicas activas" para imprimir: todas las del área o los pacientes elegidos.
+    // Historial de la cama (7 días): lo surtido y lo que quedó sin surtir.
+    @GetMapping("/historial")
+    public ResponseEntity<HistorialCamaResponse> historial(@RequestParam int idIngreso) {
+        return ResponseEntity.ok(servicio.historial(idIngreso));
+    }
+
+    // "Indicaciones médicas del día" para imprimir: todas las del área o los pacientes elegidos (dia: hoy si no se manda).
     @GetMapping("/indicaciones")
     public ResponseEntity<List<HojaIndicacionesResponse>> indicaciones(@RequestParam String central,
-                                                                       @RequestParam(required = false) List<Integer> ingresos) {
-        return ResponseEntity.ok(hojas.indicaciones(central, ingresos));
+                                                                       @RequestParam(required = false) List<Integer> ingresos,
+                                                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia) {
+        return ResponseEntity.ok(hojas.indicaciones(central, ingresos, dia));
     }
 
     // Termina el carrito (del día o de urgencia): regresa la baja por volumen para capturar en Intelisis.

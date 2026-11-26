@@ -36,6 +36,10 @@ public class ClaveReceta {
     @Column(length = 300)
     private String motivo;
 
+    // Lo que se entrega en cada surtido; null mientras no se resurta (entonces vale piezasIndicadas).
+    @Column(name = "piezas_por_surtido")
+    private Integer piezasPorSurtido;
+
     public int pendiente() {
         return Math.max(0, piezasIndicadas - piezasEntregadas);
     }

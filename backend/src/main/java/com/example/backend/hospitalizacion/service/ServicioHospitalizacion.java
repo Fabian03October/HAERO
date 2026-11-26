@@ -1,4 +1,4 @@
-package com.example.backend.hospitalizacion;
+package com.example.backend.hospitalizacion.service;
 
 import com.example.backend.hospitalizacion.entity.HospConsulta;
 import com.example.backend.hospitalizacion.entity.HospVisto;
@@ -13,7 +13,7 @@ import com.example.backend.hospitalizacion.dto.EstadoHospitalizacion;
 import com.example.backend.hospitalizacion.dto.EventoHospitalizacion;
 import com.example.backend.hospitalizacion.dto.MedicamentoIndicado;
 import com.example.backend.hospitalizacion.dto.PacienteInternado;
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
 import com.example.backend.usuarios.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;

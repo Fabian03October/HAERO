@@ -24,4 +24,6 @@ public class SolicitudResponse {
     private LocalDateTime fechaCierre;
     // HU39: pedido al que pertenece (null en las de una sola clave anteriores).
     private Long pedidoId;
+    // Por qué no se surtió lo que falta (último despacho parcial o sin existencia); null si no faltó nada.
+    private String motivoFaltante;
 }

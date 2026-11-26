@@ -90,6 +90,16 @@ public class ServicioRecepcion {
      */
     @Transactional
     public RegistrarEntradaResponse registrarEntrada(RegistrarEntradaRequest request, String nombreUsuarioSolicitante) {
+        return registrarEntrada(request, nombreUsuarioSolicitante, null);
+    }
+
+    /**
+     * Igual, pero el conteo inicial puede dar de alta un lote que está en el anaquel y no en Intelisis, con la
+     * caducidad que se escribió en la caja. Solo lo usa ServicioConteoInicial (la API de recepción nunca lo manda).
+     */
+    @Transactional
+    public RegistrarEntradaResponse registrarEntrada(RegistrarEntradaRequest request, String nombreUsuarioSolicitante,
+                                                     java.time.LocalDate caducidadSinIntelisis) {
         String codigo = recortar(request.getCodigo());
         String clave = recortar(request.getClave());
         if (codigo == null) {
@@ -117,6 +127,10 @@ public class ServicioRecepcion {
 
         RegistroIntelisisResponse registro = servicioRegistrosIntelisis
                 .buscar(request.getOrigen(), request.getIdIntelisis(), clave, request.getLote())
+                .or(() -> caducidadSinIntelisis == null || !"EXISTENCIA".equals(request.getOrigen()) ? java.util.Optional.empty()
+                        : java.util.Optional.of(new RegistroIntelisisResponse("EXISTENCIA", null, "Conteo inicial (lote sin registro en Intelisis)",
+                        null, java.time.LocalDate.now(), clave, recortar(request.getLote()), caducidadSinIntelisis,
+                        null, null, null, null, null, null, null, null)))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Ese registro no está en Intelisis (o ya no está vigente). Hasta que Intelisis lo tenga capturado no se puede recibir."));
         if (registro.bloqueo() != null) {

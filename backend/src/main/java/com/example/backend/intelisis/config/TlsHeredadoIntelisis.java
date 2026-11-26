@@ -1,4 +1,4 @@
-package com.example.backend.intelisis;
+package com.example.backend.intelisis.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

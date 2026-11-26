@@ -18,4 +18,7 @@ public class DespachoPorRecibirResponse {
     private Integer cajasPedidas;
     private Integer cajasDespachadas;
     private List<PartidaPorRecibir> partidas;
+    // Lo que Farmacia ya tiene de esa clave y dónde (para sugerir el mismo estante); null si es nueva en Farmacia.
+    private Integer piezasEnFarmacia;
+    private String ubicacionSugerida;
 }

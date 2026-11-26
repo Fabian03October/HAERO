@@ -13,9 +13,9 @@ import com.example.backend.farmacia.repository.EntregaRepository;
 import com.example.backend.farmacia.repository.FarmaciaBajaVolumenRepository;
 import com.example.backend.farmacia.repository.FarmaciaHojaBajaRepository;
 import com.example.backend.farmacia.repository.RecetaRepository;
-import com.example.backend.hospitalizacion.ServicioSincronizacionHospitalizacion;
+import com.example.backend.hospitalizacion.service.ServicioSincronizacionHospitalizacion;
 import com.example.backend.usuarios.entity.Usuario;
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -89,11 +90,16 @@ public class ServicioHojasCarrito {
     // ---------- Indicaciones médicas activas ----------
 
     /**
-     * Una hoja por paciente del área; con "ingresos" solo los elegidos. Nunca sale un paciente
-     * sin indicaciones de medicamento del día (lo que entra al carrito de hoy).
+     * Una hoja por paciente del área; con "ingresos" solo los elegidos. Solo lleva las indicaciones
+     * de medicamento del día (lo que entra al carrito de hoy: lo nuevo y lo pendiente de ayer), y
+     * nunca sale un paciente sin ellas.
      */
-    public List<HojaIndicacionesResponse> indicaciones(String central, Collection<Integer> ingresos) {
-        LocalDate hoy = LocalDate.now();
+    public List<HojaIndicacionesResponse> indicaciones(String central, Collection<Integer> ingresos, LocalDate dia) {
+        // Un día anterior (de los 7 del historial de la cama) para volver a imprimir su indicación.
+        LocalDate hoy = dia != null ? dia : LocalDate.now();
+        if (hoy.isAfter(LocalDate.now()) || hoy.isBefore(LocalDate.now().minusDays(ServicioCarrito.DIAS_HISTORIAL - 1))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solo se imprimen indicaciones de los últimos " + ServicioCarrito.DIAS_HISTORIAL + " días");
+        }
         List<ServicioCarrito.Internado> internados = carrito.internados(central).stream()
                 .filter(i -> ingresos == null || ingresos.isEmpty() || ingresos.contains(i.idIngreso()))
                 .filter(i -> carrito.lineas(i.idIngreso(), hoy).stream().anyMatch(l -> !"SUSPENDIDO".equals(l.getEstado())))
@@ -105,6 +111,11 @@ public class ServicioHojasCarrito {
         LocalDateTime ahora = LocalDateTime.now();
         List<HojaIndicacionesResponse> hojas = new ArrayList<>();
         for (ServicioCarrito.Internado internado : internados) {
+            // Lo del día por clave (o por nombre si no trae clave), con la indicación que manda en el carrito.
+            Map<String, LocalDateTime> delDia = new HashMap<>();
+            carrito.lineas(internado.idIngreso(), hoy).stream()
+                    .filter(l -> !"SUSPENDIDO".equals(l.getEstado()))
+                    .forEach(l -> delDia.put(l.getClave() != null ? l.getClave() : "SIN-CLAVE:" + l.getMedicamento(), l.getIndicadoEn()));
             List<MedicamentoHojaResponse> porHorario = new ArrayList<>();
             List<MedicamentoHojaResponse> porInfusion = new ArrayList<>();
             haero.query("""
@@ -112,6 +123,11 @@ public class ServicioHojasCarrito {
                            externo, folio, infusion, numero_horas
                     FROM hosp_medicamento WHERE id_ingreso = ? AND activo = 1 ORDER BY indicado_en DESC, id DESC
                     """, rs -> {
+                String llave = rs.getString(1) != null ? rs.getString(1) : "SIN-CLAVE:" + rs.getString(2);
+                Timestamp indicado = rs.getTimestamp(11);
+                if (!delDia.containsKey(llave) || !Objects.equals(delDia.get(llave), indicado == null ? null : indicado.toLocalDateTime())) {
+                    return;
+                }
                 boolean infusion = rs.getBoolean(15);
                 Timestamp inicia = rs.getTimestamp(10) != null ? rs.getTimestamp(10) : rs.getTimestamp(11);
                 StringBuilder texto = new StringBuilder();
@@ -412,9 +428,13 @@ public class ServicioHojasCarrito {
         }
         Map<Long, Map<String, Integer>> dosis = new HashMap<>();
         // La indicación más reciente de cada clave manda (mismo criterio que el carrito).
-        haero.query("SELECT id_ingreso, clave, dosis_24h FROM hosp_medicamento WHERE dosis_24h IS NOT NULL AND clave IS NOT NULL AND id_ingreso IN ("
+        // Se compara contra las piezas del día (dosis ÷ contenido de la pieza × dosis en 24 h) cuando se pueden calcular.
+        haero.query("SELECT id_ingreso, clave, dosis_24h, dosis, unidad FROM hosp_medicamento WHERE dosis_24h IS NOT NULL AND clave IS NOT NULL AND id_ingreso IN ("
                 + marcadores(recetaDelIngreso.size()) + ") ORDER BY indicado_en", rs -> {
-            dosis.computeIfAbsent(recetaDelIngreso.get(rs.getInt(1)), k -> new HashMap<>()).put(rs.getString(2), rs.getInt(3));
+            float d = rs.getFloat(4);
+            Float cantidad = rs.wasNull() ? null : d;
+            Integer piezas = carrito.piezasDelDiaDeClave(cantidad, rs.getString(5), rs.getInt(3), rs.getString(2));
+            dosis.computeIfAbsent(recetaDelIngreso.get(rs.getInt(1)), k -> new HashMap<>()).put(rs.getString(2), piezas != null ? piezas : rs.getInt(3));
         }, recetaDelIngreso.keySet().toArray());
         partidasPorReceta.forEach((receta, partidas) -> {
             Map<String, Integer> porClave = new HashMap<>();

@@ -38,6 +38,10 @@ public class LoteFarmacia {
     @Column(nullable = false)
     private Integer piezas = 0;
 
+    // Estante donde está en Farmacia; los cambios quedan en farmacia_cambio_ubicacion.
+    @Column(length = 40)
+    private String ubicacion;
+
     @Column(name = "fecha_alta", insertable = false, updatable = false)
     private LocalDateTime fechaAlta;
 

@@ -1,8 +1,12 @@
-package com.example.backend.intelisis;
+package com.example.backend.intelisis.controller;
 
+
+import com.example.backend.intelisis.service.ServicioIntelisis;
+import com.example.backend.intelisis.service.ServicioSincronizacionIntelisis;
 import com.example.backend.intelisis.dto.AvisoIntelisisResponse;
 import com.example.backend.intelisis.dto.ComparacionClaveResponse;
 import com.example.backend.intelisis.dto.EstadoIntelisisResponse;
+import com.example.backend.intelisis.dto.LoteConciliadoResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -35,6 +39,12 @@ public class IntelisisController {
     @GetMapping("/comparacion")
     public ResponseEntity<List<ComparacionClaveResponse>> comparacion() {
         return ResponseEntity.ok(servicioIntelisis.comparacion());
+    }
+
+    // Detalle por lote de una clave para conciliar (HAERO en piezas contra Intelisis).
+    @GetMapping("/comparacion/{clave}/lotes")
+    public ResponseEntity<List<LoteConciliadoResponse>> lotes(@PathVariable String clave) {
+        return ResponseEntity.ok(servicioIntelisis.lotes(clave));
     }
 
     // ---------- Avisos de cambios en Intelisis (Supervision solo los consulta) ----------

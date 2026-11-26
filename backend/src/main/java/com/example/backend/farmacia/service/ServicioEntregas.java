@@ -3,6 +3,10 @@ package com.example.backend.farmacia.service;
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.usuarios.entity.Usuario;
 import com.example.backend.farmacia.dto.CajaEntregaRequest;
+import com.example.backend.farmacia.repository.ResurtimientoRepository;
+import com.example.backend.farmacia.entity.Resurtimiento;
+import com.example.backend.farmacia.repository.PartidaEntregaRepository;
+import com.example.backend.farmacia.dto.EntregaPreviaResponse;
 import com.example.backend.farmacia.dto.ClavePendienteResponse;
 import com.example.backend.farmacia.dto.ClaveRecetaRequest;
 import com.example.backend.farmacia.dto.ClaveRecetaResponse;
@@ -20,12 +24,14 @@ import com.example.backend.farmacia.entity.Receta;
 import com.example.backend.farmacia.repository.EntregaRepository;
 import com.example.backend.farmacia.repository.LoteFarmaciaRepository;
 import com.example.backend.farmacia.repository.RecetaRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -55,10 +61,22 @@ public class ServicioEntregas {
     private final LoteFarmaciaRepository loteFarmaciaRepository;
     private final ServicioInventarioFarmacia inventario;
 
+    private final int vigenciaDias;
+    private final PartidaEntregaRepository partidaEntregaRepository;
+    private final ResurtimientoRepository resurtimientos;
+    // Días hacia atrás en que se avisa que el paciente ya recibió la misma clave.
+    static final int DIAS_ENTREGA_REPETIDA = 7;
+
     public ServicioEntregas(RecetaRepository recetaRepository,
                             EntregaRepository entregaRepository,
                             LoteFarmaciaRepository loteFarmaciaRepository,
-                            ServicioInventarioFarmacia inventario) {
+                            ServicioInventarioFarmacia inventario,
+                            @Value("${farmacia.recetas.vigencia-dias:30}") int vigenciaDias,
+                            PartidaEntregaRepository partidaEntregaRepository,
+                            ResurtimientoRepository resurtimientos) {
+        this.vigenciaDias = vigenciaDias;
+        this.partidaEntregaRepository = partidaEntregaRepository;
+        this.resurtimientos = resurtimientos;
         this.recetaRepository = recetaRepository;
         this.entregaRepository = entregaRepository;
         this.loteFarmaciaRepository = loteFarmaciaRepository;
@@ -81,6 +99,10 @@ public class ServicioEntregas {
         } else if (Receta.SURTIDA.equals(receta.getEstado())) {
             // HU28 CA2: el folio no se registra dos veces; una receta surtida ya no recibe entregas.
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La receta " + receta.getFolio() + " ya se surtió por completo");
+        } else if (vencida(receta)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La receta " + receta.getFolio() + " venció: se surtió por primera vez el "
+                    + receta.getFecha().toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    + " y lo que faltó solo se entrega durante " + vigenciaDias + " días. El paciente necesita una receta nueva.");
         }
 
         Map<String, ClaveReceta> porClave = new LinkedHashMap<>();
@@ -118,6 +140,23 @@ public class ServicioEntregas {
         Entrega entrega = new Entrega();
         entrega.setReceta(receta);
         entrega.setUsuario(usuario);
+        // Ventanilla: si ya se le entregó alguna de estas claves en los últimos días (otra receta, Quimio u
+        // Hospitalización), se entrega solo con una justificación, que queda guardada.
+        if (!interna(receta)) {
+            List<EntregaPreviaResponse> previas = entregasPrevias(receta.getPacienteExpediente(),
+                    cajas.stream().map(c -> ServicioInventarioFarmacia.texto(c.getClave())).filter(java.util.Objects::nonNull).toList(), receta.getFolio());
+            String justificacion = ServicioInventarioFarmacia.texto(request.getJustificacionRepetida());
+            if (!previas.isEmpty() && justificacion == null) {
+                EntregaPreviaResponse p = previas.get(0);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya se le entregó " + p.clave() + " el "
+                        + p.fecha().toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM")) + " (" + p.area()
+                        + ", receta " + p.receta() + ", " + p.piezas() + " pz). Escribe la justificación para entregarlo otra vez.");
+            }
+            if (justificacion != null && justificacion.length() > 300) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La justificación no puede pasar de 300 caracteres");
+            }
+            entrega.setJustificacionRepetida(previas.isEmpty() ? null : justificacion);
+        }
 
         for (CajaEntregaRequest caja : cajas) {
             String clave = ServicioInventarioFarmacia.texto(caja.getClave());
@@ -332,6 +371,102 @@ public class ServicioEntregas {
         return lista;
     }
 
+    /**
+     * Una receta de Ventanilla a medias vence a los N días (farmacia.recetas.vigencia-dias, 30 por omisión):
+     * el paciente ya no puede regresar meses después por lo que faltó. Las internas (Hospitalización,
+     * Quimioterapia, Quirófano) no vencen: son del día.
+     */
+    boolean vencida(Receta receta) {
+        return !interna(receta) && receta.getFecha() != null && inicioDelSurtido(receta).isBefore(LocalDateTime.now().minusDays(vigenciaDias));
+    }
+
+    /** Desde cuándo corre la vigencia: la primera entrega o, si se resurtió, el último resurtido. */
+    private LocalDateTime inicioDelSurtido(Receta receta) {
+        return receta.getId() == null ? receta.getFecha()
+                : resurtimientos.findFirstByRecetaIdOrderByFechaDesc(receta.getId()).map(Resurtimiento::getFecha).orElse(receta.getFecha());
+    }
+
+    /**
+     * Resurtir una receta de Ventanilla ya surtida (paciente crónico que regresa con la misma receta): se
+     * reabre con las mismas cantidades del médico y se surte con el flujo normal. Queda registrado el motivo.
+     */
+    @Transactional
+    public RecetaResponse resurtir(String folio, String motivo, String nombreUsuario) {
+        Receta receta = recetaRepository.findByFolioIgnoreCase(ServicioInventarioFarmacia.texto(folio))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una receta con el folio " + folio + " en Farmacia"));
+        if (interna(receta)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solo las recetas de Ventanilla se resurten");
+        }
+        if (!Receta.SURTIDA.equals(receta.getEstado())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La receta " + receta.getFolio() + " todavía tiene piezas pendientes: termina de surtirla");
+        }
+        String elMotivo = ServicioInventarioFarmacia.texto(motivo);
+        if (elMotivo == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el motivo del resurtido");
+        }
+        if (elMotivo.length() > 300) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El motivo no puede pasar de 300 caracteres");
+        }
+        for (ClaveReceta clave : receta.getClaves()) {
+            int porSurtido = clave.getPiezasPorSurtido() != null ? clave.getPiezasPorSurtido() : clave.getPiezasIndicadas();
+            clave.setPiezasPorSurtido(porSurtido);
+            clave.setPiezasIndicadas(clave.getPiezasEntregadas() + porSurtido);
+            clave.setNoDispensada(false);
+            clave.setMotivo(null);
+        }
+        receta.setEstado(Receta.PARCIAL);
+        recetaRepository.save(receta);
+        Resurtimiento r = new Resurtimiento();
+        r.setReceta(receta);
+        r.setNumero((int) resurtimientos.countByRecetaId(receta.getId()) + 1);
+        r.setMotivo(elMotivo);
+        r.setUsuario(inventario.usuario(nombreUsuario));
+        r.setFecha(LocalDateTime.now());
+        resurtimientos.saveAndFlush(r);
+        return aRespuesta(receta);
+    }
+
+    /** Recetas que arma HAERO para Hospitalización, Quimioterapia o Quirófano (no son de Ventanilla). */
+    static boolean interna(Receta receta) {
+        return !"Ventanilla".equals(area(receta.getFolio()));
+    }
+
+    static String area(String folioReceta) {
+        String folio = folioReceta == null ? "" : folioReceta.toUpperCase();
+        if (folio.startsWith(ServicioCarrito.PREFIJO_FOLIO)) return "Hospitalización";
+        if (folio.startsWith(ServicioQuimioterapia.PREFIJO_FOLIO)) return "Quimioterapia";
+        if (folio.startsWith(ServicioCajasQuirofano.PREFIJO_FOLIO)) return "Quirófano";
+        return "Ventanilla";
+    }
+
+    /**
+     * Lo que se le entregó al paciente de esas claves en los últimos 7 días, en cualquier área, sin contar la
+     * receta indicada (la que se está surtiendo). Una línea por entrega y clave, con lo que no se devolvió.
+     */
+    @Transactional(readOnly = true)
+    public List<EntregaPreviaResponse> entregasPrevias(String expediente, java.util.Collection<String> claves, String excluirReceta) {
+        String exp = ServicioInventarioFarmacia.texto(expediente);
+        if (exp == null || claves == null || claves.isEmpty()) {
+            return List.of();
+        }
+        Map<String, EntregaPreviaResponse> porEntregaYClave = new LinkedHashMap<>();
+        for (PartidaEntrega p : partidaEntregaRepository
+                .previasDelPaciente(
+                        exp, LocalDateTime.now().minusDays(DIAS_ENTREGA_REPETIDA), claves)) {
+            Receta r = p.getEntrega().getReceta();
+            int netas = p.getPiezas() - (p.getPiezasDevueltas() == null ? 0 : p.getPiezasDevueltas());
+            if (netas <= 0 || (excluirReceta != null && excluirReceta.equalsIgnoreCase(r.getFolio()))) {
+                continue;
+            }
+            Medicamento m = p.getClaveReceta().getMedicamento();
+            String llave = p.getEntrega().getId() + "|" + m.getClave();
+            EntregaPreviaResponse antes = porEntregaYClave.get(llave);
+            porEntregaYClave.put(llave, new EntregaPreviaResponse(p.getEntrega().getFecha(), p.getEntrega().folio(), r.getFolio(),
+                    area(r.getFolio()), m.getClave(), m.getNombreGenerico(), netas + (antes == null ? 0 : antes.piezas())));
+        }
+        return List.copyOf(porEntregaYClave.values());
+    }
+
     private RecetaResponse aRespuesta(Receta receta) {
         List<Entrega> entregas = receta.getId() == null ? List.of() : entregaRepository.findByRecetaIdOrderByFechaAsc(receta.getId());
         String despachador = entregas.isEmpty() ? receta.getUsuario().getNombreCompleto()
@@ -340,7 +475,10 @@ public class ServicioEntregas {
                 c.getMedicamento().getClave(), c.getMedicamento().getNombreGenerico(), c.getMedicamento().getPiezasPorCaja(),
                 c.getPiezasIndicadas(), c.getPiezasEntregadas(), c.pendiente(), c.isNoDispensada(), c.getMotivo())).toList();
         return new RecetaResponse(receta.getFolio(), receta.getPacienteExpediente(), receta.getPacienteNombre(), receta.getPacienteCurp(),
-                receta.getFecha(), despachador, receta.getEstado(), claves);
+                receta.getFecha(), despachador, receta.getEstado(), claves,
+                !Receta.SURTIDA.equals(receta.getEstado()) && vencida(receta),
+                receta.getId() == null ? 0 : resurtimientos.countByRecetaId(receta.getId()),
+                entregas.isEmpty() ? null : entregas.get(entregas.size() - 1).getFecha());
     }
 
     static PartidaEntregadaResponse aRespuesta(PartidaEntrega partida) {

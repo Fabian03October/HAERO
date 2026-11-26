@@ -1,4 +1,4 @@
-package com.example.backend.hospitalizacion;
+package com.example.backend.hospitalizacion.service;
 
 import org.junit.jupiter.api.Test;
 

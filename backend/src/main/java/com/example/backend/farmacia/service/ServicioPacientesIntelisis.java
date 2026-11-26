@@ -1,7 +1,8 @@
 package com.example.backend.farmacia.service;
 
 import com.example.backend.farmacia.dto.PacienteResponse;
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
+import com.example.backend.intelisis.service.NombrePaciente;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -32,7 +33,7 @@ public class ServicioPacientesIntelisis {
     private static final int MINIMO_NOMBRE = 3;
     // Formato oficial de la CURP (18 caracteres), igual que en la pantalla.
     private static final Pattern PATRON_CURP = Pattern.compile("^[A-Z][AEIOUX][A-Z]{2}\\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\\d$");
-    private static final String SELECT = "SELECT TOP (" + MAXIMO + ") c.Cliente, c.Nombre, c.CURP FROM Cte c WITH (NOLOCK) ";
+    private static final String SELECT = "SELECT TOP (" + MAXIMO + ") c.Cliente, " + NombrePaciente.SQL + ", c.CURP FROM Cte c WITH (NOLOCK) ";
 
     private final ConexionIntelisis conexion;
 
@@ -66,14 +67,17 @@ public class ServicioPacientesIntelisis {
             if (cur != null) {
                 return consultar(intelisis, SELECT + "WHERE c.CURP = ? ORDER BY c.Nombre", cur);
             }
-            // Cada palabra del nombre debe aparecer, en cualquier orden (como se escribe en la receta).
-            String[] palabras = nom.toUpperCase(Locale.ROOT).split("\\s+");
-            StringBuilder where = new StringBuilder("WHERE 1 = 1");
-            for (int i = 0; i < palabras.length; i++) {
-                where.append(" AND c.Nombre LIKE ?");
-                palabras[i] = "%" + palabras[i].replace("[", "[[]").replace("%", "[%]").replace("_", "[_]") + "%";
-            }
-            return consultar(intelisis, SELECT + where + " ORDER BY c.Nombre", (Object[]) palabras);
+            // En cualquier orden y aunque esté registrado con menos palabras: algún par de palabras en la base y luego contiene().
+            String like = "c.Nombre COLLATE Latin1_General_CI_AI LIKE ? COLLATE Latin1_General_CI_AI";
+            List<Object> parametros = new java.util.ArrayList<>();
+            String where = "WHERE " + NombrePaciente.pares(nom).stream().map(par -> {
+                parametros.add("%" + par[0].replace("[", "[[]").replace("%", "[%]").replace("_", "[_]") + "%");
+                parametros.add("%" + par[1].replace("[", "[[]").replace("%", "[%]").replace("_", "[_]") + "%");
+                return "(" + like + " AND " + like + ")";
+            }).collect(java.util.stream.Collectors.joining(" OR "));
+            String buscado = nom;
+            return consultar(intelisis, SELECT + where + " ORDER BY c.Nombre", parametros.toArray()).stream()
+                    .filter(pac -> NombrePaciente.contiene(pac.getNombre(), buscado)).toList();
         } catch (DataAccessException e) {
             log.warn("No se pudo buscar el paciente en Intelisis: {}", e.getMostSpecificCause().getMessage());
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Intelisis no respondió; intenta de nuevo en un momento");
@@ -82,7 +86,7 @@ public class ServicioPacientesIntelisis {
 
     private static List<PacienteResponse> consultar(JdbcTemplate intelisis, String sql, Object... parametros) {
         return intelisis.query(sql, (rs, n) -> new PacienteResponse(
-                limpio(rs.getString(2)), limpio(rs.getString(1)), limpio(rs.getString(3))), parametros);
+                NombrePaciente.ordenar(limpio(rs.getString(2)), rs.getString(3)), limpio(rs.getString(1)), limpio(rs.getString(3))), parametros);
     }
 
     private static String limpio(String valor) {

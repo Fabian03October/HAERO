@@ -52,4 +52,9 @@ public class SolicitudFarmaciaController {
         // Todas las solicitudes del área de Farmacia, no solo las del usuario.
         return ResponseEntity.ok(servicioDespacho.listarSolicitudesDeFarmacia());
     }
+    // Vale del pedido (entregado y no surtido con su motivo), para imprimirlo al despachar o después.
+    @GetMapping("/pedidos/{pedidoId}/vale")
+    public ResponseEntity<com.example.backend.almacen.dto.ValePedidoResponse> vale(@PathVariable Long pedidoId) {
+        return ResponseEntity.ok(servicioDespacho.valePedido(pedidoId));
+    }
 }

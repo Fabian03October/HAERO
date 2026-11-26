@@ -1,5 +1,7 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.intelisis.service.NombrePaciente;
+
 import com.example.backend.almacen.entity.Lote;
 import com.example.backend.almacen.entity.Pedido;
 import com.example.backend.almacen.repository.LoteRepository;
@@ -80,7 +82,8 @@ public class ServicioTrazabilidad {
     }
 
     @Transactional
-    public TrazabilidadResponse porLote(String numeroLote, String clave, String nombreUsuario) {
+    public TrazabilidadResponse porLote(String numeroLote, String clave, LocalDate desde, LocalDate hasta, String nombreUsuario) {
+        Periodo periodo = Periodo.de(desde, hasta);
         String lote = ServicioInventarioFarmacia.texto(numeroLote);
         if (lote == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe o escanea el lote");
@@ -100,7 +103,7 @@ public class ServicioTrazabilidad {
         List<ExistenciaIntelisis> existencias = existenciasIntelisis(lote, filtroClave);
         List<MovimientoIntelisis> movimientos = movimientosFarmaciaIntelisis(lote, filtroClave);
         // Antes de que HAERO dispensara, el paciente de cada baja de Farmacia está en Intelisis.
-        ServicioBajasPacienteIntelisis.Resultado anteriores = bajasIntelisis.delLote(lote, filtroClave, inicioDispensacionHaero());
+        ServicioBajasPacienteIntelisis.Resultado anteriores = bajasIntelisis.delLote(lote, filtroClave, periodo.desde(), periodo.antesDe(inicioDispensacionHaero()));
         if (enFarmacia.isEmpty() && enAlmacen.isEmpty() && recepciones.isEmpty() && existencias.isEmpty() && movimientos.isEmpty()
                 && anteriores.entregas().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay registro del lote " + lote + " en HAERO ni en Intelisis");
@@ -133,7 +136,36 @@ public class ServicioTrazabilidad {
                 .map(e -> new TrazabilidadResponse.Existencia(e.almacen(), e.articulo().endsWith(SUFIJO_FARMACIA) ? "Farmacia" : "Almacén",
                         e.clave(), e.existencia()))
                 .toList();
-        return new TrazabilidadResponse("LOTE", lote, recorrido, juntar(partidas, anteriores), anteriores.aviso(), compras, existenciasHoy);
+        return new TrazabilidadResponse("LOTE", lote, recorrido, juntar(periodo.filtrar(partidas), anteriores), anteriores.aviso(), compras, existenciasHoy);
+    }
+
+    /** Periodo de las entregas a pacientes (días completos, ambos incluidos); sin fechas = todo. */
+    record Periodo(LocalDateTime desde, LocalDateTime hasta) {
+        static Periodo de(LocalDate desde, LocalDate hasta) {
+            if (desde != null && hasta != null && hasta.isBefore(desde)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La fecha final no puede ser antes de la inicial");
+            }
+            return new Periodo(desde == null ? null : desde.atStartOfDay(), hasta == null ? null : hasta.plusDays(1).atStartOfDay());
+        }
+
+        /** Límite superior para Intelisis: el fin del periodo o el inicio de HAERO, el que sea antes. */
+        LocalDateTime antesDe(LocalDateTime inicioHaero) {
+            return hasta == null ? inicioHaero : inicioHaero == null ? hasta : min(hasta, inicioHaero);
+        }
+
+        List<PartidaEntrega> filtrar(List<PartidaEntrega> partidas) {
+            if (desde == null && hasta == null) {
+                return partidas;
+            }
+            return partidas.stream().filter(p -> {
+                LocalDateTime f = p.getEntrega().getFecha();
+                return (desde == null || !f.isBefore(desde)) && (hasta == null || f.isBefore(hasta));
+            }).toList();
+        }
+    }
+
+    private static LocalDateTime min(LocalDateTime a, LocalDateTime b) {
+        return a.isBefore(b) ? a : b;
     }
 
     /** Primera entrega registrada en HAERO: desde ahí manda HAERO; antes, las bajas de Intelisis. */
@@ -160,32 +192,51 @@ public class ServicioTrazabilidad {
     }
 
     @Transactional
-    public TrazabilidadResponse porExpediente(String expediente, String nombreUsuario) {
+    public TrazabilidadResponse porExpediente(String expediente, LocalDate desde, LocalDate hasta, String nombreUsuario) {
+        Periodo periodo = Periodo.de(desde, hasta);
         String exp = ServicioInventarioFarmacia.texto(expediente);
         if (exp == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el número de expediente");
         }
         registrarConsulta(nombreUsuario, "EXPEDIENTE", exp);
-        List<PartidaEntrega> partidas = partidaEntregaRepository.findByEntregaRecetaPacienteExpedienteOrderByEntregaFechaDesc(exp);
-        ServicioBajasPacienteIntelisis.Resultado anteriores = bajasIntelisis.delExpediente(exp, inicioDispensacionHaero());
+        List<PartidaEntrega> partidas = periodo.filtrar(partidaEntregaRepository.delPacientePorExpediente(exp));
+        ServicioBajasPacienteIntelisis.Resultado anteriores = bajasIntelisis.delExpediente(exp, periodo.desde(), periodo.antesDe(inicioDispensacionHaero()));
         return new TrazabilidadResponse("EXPEDIENTE", exp, List.of(), juntar(partidas, anteriores), anteriores.aviso());
+    }
+
+    /**
+     * Por nombre, en cualquier orden: "MARIA GARCIA" encuentra "GARCIA LOPEZ MARIA" y "María García López" (la misma persona
+     * escrita de las dos formas, o guardada con menos palabras). Se busca por pares de palabras y se revisa con contiene().
+     * shortcut: 200 partidas por par; si un par muy común llega a más, pasar el filtro completo a la consulta.
+     */
+    private List<PartidaEntrega> porPalabras(String texto) {
+        Map<Long, PartidaEntrega> unicas = new java.util.LinkedHashMap<>();
+        for (String[] par : NombrePaciente.pares(texto)) {
+            partidaEntregaRepository.conPalabrasEnElNombre(par[0], par[1]).stream()
+                    .filter(p -> NombrePaciente.contiene(p.getEntrega().getReceta().getPacienteNombre(), texto))
+                    .forEach(p -> unicas.putIfAbsent(p.getId(), p));
+        }
+        return unicas.values().stream()
+                .sorted(java.util.Comparator.comparing((PartidaEntrega p) -> p.getEntrega().getFecha()).reversed()).toList();
     }
 
     /** Por nombre del paciente (como se guardó al entregar) o por su CURP. */
     @Transactional
-    public TrazabilidadResponse porPaciente(String paciente, String nombreUsuario) {
+    public TrazabilidadResponse porPaciente(String paciente, LocalDate desde, LocalDate hasta, String nombreUsuario) {
+        Periodo periodo = Periodo.de(desde, hasta);
         String texto = ServicioInventarioFarmacia.texto(paciente);
         if (texto == null || texto.length() < 3) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe al menos 3 letras del nombre o la CURP del paciente");
         }
         boolean esCurp = texto.length() == 18 && texto.matches("(?i)[A-Z]{4}\\d{6}[A-Z0-9]{8}");
         registrarConsulta(nombreUsuario, esCurp ? "CURP" : "NOMBRE", texto);
-        List<PartidaEntrega> partidas = esCurp
-                ? partidaEntregaRepository.findTop200ByEntregaRecetaPacienteCurpIgnoreCaseOrderByEntregaFechaDesc(texto)
-                : partidaEntregaRepository.findTop200ByEntregaRecetaPacienteNombreContainingIgnoreCaseOrderByEntregaFechaDesc(texto);
-        LocalDateTime corte = inicioDispensacionHaero();
+        // shortcut: se filtra el periodo sobre las 200 entregas más recientes; si un paciente llega a más, pasar el periodo a la consulta.
+        List<PartidaEntrega> partidas = periodo.filtrar(esCurp
+                ? partidaEntregaRepository.delPacientePorCurp(texto)
+                : porPalabras(texto));
+        LocalDateTime corte = periodo.antesDe(inicioDispensacionHaero());
         ServicioBajasPacienteIntelisis.Resultado anteriores = esCurp
-                ? bajasIntelisis.delCurp(texto, corte) : bajasIntelisis.delPacientePorPalabras(texto, corte);
+                ? bajasIntelisis.delCurp(texto, periodo.desde(), corte) : bajasIntelisis.delPacientePorPalabras(texto, periodo.desde(), corte);
         return new TrazabilidadResponse(esCurp ? "CURP" : "NOMBRE", texto, List.of(), juntar(partidas, anteriores), anteriores.aviso());
     }
 
@@ -213,7 +264,7 @@ public class ServicioTrazabilidad {
         if (nombrePaciente != null && receta.getFecha() != null) {
             LocalDateTime desde = receta.getFecha().toLocalDate().atStartOfDay();
             LocalDateTime hasta = desde.plusDays(DIAS_SURTIDO + 1);
-            ServicioBajasPacienteIntelisis.Resultado delPaciente = bajasIntelisis.delPacientePorNombreExacto(nombrePaciente, inicioDispensacionHaero());
+            ServicioBajasPacienteIntelisis.Resultado delPaciente = bajasIntelisis.delPacientePorNombreExacto(nombrePaciente, desde, new Periodo(desde, hasta).antesDe(inicioDispensacionHaero()));
             List<EntregaPacienteResponse> enVentana = delPaciente.entregas().stream()
                     .filter(e -> e.getFecha() != null && !e.getFecha().isBefore(desde) && e.getFecha().isBefore(hasta)).toList();
             Set<String> claves = receta.getPartidas().stream().map(p -> p.getClave()).filter(Objects::nonNull).collect(Collectors.toSet());
@@ -438,7 +489,7 @@ public class ServicioTrazabilidad {
      * sin ese sufijo.
      */
     // shortcut: corta en la primera "/" o el primer espacio aunque no sea un sufijo; si aparecen lotes con espacios propios, limitar a la lista de sufijos.
-    static String loteBase(String lote) {
+    public static String loteBase(String lote) {
         String l = lote == null ? "" : lote.trim();
         int corte = corteSufijo(l);
         return corte > 0 ? l.substring(0, corte).trim() : l;

@@ -1,4 +1,4 @@
-package com.example.backend.intelisis;
+package com.example.backend.intelisis.service;
 
 import org.junit.jupiter.api.Test;
 

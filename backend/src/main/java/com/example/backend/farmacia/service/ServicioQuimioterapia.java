@@ -1,5 +1,7 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.intelisis.service.NombrePaciente;
+
 import com.example.backend.almacen.entity.Medicamento;
 import com.example.backend.farmacia.entity.Entrega;
 import com.example.backend.farmacia.entity.QuimioConsulta;
@@ -10,7 +12,7 @@ import com.example.backend.farmacia.repository.QuimioPreparacionRepository;
 import com.example.backend.farmacia.repository.QuimioRenglonRepository;
 import jakarta.persistence.EntityManager;
 import com.example.backend.usuarios.entity.Usuario;
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
 import com.example.backend.farmacia.dto.CajaEntregaRequest;
 import com.example.backend.farmacia.dto.ClaveRecetaRequest;
 import com.example.backend.farmacia.dto.EntregaResponse;
@@ -20,6 +22,7 @@ import com.example.backend.farmacia.dto.PartidaEntregadaResponse;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.ClaveSugerida;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.EstadoQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.LoteEscaneado;
+import com.example.backend.farmacia.dto.QuimioterapiaDtos.ReprogramarQuimioRequest;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.MedicamentoEnNota;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.MedicamentoLista;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.QuimioResponse;
@@ -32,6 +35,8 @@ import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimio;
 import com.example.backend.farmacia.dto.QuimioterapiaDtos.SolicitudQuimioDetalle;
 import com.example.backend.farmacia.dto.RegistrarEntregaRequest;
 import com.example.backend.farmacia.entity.Entrega;
+import com.example.backend.farmacia.entity.QuimioReprogramacion;
+import com.example.backend.farmacia.repository.QuimioReprogramacionRepository;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -99,6 +104,7 @@ public class ServicioQuimioterapia {
     private final ServicioInventarioFarmacia inventario;
     private final ConexionIntelisis conexion;
     private final ServicioSincronizacionQuimio sincronizacion;
+    private final QuimioReprogramacionRepository reprogramaciones;
 
     public ServicioQuimioterapia(JdbcTemplate haero, QuimioConsultaRepository consultas, QuimioPreparacionRepository preparaciones,
                                  QuimioRenglonRepository renglonesQuimio, EntityManager em,
@@ -106,7 +112,8 @@ public class ServicioQuimioterapia {
                                  ServicioPacientesIntelisis pacientesIntelisis,
                                  ServicioInventarioFarmacia inventario,
                                  ConexionIntelisis conexion,
-                                 ServicioSincronizacionQuimio sincronizacion) {
+                                 ServicioSincronizacionQuimio sincronizacion,
+                                 QuimioReprogramacionRepository reprogramaciones) {
         this.haero = haero;
         this.consultas = consultas;
         this.preparaciones = preparaciones;
@@ -117,6 +124,7 @@ public class ServicioQuimioterapia {
         this.inventario = inventario;
         this.conexion = conexion;
         this.sincronizacion = sincronizacion;
+        this.reprogramaciones = reprogramaciones;
     }
 
     // ---------- Solicitudes de Oncología (leídas de Intelisis) ----------
@@ -141,10 +149,11 @@ public class ServicioQuimioterapia {
         LocalDate hoy = LocalDate.now();
         String texto = ServicioInventarioFarmacia.texto(buscar);
         if (texto != null) {
-            where.append(" AND (CAST(x.folio AS VARCHAR(12)) = ? OR x.expediente = ? OR x.paciente LIKE ?)");
+            // El nombre en cualquier orden ("jimenez fabian" encuentra "FABIAN JIMENEZ CASTILLEJOS"); se revisa abajo con contiene().
+            where.append(" AND (CAST(x.folio AS VARCHAR(12)) = ? OR x.expediente = ? OR ");
             parametros.add(texto);
             parametros.add(texto);
-            parametros.add("%" + texto.replace("%", "").replace("_", "") + "%");
+            where.append(NombrePaciente.algunPar("x.paciente", texto, parametros)).append(")");
         }
         if (desde != null) {
             where.append(" AND COALESCE(x.fecha_requerida, x.fecha) >= ?");
@@ -161,7 +170,8 @@ public class ServicioQuimioterapia {
         }
         // Las de hoy y las próximas primero; luego las que ya pasaron, de la más reciente a la más vieja.
         String sql = "SELECT TOP (" + MAXIMO_LISTA + ") x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
-                + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.notas FROM (" + SOLICITUDES_CON_SESIONES + ") x " + where
+                + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.notas, x.fecha_original, x.motivo_reprogramacion FROM ("
+                + SOLICITUDES_CON_SESIONES + ") x " + where
                 + " ORDER BY CASE WHEN x.fecha_requerida >= ? THEN 0 ELSE 1 END, "
                 + "CASE WHEN x.fecha_requerida >= ? THEN x.fecha_requerida END ASC, x.fecha_requerida DESC, x.folio DESC";
         parametros.add(Timestamp.valueOf(hoy.atStartOfDay()));
@@ -171,6 +181,10 @@ public class ServicioQuimioterapia {
             notas.put(rs.getInt(1), rs.getString(11));
             return solicitud(rs);
         }, parametros.toArray());
+        if (texto != null) {
+            lista = lista.stream().filter(s -> texto.equals(String.valueOf(s.folio())) || texto.equals(s.expediente())
+                    || NombrePaciente.contiene(s.paciente(), texto)).toList();
+        }
         return conMedicamentos(lista, notas);
     }
 
@@ -300,7 +314,8 @@ public class ServicioQuimioterapia {
                 medicamentos.add(new MedicamentoLista(h.farmaco(), estado));
             }
             resultado.add(new SolicitudQuimio(s.folio(), s.fecha(), s.fechaRequerida(), s.estatus(), s.expediente(), s.paciente(),
-                    s.servicioSolicita(), s.medico(), s.sesionesSurtidas(), s.ultimaSesion(), medicamentos, pendientes));
+                    s.servicioSolicita(), s.medico(), s.sesionesSurtidas(), s.ultimaSesion(), medicamentos, pendientes,
+                    s.fechaOriginal(), s.motivoReprogramacion()));
         }
         return resultado;
     }
@@ -313,7 +328,8 @@ public class ServicioQuimioterapia {
         int numero = numeroDeFolio(folio);
         Usuario usuario = inventario.usuario(nombreUsuario);
         List<SolicitudQuimioDetalle> copia = haero.query("SELECT x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
-                        + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.diagnostico, x.notas FROM (" + SOLICITUDES_CON_SESIONES
+                        + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.diagnostico, x.notas, x.fecha_original, x.motivo_reprogramacion FROM ("
+                        + SOLICITUDES_CON_SESIONES
                         + ") x WHERE x.folio = ?",
                 (rs, n) -> new SolicitudQuimioDetalle(solicitud(rs), rs.getString(11), rs.getString(12), null, null), numero);
         SolicitudQuimioDetalle encontrada = copia.isEmpty() ? deIntelisis(numero) : copia.get(0);
@@ -348,16 +364,61 @@ public class ServicioQuimioterapia {
     }
 
     /** La solicitud con cuántas sesiones se han surtido de ella en HAERO. */
+    // fecha_requerida = la que manda: la última reprogramación (Oncología dio otra fecha) o la de Intelisis.
     private static final String SOLICITUDES_CON_SESIONES = """
-            SELECT s.*, COALESCE(p.sesiones, 0) AS sesiones, p.ultima
+            SELECT s.folio, s.fecha, COALESCE(CAST(rp.fecha_nueva AS DATETIME2), s.fecha_requerida) AS fecha_requerida, s.estatus,
+                   s.expediente, s.paciente, s.servicio_solicita, s.diagnostico, s.notas, s.medico_usuario, s.medico, s.actualizado_en,
+                   CASE WHEN rp.fecha_nueva IS NOT NULL THEN s.fecha_requerida END AS fecha_original, rp.motivo AS motivo_reprogramacion,
+                   COALESCE(p.sesiones, 0) AS sesiones, p.ultima
             FROM quimio_solicitud s
+            OUTER APPLY (SELECT TOP 1 r.fecha_nueva, r.motivo FROM quimio_reprogramacion r WHERE r.folio = s.folio ORDER BY r.id DESC) rp
             LEFT JOIN (SELECT folio_solicitud, COUNT(*) AS sesiones, MAX(fecha) AS ultima FROM quimio_preparacion GROUP BY folio_solicitud) p
                    ON p.folio_solicitud = CAST(s.folio AS VARCHAR(30))
             """;
 
     private static SolicitudQuimio solicitud(ResultSet rs) throws SQLException {
         return new SolicitudQuimio(rs.getInt(1), fecha(rs.getTimestamp(2)), fecha(rs.getTimestamp(3)), rs.getString(4), rs.getString(5),
-                rs.getString(6), rs.getString(7), rs.getString(8), rs.getInt(9), fecha(rs.getTimestamp(10)));
+                rs.getString(6), rs.getString(7), rs.getString(8), rs.getInt(9), fecha(rs.getTimestamp(10)), List.of(), 0,
+                fecha(rs.getTimestamp("fecha_original")), rs.getString("motivo_reprogramacion"));
+    }
+
+    /**
+     * El paciente no puede pasar el día programado: Farmacia llama a Oncología Médica y anota la nueva
+     * fecha y el motivo. La solicitud sale de "Hoy" y aparece en la nueva fecha; Intelisis no se toca.
+     */
+    @Transactional
+    public SolicitudQuimio reprogramar(String folio, ReprogramarQuimioRequest request, String nombreUsuario) {
+        int numero = numeroDeFolio(folio);
+        if (request == null || request.fechaNueva() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Elige la nueva fecha que dio Oncología Médica");
+        }
+        if (request.fechaNueva().isBefore(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nueva fecha no puede ser antes de hoy");
+        }
+        String motivo = ServicioInventarioFarmacia.texto(request.motivo());
+        if (motivo == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el motivo de la reprogramación");
+        }
+        if (motivo.length() > 300) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El motivo no puede pasar de 300 caracteres");
+        }
+        List<SolicitudQuimio> actual = haero.query("SELECT x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
+                + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.fecha_original, x.motivo_reprogramacion FROM ("
+                + SOLICITUDES_CON_SESIONES + ") x WHERE x.folio = ?", (rs, n) -> solicitud(rs), numero);
+        if (actual.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No está la solicitud " + numero + " en la copia de Intelisis");
+        }
+        QuimioReprogramacion r = new QuimioReprogramacion();
+        r.setFolio(numero);
+        r.setFechaAnterior(actual.get(0).fechaRequerida());
+        r.setFechaNueva(request.fechaNueva());
+        r.setMotivo(motivo);
+        r.setUsuario(inventario.usuario(nombreUsuario));
+        r.setFecha(LocalDateTime.now());
+        reprogramaciones.saveAndFlush(r);
+        return haero.query("SELECT x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
+                + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.fecha_original, x.motivo_reprogramacion FROM ("
+                + SOLICITUDES_CON_SESIONES + ") x WHERE x.folio = ?", (rs, n) -> solicitud(rs), numero).get(0);
     }
 
     /** Hoja con un folio que ya no está en la copia: se lee solo esa solicitud de Intelisis. */
@@ -728,7 +789,7 @@ public class ServicioQuimioterapia {
      * de la solicitud, expediente o nombre del paciente. Sin filtros, las últimas 30.
      */
     public List<QuimioResponse> recientes(LocalDate dia, String buscar) {
-        StringBuilder sql = new StringBuilder("SELECT TOP 200 id FROM quimio_preparacion WHERE 1 = 1");
+        StringBuilder sql = new StringBuilder("SELECT TOP 200 id, folio_solicitud, paciente_expediente, paciente_nombre FROM quimio_preparacion WHERE 1 = 1");
         List<Object> parametros = new ArrayList<>();
         if (dia != null) {
             sql.append(" AND fecha >= ? AND fecha < ?");
@@ -737,13 +798,15 @@ public class ServicioQuimioterapia {
         }
         String texto = ServicioInventarioFarmacia.texto(buscar);
         if (texto != null) {
-            sql.append(" AND (folio_solicitud = ? OR paciente_expediente = ? OR paciente_nombre LIKE ?)");
+            sql.append(" AND (folio_solicitud = ? OR paciente_expediente = ? OR ");
             parametros.add(texto);
             parametros.add(texto);
-            parametros.add("%" + texto.replace("[", "[[]").replace("%", "[%]").replace("_", "[_]") + "%");
+            sql.append(NombrePaciente.algunPar("paciente_nombre", texto, parametros)).append(")");
         }
         sql.append(" ORDER BY fecha DESC");
-        List<Long> ids = haero.queryForList(sql.toString(), Long.class, parametros.toArray());
+        List<Long> ids = haero.query(sql.toString(), (rs, n) -> texto == null || texto.equals(rs.getString(2)) || texto.equals(rs.getString(3))
+                        || NombrePaciente.contiene(rs.getString(4), texto) ? rs.getLong(1) : null, parametros.toArray())
+                .stream().filter(java.util.Objects::nonNull).toList();
         if (dia == null && texto == null && ids.size() > 30) {
             ids = ids.subList(0, 30);
         }

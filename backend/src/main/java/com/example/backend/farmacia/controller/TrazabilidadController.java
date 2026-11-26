@@ -3,10 +3,12 @@ package com.example.backend.farmacia.controller;
 import com.example.backend.farmacia.dto.LoteTrazableResponse;
 import com.example.backend.farmacia.dto.TrazabilidadResponse;
 import com.example.backend.farmacia.service.ServicioTrazabilidad;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /** HU33: trazabilidad de lote a paciente (y de paciente a lotes). */
@@ -26,17 +28,19 @@ public class TrazabilidadController {
                                                           @RequestParam(required = false) String expediente,
                                                           @RequestParam(required = false) String paciente,
                                                           @RequestParam(required = false) String receta,
+                                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+                                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
                                                           Authentication authentication) {
         if (receta != null && !receta.isBlank()) {
             return ResponseEntity.ok(servicio.porReceta(receta, authentication.getName()));
         }
         if (paciente != null && !paciente.isBlank()) {
-            return ResponseEntity.ok(servicio.porPaciente(paciente, authentication.getName()));
+            return ResponseEntity.ok(servicio.porPaciente(paciente, desde, hasta, authentication.getName()));
         }
         if (expediente != null && !expediente.isBlank()) {
-            return ResponseEntity.ok(servicio.porExpediente(expediente, authentication.getName()));
+            return ResponseEntity.ok(servicio.porExpediente(expediente, desde, hasta, authentication.getName()));
         }
-        return ResponseEntity.ok(servicio.porLote(lote, clave, authentication.getName()));
+        return ResponseEntity.ok(servicio.porLote(lote, clave, desde, hasta, authentication.getName()));
     }
 
     // Lotes de un medicamento (clave o nombre) o de un número de lote, en HAERO y en Intelisis.

@@ -59,6 +59,9 @@ class ServicioDespachoTest {
     @Mock
     private CodigoBarrasRepository codigoBarrasRepository;
 
+    @Mock
+    private com.example.backend.almacen.repository.SolicitudFaltanteRepository faltanteRepository;
+
     private ServicioDespacho servicioDespacho;
 
     private Medicamento medicamento;
@@ -67,7 +70,8 @@ class ServicioDespachoTest {
     @BeforeEach
     void configurar() {
         servicioDespacho = new ServicioDespacho(medicamentoRepository, loteRepository, existenciaRepository,
-                movimientoRepository, solicitudRepository, usuarioRepository, codigoBarrasRepository, solicitudPedidoRepository);
+                movimientoRepository, solicitudRepository, usuarioRepository, codigoBarrasRepository, solicitudPedidoRepository,
+                faltanteRepository);
 
         medicamento = new Medicamento();
         medicamento.setClave("0134");
@@ -301,6 +305,52 @@ class ServicioDespachoTest {
         assertThat(respuesta.getEstatus()).isEqualTo("PARCIAL");
         assertThat(respuesta.getCantidadAtendida()).isEqualTo(60);
         assertThat(respuesta.getCantidadSolicitada()).isEqualTo(100);
+    }
+
+    @Test
+    void despachar_parcialSinExistenciaQueQuede_guardaElFaltanteConMotivoAutomatico() {
+        Solicitud solicitud = solicitudPendiente(100);
+        Lote lote = lote(1L, "L-8821", LocalDate.of(2028, 7, 1));
+        Existencia existencia = existencia(10L, lote, "Sector 5", 60);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(existencia));
+        when(loteRepository.findByMedicamentoClaveAndEstatus("0134", "DISPONIBLE")).thenReturn(List.of(lote));
+        when(existenciaRepository.save(any(Existencia.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        servicioDespacho.despachar(1L, parcial(60, null), "despachador1");
+
+        org.mockito.ArgumentCaptor<com.example.backend.almacen.entity.SolicitudFaltante> faltante =
+                org.mockito.ArgumentCaptor.forClass(com.example.backend.almacen.entity.SolicitudFaltante.class);
+        verify(faltanteRepository).save(faltante.capture());
+        assertThat(faltante.getValue().getCajas()).isEqualTo(40);
+        assertThat(faltante.getValue().getMotivo()).isEqualTo("Sin existencia en Almacén");
+    }
+
+    @Test
+    void despachar_parcialConExistenciaQueQuedaYSinMotivo_lanza400() {
+        Solicitud solicitud = solicitudPendiente(100);
+        Lote lote = lote(1L, "L-8821", LocalDate.of(2028, 7, 1));
+        Existencia existencia = existencia(10L, lote, "Sector 5", 80);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(existenciaRepository.findById(10L)).thenReturn(Optional.of(existencia));
+        when(loteRepository.findByMedicamentoClaveAndEstatus("0134", "DISPONIBLE")).thenReturn(List.of(lote));
+
+        assertThatThrownBy(() -> servicioDespacho.despachar(1L, parcial(60, null), "despachador1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("escribe por qué no se surten las 40 cajas");
+        verify(existenciaRepository, never()).save(any());
+    }
+
+    private static DespacharSolicitudRequest parcial(int cajas, String motivo) {
+        DespacharSolicitudRequest request = new DespacharSolicitudRequest();
+        PartidaDespacho partida = new PartidaDespacho();
+        partida.setExistenciaId(10L);
+        partida.setCajas(cajas);
+        request.setPartidas(List.of(partida));
+        request.setParcial(true);
+        request.setMotivoFaltante(motivo);
+        return request;
     }
 
     @Test

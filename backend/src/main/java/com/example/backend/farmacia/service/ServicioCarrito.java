@@ -10,6 +10,7 @@ import com.example.backend.farmacia.dto.CarritoResponse;
 import com.example.backend.farmacia.dto.EntregaResponse;
 import com.example.backend.farmacia.dto.EscanearCarritoRequest;
 import com.example.backend.farmacia.dto.EscaneoCarritoResponse;
+import com.example.backend.farmacia.dto.HistorialCamaResponse;
 import com.example.backend.farmacia.dto.LineaCarrito;
 import com.example.backend.farmacia.dto.PartidaDevueltaRequest;
 import com.example.backend.farmacia.dto.QuitarCarritoRequest;
@@ -23,8 +24,8 @@ import com.example.backend.farmacia.entity.PartidaEntrega;
 import com.example.backend.farmacia.entity.Receta;
 import com.example.backend.farmacia.repository.EntregaRepository;
 import com.example.backend.farmacia.repository.RecetaRepository;
-import com.example.backend.hospitalizacion.ServicioHospitalizacion;
-import com.example.backend.hospitalizacion.ServicioSincronizacionHospitalizacion;
+import com.example.backend.hospitalizacion.service.ServicioHospitalizacion;
+import com.example.backend.hospitalizacion.service.ServicioSincronizacionHospitalizacion;
 import com.example.backend.farmacia.entity.FarmaciaCarritoCierre;
 import com.example.backend.farmacia.repository.FarmaciaCarritoCierreRepository;
 import com.example.backend.usuarios.entity.Usuario;
@@ -118,13 +119,84 @@ public class ServicioCarrito {
             camas.add(new CamaCarrito((String) egresado.get("espacio"), idIngreso, (String) egresado.get("paciente"),
                     (String) egresado.get("expediente"), lineas(idIngreso, hoy), true, (String) egresado.get("motivo")));
         }
-        int lineas = camas.stream().mapToInt(c -> (int) c.getLineas().stream().filter(l -> !"SUSPENDIDO".equals(l.getEstado())).count()).sum();
+        // Lo que no está en el catálogo (sin clave) no lo surte Farmacia: no cuenta para el avance.
+        int lineas = camas.stream().mapToInt(c -> (int) c.getLineas().stream()
+                .filter(l -> !"SUSPENDIDO".equals(l.getEstado()) && l.isEnCatalogo()).count()).sum();
         int surtidas = camas.stream().mapToInt(c -> (int) c.getLineas().stream().filter(l -> "SURTIDO".equals(l.getEstado())).count()).sum();
         return new CarritoResponse(central, hoy, horaCorte.toString(), lineas, surtidas, cierreHoy == null ? null : cierreHoy.en,
                 cierreHoy == null ? null : cierreHoy.por, camas);
     }
 
-    private record Indicado(String clave, String nombre, String posologia, Integer dosis24h, LocalDateTime indicado) {
+    private static final Set<String> UNIDADES_PIEZA = Set.of("TABLETA", "TABLETAS", "CAPSULA", "CAPSULAS", "COMPRIMIDO", "COMPRIMIDOS",
+            "AMPOLLETA", "AMPOLLETAS", "AMPULA", "AMPULAS", "PARCHE", "PARCHES", "GRAGEA", "GRAGEAS", "SOBRE", "SOBRES", "SUPOSITORIO", "OVULO");
+    private static final Map<String, Double> EN_MG = Map.of("mcg", 0.001, "mg", 1.0, "g", 1000.0);
+
+    /**
+     * Piezas que se surten en el día: "2 g cada 12 h" con frascos de 1 g = 2 por dosis × 2 dosis = 4.
+     * Si la indicación ya viene en piezas ("2 tabletas cada 8 h") = 2 × 3 = 6. Null si no se puede saber
+     * (falta la dosis, el contenido de la pieza o las unidades no se pueden comparar): se usa dosis24h.
+     */
+    static Integer piezasDelDia(Float dosis, String unidad, Integer dosis24h, Medicamento medicamento) {
+        if (dosis == null || dosis <= 0 || dosis24h == null || dosis24h <= 0 || unidad == null) {
+            return null;
+        }
+        String u = LectorNotaQuimio.normalizar(unidad.trim());
+        if (u.equals("CAJA") || u.equals("CAJAS")) {
+            // Indicación en cajas: se dan cajas completas (dosis × veces al día × piezas de la caja).
+            Integer porCaja = medicamento == null ? null : medicamento.getPiezasPorCaja();
+            return porCaja == null || porCaja <= 0 ? null : (int) Math.ceil(dosis) * dosis24h * porCaja;
+        }
+        if (UNIDADES_PIEZA.contains(u)) {
+            if (dosis <= 10) {
+                return (int) Math.ceil(dosis) * dosis24h;
+            }
+            // "75 TABLETA" de pregabalina de 75 mg: el médico eligió la pieza como unidad pero escribió los mg.
+            u = "MILIGRAMO";
+        }
+        if (medicamento == null || esLiquidoOral(medicamento)) {
+            return null;
+        }
+        java.math.BigDecimal[] contenido = new java.math.BigDecimal[1];
+        String unidadPieza = LectorNotaQuimio.contenido(medicamento.getConcentracion(), contenido);
+        if (unidadPieza == null) {
+            unidadPieza = LectorNotaQuimio.contenidoDeDescripcion(medicamento.getNombreGenerico(), contenido);
+        }
+        String unidadDosis = switch (u) {
+            case "MILIGRAMO", "MILIGRAMOS", "MG" -> "mg";
+            case "GRAMO", "GRAMOS", "G" -> "g";
+            case "MICROGRAMO", "MICROGRAMOS", "MCG" -> "mcg";
+            // ml y UI no se calculan: la concentración (0.9 g/100 ml, 1000 UI/ml) no dice lo que trae la bolsa o el frasco.
+            default -> null;
+        };
+        if (unidadPieza == null || unidadDosis == null || contenido[0] == null || contenido[0].signum() <= 0) {
+            return null;
+        }
+        double porPieza = contenido[0].doubleValue();
+        if (!unidadPieza.equals(unidadDosis)) {
+            if (!EN_MG.containsKey(unidadPieza) || !EN_MG.containsKey(unidadDosis)) {
+                return null;
+            }
+            porPieza = porPieza * EN_MG.get(unidadPieza) / EN_MG.get(unidadDosis);
+        }
+        // Redondeo para que 1000 / 1000.0000001 no dé 2.
+        int porDosis = (int) Math.ceil(Math.round(dosis / porPieza * 1e6) / 1e6);
+        return porDosis * dosis24h;
+    }
+
+    /** Jarabe, suspensión, solución oral, gotas: "250 mg/5 ml" es una medida para tomar, no lo que trae el frasco. */
+    private static boolean esLiquidoOral(Medicamento m) {
+        String texto = LectorNotaQuimio.normalizar((m.getFormaFarmaceutica() == null ? "" : m.getFormaFarmaceutica()) + " "
+                + (m.getNombreGenerico() == null ? "" : m.getNombreGenerico()));
+        return texto.contains("JARABE") || texto.contains("SUSPENSION") || texto.contains("ELIXIR") || texto.contains("GOTAS")
+                || texto.contains("SOLUCION ORAL") || texto.contains("EMULSION");
+    }
+
+    /** Lo mismo para una clave por su nombre (lo usan las hojas de baja para el aviso de "Revisar"). */
+    Integer piezasDelDiaDeClave(Float dosis, String unidad, Integer dosis24h, String clave) {
+        return piezasDelDia(dosis, unidad, dosis24h, clave == null ? null : medicamentoRepository.findById(clave).orElse(null));
+    }
+
+    private record Indicado(String clave, String nombre, String posologia, Integer dosis24h, LocalDateTime indicado, Float dosis, String unidad) {
     }
 
     /** Lo que se surte hoy al paciente, agrupado por clave (ver reglas arriba). */
@@ -150,7 +222,7 @@ public class ServicioCarrito {
             Timestamp indicado = rs.getTimestamp(9);
             activos.put(llave, new Indicado(clave, rs.getString(2),
                     ServicioSincronizacionHospitalizacion.posologia(d, rs.getString(4), rs.getString(5), c, rs.getString(7)),
-                    d24, indicado == null ? null : indicado.toLocalDateTime()));
+                    d24, indicado == null ? null : indicado.toLocalDateTime(), d, rs.getString(4)));
         }, idIngreso);
 
         Map<String, Integer> entregadas = entregadas(folio(dia, idIngreso));
@@ -159,8 +231,9 @@ public class ServicioCarrito {
         Set<String> modificados = new java.util.HashSet<>(haero.queryForList(
                 "SELECT DISTINCT clave FROM hosp_evento WHERE id_ingreso = ? AND tipo = 'MEDICAMENTO_MODIFICADO' AND fecha >= ? AND clave IS NOT NULL",
                 String.class, idIngreso, Timestamp.valueOf(inicioDia)));
-        Set<String> enCatalogo = medicamentoRepository.findAllById(activos.keySet()).stream()
-                .map(Medicamento::getClave).collect(Collectors.toSet());
+        Map<String, Medicamento> catalogo = medicamentoRepository.findAllById(activos.keySet()).stream()
+                .collect(Collectors.toMap(Medicamento::getClave, x -> x));
+        Set<String> enCatalogo = catalogo.keySet();
 
         List<LineaCarrito> lineas = new ArrayList<>();
         activos.forEach((llave, m) -> {
@@ -177,7 +250,8 @@ public class ServicioCarrito {
             boolean conClave = m.clave() != null;
             lineas.add(new LineaCarrito(m.clave(), m.nombre(), conClave && enCatalogo.contains(m.clave()), m.posologia(), m.dosis24h(),
                     entregado, entregado > 0 ? "SURTIDO" : "PENDIENTE", indicado, lotes.get(llave), despues && entregado == 0,
-                    deAyer, conClave && modificados.contains(m.clave()), null, null));
+                    deAyer, conClave && modificados.contains(m.clave()), null, null,
+                    piezasDelDia(m.dosis(), m.unidad(), m.dosis24h(), conClave ? catalogo.get(m.clave()) : null)));
         });
 
         // Lo que se metió hoy al carrito y después se canceló: avisar para sacarlo.
@@ -186,7 +260,7 @@ public class ServicioCarrito {
                 Map<String, Object> cancelacion = cancelacion(idIngreso, clave);
                 String nombre = medicamentoRepository.findById(clave).map(Medicamento::getNombreGenerico).orElse(clave);
                 lineas.add(new LineaCarrito(clave, nombre, true, null, null, piezas, "SUSPENDIDO", null, lotes.get(clave), false, false, false,
-                        cancelacion.get("en") instanceof Timestamp t ? t.toLocalDateTime() : null, (String) cancelacion.get("por")));
+                        cancelacion.get("en") instanceof Timestamp t ? t.toLocalDateTime() : null, (String) cancelacion.get("por"), null));
             }
         });
         // Primero lo pendiente de ayer, luego lo de hoy y al final lo de después de la 1:00 p.m.
@@ -287,7 +361,7 @@ public class ServicioCarrito {
                     .filter(l -> elegido.getClave().equals(l.getClave()) && "PENDIENTE".equals(l.getEstado()))
                     .findFirst()
                     .ifPresent(l -> candidatos.add(new CandidatoCarrito(internado.idIngreso, internado.espacio, internado.paciente,
-                            l.getDosis24h() == null ? 0 : l.getDosis24h(), l.getEntregadas())));
+                            l.getPiezasDia() != null ? l.getPiezasDia() : l.getDosis24h() == null ? 0 : l.getDosis24h(), l.getEntregadas())));
             if (candidatos.stream().noneMatch(c -> c.getIdIngreso() == internado.idIngreso)) {
                 Map<String, Object> cancelacion = cancelacion(internado.idIngreso, elegido.getClave());
                 if (cancelacion.get("en") instanceof Timestamp t && !t.toLocalDateTime().isBefore(hoy.atStartOfDay())) {
@@ -325,6 +399,7 @@ public class ServicioCarrito {
         LocalDate hoy = LocalDate.now();
         LineaCarrito linea = lineas(internado.idIngreso, hoy).stream()
                 .filter(l -> clave.equals(l.getClave()) && !"SUSPENDIDO".equals(l.getEstado())).findFirst()
+                .or(() -> request.isDesdeHistorial() ? noSurtidoEnHistorial(internado.idIngreso, clave, hoy) : java.util.Optional.empty())
                 .orElseThrow(() -> {
                     Map<String, Object> cancelacion = cancelacion(internado.idIngreso, clave);
                     if (cancelacion.get("en") != null) {
@@ -370,6 +445,49 @@ public class ServicioCarrito {
         LineaCarrito actualizada = lineas(internado.idIngreso, hoy).stream()
                 .filter(l -> clave.equals(l.getClave())).findFirst().orElse(linea);
         return new SurtidoCarritoResponse(registrada.getFolio(), registrada.getPartidas(), actualizada);
+    }
+
+    // ---------- Historial de la cama ----------
+
+    static final int DIAS_HISTORIAL = 7;
+
+    /**
+     * Últimos 7 días de la cama: lo que tocaba surtir cada día (mismas reglas del carrito) y cómo
+     * quedó. Lo no surtido se puede surtir desde aquí y entra al carrito (y a la hoja de baja) de hoy.
+     */
+    public HistorialCamaResponse historial(int idIngreso) {
+        Internado internado = internado(idIngreso);
+        return new HistorialCamaResponse(internado.idIngreso, internado.espacio, internado.paciente, internado.expediente,
+                diasHistorial(idIngreso, LocalDate.now()));
+    }
+
+    private List<HistorialCamaResponse.Dia> diasHistorial(int idIngreso, LocalDate hoy) {
+        // Claves surtidas cada día (folio del día), para saber qué se surtió después.
+        List<Set<String>> surtidasPorDia = new ArrayList<>();
+        for (int d = 0; d < DIAS_HISTORIAL; d++) {
+            surtidasPorDia.add(entregadas(folio(hoy.minusDays(d), idIngreso)).entrySet().stream()
+                    .filter(e -> e.getValue() > 0).map(Map.Entry::getKey).collect(Collectors.toSet()));
+        }
+        List<HistorialCamaResponse.Dia> dias = new ArrayList<>();
+        for (int d = 0; d < DIAS_HISTORIAL; d++) {
+            List<LineaCarrito> lineas = lineas(idIngreso, hoy.minusDays(d));
+            if (lineas.isEmpty()) {
+                continue;
+            }
+            Set<String> despues = new java.util.HashSet<>();
+            surtidasPorDia.subList(0, d).forEach(despues::addAll);
+            dias.add(new HistorialCamaResponse.Dia(hoy.minusDays(d), lineas, despues));
+        }
+        return dias;
+    }
+
+    /** Lo que quedó pendiente en un día anterior (de los últimos 7) y no se surtió después. */
+    private java.util.Optional<LineaCarrito> noSurtidoEnHistorial(int idIngreso, String clave, LocalDate hoy) {
+        return diasHistorial(idIngreso, hoy).stream()
+                .filter(dia -> dia.dia().isBefore(hoy) && !dia.surtidasDespues().contains(clave))
+                .flatMap(dia -> dia.lineas().stream())
+                .filter(l -> clave.equals(l.getClave()) && l.isEnCatalogo() && "PENDIENTE".equals(l.getEstado()))
+                .findFirst();
     }
 
     /**

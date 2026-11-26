@@ -55,13 +55,11 @@ public class ServicioConteoInicial {
     private final ServicioRecepcion recepcion;
     private final ServicioRegistrosIntelisis registrosIntelisis;
     private final ServicioInventarioFarmacia farmacia;
-    private final String almacenPrincipal;
 
     public ServicioConteoInicial(JdbcTemplate haero, ConteoInicialRepository cierres, ConteoInicialRenglonRepository renglones,
                                  LoteFarmaciaRepository lotesFarmacia, LoteRepository lotesAlmacen, EntityManager em,
                                  ServicioRecepcion recepcion, ServicioRegistrosIntelisis registrosIntelisis,
-                                 ServicioInventarioFarmacia farmacia,
-                                 @org.springframework.beans.factory.annotation.Value("${intelisis.almacenes:25301,25301-C}") String almacenes) {
+                                 ServicioInventarioFarmacia farmacia) {
         this.haero = haero;
         this.cierres = cierres;
         this.renglones = renglones;
@@ -71,7 +69,6 @@ public class ServicioConteoInicial {
         this.recepcion = recepcion;
         this.registrosIntelisis = registrosIntelisis;
         this.farmacia = farmacia;
-        this.almacenPrincipal = almacenes.split(",")[0].trim();
     }
 
     /** Cantidad: cajas en Almacén, piezas en Farmacia; null mientras no la capturan. */
@@ -95,7 +92,8 @@ public class ServicioConteoInicial {
     /**
      * Lotes con existencia y caducidad de una clave en el almacén de medicamentos de Intelisis (la copia
      * que llena la sincronización). Almacén y Farmacia son el mismo inventario en Intelisis, así que
-     * salen los de los dos. Piezas: la clave "-1" ya viene en piezas; la base, en cajas.
+     * salen los de los dos, de todos los almacenes que se sincronizan (25301 y 25301-C), sin restricción. Piezas: la clave "-1" ya viene en piezas; la base, en cajas.
+     * Los que no traen caducidad en Intelisis también salen (caducidad null): se escribe a mano al elegirlos.
      */
     public List<LoteIntelisis> lotesIntelisis(String clave) {
         String limpia = ServicioInventarioFarmacia.texto(clave);
@@ -107,11 +105,11 @@ public class ServicioConteoInicial {
                        SUM(CASE WHEN e.articulo LIKE '%-1' THEN e.existencia ELSE e.existencia * COALESCE(m.piezas_por_caja, 1) END) AS piezas
                 FROM intelisis_existencia_lote e
                 LEFT JOIN medicamento m ON m.clave = e.clave_base
-                WHERE e.clave_base = ? AND e.almacen = ? AND e.existencia > 0 AND e.fecha_caducidad IS NOT NULL
+                WHERE e.clave_base = ? AND e.existencia > 0
                 GROUP BY e.serie_lote
-                ORDER BY MIN(e.fecha_caducidad), e.serie_lote
-                """, (rs, n) -> new LoteIntelisis(rs.getString(1).trim(), rs.getDate(2).toLocalDate(), rs.getBigDecimal(3)),
-                limpia, almacenPrincipal);
+                ORDER BY CASE WHEN MIN(e.fecha_caducidad) IS NULL THEN 1 ELSE 0 END, MIN(e.fecha_caducidad), e.serie_lote
+                """, (rs, n) -> new LoteIntelisis(rs.getString(1).trim(), rs.getDate(2) == null ? null : rs.getDate(2).toLocalDate(), rs.getBigDecimal(3)),
+                limpia);
     }
 
     @Transactional(readOnly = true)
@@ -158,32 +156,18 @@ public class ServicioConteoInicial {
             throw malo("Falta el lote de la caja");
         }
         String ubicacion = ServicioInventarioFarmacia.texto(nuevo.ubicacion());
-        if (ubicacion != null && ubicacion.length() > 40) {
+        if (ubicacion == null) {
+            throw malo("Indica el anaquel o la ubicación de la caja");
+        }
+        if (ubicacion.length() > 40) {
             throw malo("La ubicación puede tener hasta 40 caracteres");
         }
-        LocalDate caducidad;
-        if (ALMACEN.equals(area)) {
-            if (ubicacion == null) {
-                throw malo("Indica el anaquel o la ubicación de la caja");
-            }
-            // Igual que el alta de siempre: el lote tiene que estar en la existencia de Intelisis.
-            String buscado = lote;
-            RegistroIntelisisResponse registro = registrosIntelisis.buscar("EXISTENCIA", null, clave, lote)
-                    .orElseThrow(() -> malo("Intelisis no tiene existencia del lote " + buscado + " de " + clave + " en el almacén de medicamentos"));
-            if (registro.bloqueo() != null) {
-                throw malo(registro.bloqueo());
-            }
-            lote = registro.lote();
-            caducidad = registro.caducidad();
-        } else {
-            if (nuevo.caducidad() == null) {
-                throw malo("Falta la caducidad de la caja");
-            }
-            caducidad = nuevo.caducidad();
-            List<LocalDate> otras = renglones.caducidadesDelLote(area, clave, lote);
-            if (otras.stream().anyMatch(d -> !d.equals(caducidad))) {
-                throw malo("El lote " + lote + " ya está en el conteo con caducidad " + otras.get(0) + "; revisa la caducidad de la caja");
-            }
+        LoteYCaducidad lc = loteYCaducidad(area, clave, lote, nuevo.caducidad());
+        lote = lc.lote();
+        LocalDate caducidad = lc.caducidad();
+        List<LocalDate> otras = renglones.caducidadesDelLote(area, clave, lote);
+        if (otras.stream().anyMatch(d -> !d.equals(caducidad))) {
+            throw malo("El lote " + lote + " ya está en el conteo con caducidad " + otras.get(0) + "; revisa la caducidad de la caja");
         }
         if (lote.length() > 50) {
             throw malo("El lote puede tener hasta 50 caracteres");
@@ -235,7 +219,7 @@ public class ServicioConteoInicial {
     public Renglon mover(String area, long id, String ubicacionNueva, String nombreUsuario) {
         exigirAbierto(area);
         String destino = ServicioInventarioFarmacia.texto(ubicacionNueva);
-        if (destino == null && ALMACEN.equals(area)) {
+        if (destino == null) {
             throw malo("Indica el anaquel o la ubicación");
         }
         if (destino != null && destino.length() > 40) {
@@ -281,6 +265,83 @@ public class ServicioConteoInicial {
         return estado(area);
     }
 
+    /** Corrección de un renglón antes de guardar el inventario: clave, lote o caducidad mal capturados. */
+    public record Correccion(String clave, String lote, LocalDate caducidad) {
+    }
+
+    /**
+     * Corrige clave, lote o caducidad de un renglón (verificación antes de guardar). Mismas reglas que al
+     * registrarlo: en Almacén el lote debe existir en Intelisis (de ahí sale la caducidad); en Farmacia la
+     * caducidad debe coincidir con la del mismo lote en otros estantes. No puede quedar repetido en su estante.
+     */
+    @Transactional
+    public Renglon corregir(String area, long id, Correccion correccion, String nombreUsuario) {
+        exigirAbierto(area);
+        ConteoInicialRenglon renglon = renglones.findByIdAndArea(id, area)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese renglón no está en el conteo"));
+        String claveNueva = ServicioInventarioFarmacia.texto(correccion.clave());
+        Medicamento medicamento = claveNueva == null ? renglon.getMedicamento() : farmacia.medicamento(claveNueva);
+        String clave = medicamento.getClave();
+        String lote = ServicioInventarioFarmacia.texto(correccion.lote());
+        if (lote == null) {
+            throw malo("Falta el lote de la caja");
+        }
+        if (lote.length() > 50) {
+            throw malo("El lote puede tener hasta 50 caracteres");
+        }
+        LoteYCaducidad lc = loteYCaducidad(area, clave, lote, correccion.caducidad());
+        lote = lc.lote();
+        LocalDate caducidad = lc.caducidad();
+        String elLote = lote;
+        boolean otraCaducidad = renglones.findByAreaOrderByUbicacionAscMedicamentoClaveAscLoteAsc(area).stream()
+                .anyMatch(r -> r.getId() != id && r.getMedicamento().getClave().equals(clave) && r.getLote().equalsIgnoreCase(elLote)
+                        && !r.getCaducidad().equals(caducidad));
+        if (otraCaducidad) {
+            throw malo("El lote " + lote + " ya está en el conteo con otra caducidad; corrige los dos renglones a la misma");
+        }
+        Long otro = idDe(area, clave, lote, renglon.getUbicacion());
+        if (otro != null && otro != id) {
+            throw malo("Ese lote ya está en el mismo estante en otro renglón; borra uno de los dos o cámbialo de estante");
+        }
+        renglon.setMedicamento(medicamento);
+        renglon.setLote(lote);
+        renglon.setCaducidad(caducidad);
+        renglones.flush();
+        return renglon(renglon);
+    }
+
+    record LoteYCaducidad(String lote, LocalDate caducidad) {
+    }
+
+    /**
+     * Igual en Almacén y Farmacia: si el lote está en Intelisis, su caducidad (y su nombre, con la terminación que
+     * tenga allá) salen de Intelisis. Si no está (pasa: lotes que están en el anaquel y no en el sistema), se
+     * acepta con la caducidad escrita de la caja; quién lo registró queda en el renglón.
+     */
+    LoteYCaducidad loteYCaducidad(String area, String clave, String lote, LocalDate caducidadEscrita) {
+        if (ALMACEN.equals(area)) {
+            RegistroIntelisisResponse registro = registrosIntelisis.buscar("EXISTENCIA", null, clave, lote).orElse(null);
+            if (registro != null && registro.bloqueo() != null) {
+                throw malo(registro.bloqueo());
+            }
+            if (registro != null && registro.caducidad() != null) {
+                return new LoteYCaducidad(registro.lote(), registro.caducidad());
+            }
+        } else {
+            String base = ServicioTrazabilidad.loteBase(lote);
+            LoteIntelisis enIntelisis = lotesIntelisis(clave).stream()
+                    .filter(l -> l.caducidad() != null && (l.lote().equalsIgnoreCase(lote) || ServicioTrazabilidad.loteBase(l.lote()).equalsIgnoreCase(base)))
+                    .findFirst().orElse(null);
+            if (enIntelisis != null) {
+                return new LoteYCaducidad(lote, enIntelisis.caducidad());
+            }
+        }
+        if (caducidadEscrita == null) {
+            throw malo("Intelisis no tiene el lote " + lote + " de " + clave + ": escribe la caducidad que trae la caja");
+        }
+        return new LoteYCaducidad(lote, caducidadEscrita);
+    }
+
     @Transactional
     public void quitar(String area, long id) {
         exigirAbierto(area);
@@ -324,7 +385,8 @@ public class ServicioConteoInicial {
                     return u;
                 }).toList());
                 try {
-                    long loteId = recepcion.registrarEntrada(alta, nombreUsuario).getLoteId();
+                    // Si Intelisis no tiene el lote, se da de alta con la caducidad que se escribió en el conteo.
+                    long loteId = recepcion.registrarEntrada(alta, nombreUsuario, primero.caducidad()).getLoteId();
                     // Farmacia hace su inventario inicial primero: sus lotes quedaron sin lote de Almacén;
                     // se ligan ahora para la trazabilidad (HU33).
                     lotesFarmacia.findByMedicamentoClaveAndNumeroLoteIgnoreCase(primero.clave(), primero.lote())
@@ -335,6 +397,10 @@ public class ServicioConteoInicial {
                 }
             }
         } else if (!contados.isEmpty()) {
+            // Farmacia tiene un estante por lote: si el mismo lote quedó en dos estantes, se guardan los dos ("A1 / B2").
+            Map<String, String> estantes = new LinkedHashMap<>();
+            contados.forEach(r -> estantes.merge(r.clave() + "|" + r.lote().toUpperCase(Locale.ROOT), r.ubicacion(),
+                    (a, b) -> a.contains(b) ? a : a + " / " + b));
             AltaInicialRequest alta = new AltaInicialRequest();
             alta.setPartidas(contados.stream().map(r -> {
                 PartidaAltaInicial p = new PartidaAltaInicial();
@@ -343,6 +409,8 @@ public class ServicioConteoInicial {
                 p.setCaducidad(r.caducidad());
                 p.setPiezas(r.cantidad());
                 p.setCodigo(r.codigo());
+                String estante = estantes.get(r.clave() + "|" + r.lote().toUpperCase(Locale.ROOT));
+                p.setUbicacion(estante == null || estante.length() <= 40 ? estante : estante.substring(0, 40));
                 return p;
             }).toList());
             farmacia.altaInicial(alta, nombreUsuario);
@@ -363,6 +431,15 @@ public class ServicioConteoInicial {
     }
 
     // El código ya aprendido (HU42) o, si es nuevo, el de otro renglón del conteo.
+    /** Clave de un código: del catálogo o del conteo de cualquiera de las dos áreas (lo escaneado en una sirve en la otra). */
+    public Map<String, String> clavePorCodigo(String codigo) {
+        String clave = claveDelCodigo(ServicioInventarioFarmacia.texto(codigo));
+        if (clave == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Código nuevo: elige de qué medicamento es la caja");
+        }
+        return Map.of("clave", clave, "nombre", farmacia.medicamento(clave).getNombreGenerico());
+    }
+
     private String claveDelCodigo(String codigo) {
         return farmacia.buscarCodigo(codigo).map(c -> c.getMedicamento().getClave())
                 .orElseGet(() -> renglones.clavesDelCodigo(codigo).stream().findFirst().orElse(null));

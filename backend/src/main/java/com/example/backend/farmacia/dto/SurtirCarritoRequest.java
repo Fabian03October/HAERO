@@ -10,4 +10,6 @@ public class SurtirCarritoRequest {
     private String clave;
     private Integer piezas;
     private String lote;
+    // Desde el historial de la cama: se acepta lo que quedó sin surtir en los últimos 7 días.
+    private boolean desdeHistorial;
 }

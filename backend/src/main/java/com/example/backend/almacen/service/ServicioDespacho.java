@@ -55,6 +55,7 @@ public class ServicioDespacho {
     private final UsuarioRepository usuarioRepository;
     private final CodigoBarrasRepository codigoBarrasRepository;
     private final com.example.backend.almacen.repository.SolicitudPedidoRepository solicitudPedidoRepository;
+    private final com.example.backend.almacen.repository.SolicitudFaltanteRepository faltanteRepository;
 
     public ServicioDespacho(MedicamentoRepository medicamentoRepository,
                              LoteRepository loteRepository,
@@ -63,8 +64,10 @@ public class ServicioDespacho {
                              SolicitudRepository solicitudRepository,
                              UsuarioRepository usuarioRepository,
                              CodigoBarrasRepository codigoBarrasRepository,
-                             com.example.backend.almacen.repository.SolicitudPedidoRepository solicitudPedidoRepository) {
+                             com.example.backend.almacen.repository.SolicitudPedidoRepository solicitudPedidoRepository,
+                             com.example.backend.almacen.repository.SolicitudFaltanteRepository faltanteRepository) {
         this.solicitudPedidoRepository = solicitudPedidoRepository;
+        this.faltanteRepository = faltanteRepository;
         this.medicamentoRepository = medicamentoRepository;
         this.loteRepository = loteRepository;
         this.existenciaRepository = existenciaRepository;
@@ -204,6 +207,9 @@ public class ServicioDespacho {
                             + "; despacha el pedido como entrega parcial o cierra esa clave como \"no se puede surtir\"");
                 }
                 sinExistencia.add(clave);
+                registrarFaltante(solicitud, solicitud.getCantidadSolicitada() - solicitud.getCantidadAtendida(), SIN_EXISTENCIA,
+                        usuarioRepository.findByNombreUsuario(nombreUsuarioSolicitante)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado")));
                 continue;
             }
             DespacharSolicitudRequest despacho = new DespacharSolicitudRequest();
@@ -381,6 +387,18 @@ public class ServicioDespacho {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "La cantidad no cubre lo solicitado; agregue otra ubicación/lote o confirme como entrega parcial");
         }
+        // Parcial: por qué no se surte lo que falta. Si ya no queda existencia, el motivo es ese; si queda, hay que escribirlo.
+        String motivoFaltante = null;
+        if (totalDespachado < pendiente) {
+            motivoFaltante = request.getMotivoFaltante() == null ? null : recortar(request.getMotivoFaltante().strip(), 300);
+            if (motivoFaltante == null || motivoFaltante.isEmpty()) {
+                if (cajasQueQuedan(clave, restantePorExistencia) > 0) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Todavía hay existencia de " + clave + ": escribe por qué no se surten las " + (pendiente - totalDespachado) + " cajas que faltan");
+                }
+                motivoFaltante = SIN_EXISTENCIA;
+            }
+        }
 
         for (PartidaDespacho partida : request.getPartidas()) {
             Existencia existencia = existenciasPorId.get(partida.getExistenciaId());
@@ -397,6 +415,9 @@ public class ServicioDespacho {
             movimientoRepository.save(movimiento);
         }
 
+        if (motivoFaltante != null) {
+            registrarFaltante(solicitud, pendiente - totalDespachado, motivoFaltante, usuario);
+        }
         solicitud.setCantidadAtendida(solicitud.getCantidadAtendida() + totalDespachado);
         solicitud.setEstatus(solicitud.getCantidadAtendida() >= solicitud.getCantidadSolicitada() ? "ATENDIDA" : "PARCIAL");
         solicitudRepository.save(solicitud);
@@ -482,6 +503,58 @@ public class ServicioDespacho {
         return false;
     }
 
+    static final String SIN_EXISTENCIA = "Sin existencia en Almacén";
+
+    /** Vale del pedido: lo entregado y lo que no se surtió con su motivo (para Almacén y Farmacia). */
+    @Transactional(readOnly = true)
+    public com.example.backend.almacen.dto.ValePedidoResponse valePedido(Long pedidoId) {
+        com.example.backend.almacen.entity.SolicitudPedido pedido = solicitudPedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No existe el pedido " + pedidoId));
+        var entregado = movimientoRepository.salidasDelPedido(pedidoId).stream()
+                .map(m -> new com.example.backend.almacen.dto.ValePedidoResponse.Entregado(
+                        m.getSolicitud().getMedicamento().getClave(), m.getSolicitud().getMedicamento().getNombreGenerico(),
+                        m.getExistencia().getLote().getNumeroLote(), m.getExistencia().getLote().getCaducidad(),
+                        m.getExistencia().getUbicacion(), m.getCantidadCajas(),
+                        m.getUsuario() == null ? null : m.getUsuario().getNombreCompleto(), m.getFecha()))
+                .toList();
+        var noSurtido = solicitudRepository.findByPedidoIdOrderByIdAsc(pedidoId).stream()
+                .filter(s -> s.getCantidadAtendida() < s.getCantidadSolicitada())
+                .map(s -> {
+                    // Cerrada: su motivo de cierre. Abierta: el del último despacho parcial (o "todavía no se despacha").
+                    String motivo = s.getMotivoCierre() != null ? s.getMotivoCierre()
+                            : faltanteRepository.findFirstBySolicitudIdOrderByIdDesc(s.getId())
+                                    .map(com.example.backend.almacen.entity.SolicitudFaltante::getMotivo).orElse("Todavía no se despacha");
+                    return new com.example.backend.almacen.dto.ValePedidoResponse.NoSurtido(s.getMedicamento().getClave(),
+                            s.getMedicamento().getNombreGenerico(), s.getCantidadSolicitada(), s.getCantidadAtendida(),
+                            s.getCantidadSolicitada() - s.getCantidadAtendida(), motivo, s.getEstatus());
+                })
+                .toList();
+        return new com.example.backend.almacen.dto.ValePedidoResponse(pedidoId,
+                pedido.getUsuario() == null ? null : pedido.getUsuario().getNombreCompleto(), pedido.getFecha(), entregado, noSurtido);
+    }
+
+    private void registrarFaltante(Solicitud solicitud, int cajas, String motivo, Usuario usuario) {
+        com.example.backend.almacen.entity.SolicitudFaltante faltante = new com.example.backend.almacen.entity.SolicitudFaltante();
+        faltante.setSolicitud(solicitud);
+        faltante.setCajas(cajas);
+        faltante.setMotivo(motivo);
+        faltante.setUsuario(usuario);
+        faltanteRepository.save(faltante);
+    }
+
+    /** Cajas vigentes de la clave que quedan en Almacén después de este despacho. */
+    private int cajasQueQuedan(String clave, Map<Long, Integer> restantePorExistencia) {
+        Map<Long, Integer> cajas = new HashMap<>();
+        LocalDate hoy = LocalDate.now();
+        for (Lote lote : loteRepository.findByMedicamentoClaveAndEstatus(clave, "DISPONIBLE")) {
+            if (!lote.getCaducidad().isBefore(hoy)) {
+                existenciaRepository.findByLoteId(lote.getId()).forEach(e -> cajas.put(e.getId(), e.getCantidadCajas()));
+            }
+        }
+        cajas.putAll(restantePorExistencia);
+        return cajas.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
     private SolicitudResponse aRespuesta(Solicitud solicitud) {
         return new SolicitudResponse(
                 solicitud.getId(),
@@ -496,7 +569,9 @@ public class ServicioDespacho {
                 solicitud.getMotivoCierre(),
                 solicitud.getCerradaPor() != null ? solicitud.getCerradaPor().getNombreCompleto() : null,
                 solicitud.getFechaCierre(),
-                solicitud.getPedido() != null ? solicitud.getPedido().getId() : null
+                solicitud.getPedido() != null ? solicitud.getPedido().getId() : null,
+                solicitud.getId() == null ? null : faltanteRepository.findFirstBySolicitudIdOrderByIdDesc(solicitud.getId())
+                        .map(com.example.backend.almacen.entity.SolicitudFaltante::getMotivo).orElse(null)
         );
     }
 }

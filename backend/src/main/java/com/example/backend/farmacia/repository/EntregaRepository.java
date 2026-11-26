@@ -19,7 +19,12 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
 
     List<Entrega> findTop20ByRecetaPacienteCurpIgnoreCaseOrderByFechaDesc(String curp);
 
-    List<Entrega> findTop20ByRecetaPacienteNombreContainingIgnoreCaseOrderByFechaDesc(String nombre);
+    /** Entregas cuyo paciente trae esa palabra, sin distinguir mayúsculas ni acentos. */
+    @org.springframework.data.jpa.repository.Query(value = "SELECT TOP 20 e.* FROM farmacia_entrega e JOIN farmacia_receta r ON r.id = e.receta_id "
+            + "WHERE r.paciente_nombre COLLATE Latin1_General_CI_AI LIKE CONCAT('%', :a, '%') "
+            + "AND r.paciente_nombre COLLATE Latin1_General_CI_AI LIKE CONCAT('%', :b, '%') ORDER BY e.fecha DESC", nativeQuery = true)
+    List<Entrega> conPalabrasEnElNombre(@org.springframework.data.repository.query.Param("a") String a,
+                                        @org.springframework.data.repository.query.Param("b") String b);
 
     // ---------- Baja por volumen de un área (Quimioterapia, Quirófano) ----------
 

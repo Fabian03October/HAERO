@@ -1,6 +1,7 @@
 package com.example.backend.farmacia.service;
 
-import com.example.backend.intelisis.ConexionIntelisis;
+import com.example.backend.intelisis.config.ConexionIntelisis;
+import com.example.backend.intelisis.service.NombrePaciente;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,13 +42,13 @@ public class ServicioSincronizacionQuimio {
 
     /** Columnas de una solicitud (agregar el WHERE). Las usa también la consulta de un folio fuera de la ventana. */
     static final String SELECT_SOLICITUD = """
-            SELECT s.ID_AuxTxSol, s.Fecha, s.FechaRequerida, s.Estatus, s.ExpKey, c.Nombre, s.ServicioSolicita, s.Dx, s.Notas,
-                   s.MedicoAdscrito, u.Nombre
+            SELECT s.ID_AuxTxSol, s.Fecha, s.FechaRequerida, s.Estatus, s.ExpKey, {NOMBRE}, s.ServicioSolicita, s.Dx, s.Notas,
+                   s.MedicoAdscrito, u.Nombre, c.CURP
             FROM vsa_AuxTxSol s WITH (NOLOCK)
             LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = s.ExpKey
             LEFT JOIN Usuario u WITH (NOLOCK) ON u.Usuario = s.MedicoAdscrito
             WHERE s.Servicio = 'ONCOLOGIA MEDICA' AND s.CancelFecha IS NULL
-            """;
+            """.replace("{NOMBRE}", NombrePaciente.SQL);
 
     private final ConexionIntelisis conexion;
     private final JdbcTemplate haero;
@@ -125,7 +126,7 @@ public class ServicioSincronizacionQuimio {
 
     /** Una fila de SELECT_SOLICITUD como valores para quimio_solicitud (sin actualizado_en). */
     static Object[] fila(ResultSet rs) throws SQLException {
-        return new Object[]{rs.getInt(1), rs.getTimestamp(2), rs.getTimestamp(3), texto(rs, 4, 20), texto(rs, 5, 30), texto(rs, 6, 250),
+        return new Object[]{rs.getInt(1), rs.getTimestamp(2), rs.getTimestamp(3), texto(rs, 4, 20), texto(rs, 5, 30), NombrePaciente.ordenar(texto(rs, 6, 250), rs.getString(12)),
                 texto(rs, 7, 100), texto(rs, 8, 1000), texto(rs, 9, Integer.MAX_VALUE), texto(rs, 10, 20), texto(rs, 11, 200)};
     }
 

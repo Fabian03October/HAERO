@@ -26,4 +26,5 @@ public class LoteFarmaciaResponse {
     private Long loteAlmacenId;
     // Códigos de barras de la caja ligados a la clave (se guardan en el alta inicial); son los que se escanean al surtir.
     private List<String> codigos;
+    private String ubicacion;
 }

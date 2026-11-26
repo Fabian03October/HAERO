@@ -33,6 +33,21 @@ public class InventarioFarmaciaController {
         return ResponseEntity.ok(servicio.existencias());
     }
 
+    public record UbicacionRequest(String ubicacion) {
+    }
+
+    // Cambiar de estante un lote (queda quién, cuándo y de dónde a dónde).
+    @PutMapping("/existencias/{id}/ubicacion")
+    public ResponseEntity<LoteFarmaciaResponse> cambiarUbicacion(@PathVariable Long id, @RequestBody UbicacionRequest request,
+                                                                 Authentication authentication) {
+        return ResponseEntity.ok(servicio.cambiarUbicacion(id, request.ubicacion(), authentication.getName()));
+    }
+
+    @GetMapping("/existencias/estantes")
+    public ResponseEntity<List<String>> estantes() {
+        return ResponseEntity.ok(servicio.estantes());
+    }
+
     @GetMapping("/existencias/fefo")
     public ResponseEntity<LoteFarmaciaResponse> loteFefo(@RequestParam String clave) {
         return servicio.loteFefo(clave).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
