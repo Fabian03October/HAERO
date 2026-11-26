@@ -831,7 +831,9 @@ export class AlmacenApi {
  * Regresa AAAA-MM-DD, o null si no es una fecha real.
  */
 export function leerCaducidad(texto: string): string | null {
-  const t = texto.trim();
+  // El teclado de números del celular no trae diagonal: también se acepta escrito solo con números
+  // ("31122027" = 31/12/2027, "122027" = 12/2027, "311227" = 31/12/27, "1227" = 12/27).
+  const t = sinDiagonales(texto.trim());
   let dia: number | null = null;
   let mes: number;
   let anio: number;
@@ -849,6 +851,15 @@ export function leerCaducidad(texto: string): string | null {
   if (dia === null) dia = ultimo;
   if (dia < 1 || dia > ultimo) return null;
   return `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
+function sinDiagonales(t: string): string {
+  if (!/^\d+$/.test(t)) return t;
+  if (t.length === 8) return `${t.slice(0, 2)}/${t.slice(2, 4)}/${t.slice(4)}`;
+  // 6 números: mes y año de 4 dígitos (122027) o día, mes y año de 2 (311227).
+  if (t.length === 6) return /^20\d\d$/.test(t.slice(2)) ? `${t.slice(0, 2)}/${t.slice(2)}` : `${t.slice(0, 2)}/${t.slice(2, 4)}/${t.slice(4)}`;
+  if (t.length === 4) return `${t.slice(0, 2)}/${t.slice(2)}`;
+  return t;
 }
 
 export function ultimoDiaDelMes(fecha: string): string {

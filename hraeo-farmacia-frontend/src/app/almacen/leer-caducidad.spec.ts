@@ -21,4 +21,12 @@ describe('leerCaducidad (caducidad escrita a mano)', () => {
     expect(leerCaducidad('diciembre 2027')).toBeNull();
     expect(leerCaducidad('')).toBeNull();
   });
+
+  it('acepta la fecha escrita solo con números (el teclado numérico del celular no trae diagonal)', () => {
+    expect(leerCaducidad('31122027')).toBe('2027-12-31');
+    expect(leerCaducidad('122027')).toBe('2027-12-31');
+    expect(leerCaducidad('311227')).toBe('2027-12-31');
+    expect(leerCaducidad('0228')).toBe('2028-02-29');
+    expect(leerCaducidad('32122027')).toBeNull();
+  });
 });

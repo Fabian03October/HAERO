@@ -92,6 +92,18 @@ La cámara del celular o la tableta como lector de códigos solo funciona en una
 5. **Celulares:** deben estar en la red Wi-Fi del hospital y resolver el nombre `haero.hospital.local`; si el Wi-Fi no usa el DNS del hospital, abrir HAERO con la IP (`https://172.16.x.x`), que también va en el certificado.
 6. **Renovación:** anotar la fecha de vencimiento del certificado y renovarlo antes; al vencer, el navegador bloquea la página.
 
+## 4.2 HTTPS en el servidor Windows del hospital (172.16.5.190)
+
+1. **Certificado:** en una Mac o Linux, `./despliegue/crear-certificado.sh 172.16.5.190`. Deja en `~/HAERO-certificados`:
+   `haero.crt` y `haero.key` (para el servidor), `haero-ca.crt` (para instalar en los equipos) y `haero-ca.key`
+   (llave de la autoridad: guardarla en un lugar seguro, sirve para renovar; **no se copia al servidor**). Vence en 825 días.
+2. **nginx:** copiar `haero.crt` y `haero.key` a `E:\SICOMED\nginx\conf\ssl\`, usar `despliegue/nginx-haero-windows.conf`
+   como `E:\SICOMED\nginx\conf\nginx.conf` y reiniciar nginx. HAERO queda en **https://172.16.5.190:8443**
+   (quien entre por `http://172.16.5.190:8090` se manda solo a https). Si el firewall de Windows bloquea el 8443, pedir a TIC que lo abra.
+3. **Instalar `haero-ca.crt` una vez en cada equipo** (pasos de la sección 4.1, punto 3). Sin esto el navegador avisa
+   "conexión no privada" y el celular no presta la cámara.
+4. Los celulares deben estar en el Wi-Fi del hospital.
+
 ## 5. Usuarios
 
 - La migración V25 **desactiva** los usuarios de prueba `almacen`, `farmacia` y `supervision` si siguen con su contraseña de prueba.
