@@ -301,7 +301,49 @@
                 </div>
                 <p class="sub">{{ turnoEtiqueta(v.turno) }} · {{ v.sala }} · {{ v.medico }} · entregó {{ v.entregadoPor }} el {{ v.entregadoEn | date: 'dd/MM/yyyy HH:mm' }}</p>
 
-                <p class="eyebrow">Utilizado por paciente</p>
+                <div class="en-linea">
+                  <p class="eyebrow">1 · Checklist: ¿qué regresó en la caja?</p>
+                  <button class="link" type="button" (click)="marcarTodoCompleto()">Todo regresó (no se usó nada)</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="checklist">
+                    <thead><tr><th>Clave</th><th class="number">Salió</th><th>¿Regresó?</th><th class="number">No regresó</th><th class="number">A paciente</th><th></th></tr></thead>
+                    <tbody>
+                      @for (r of resumenVale(); track r.clave) {
+                        <tr [class.falta]="r.porAsignar > 0 || r.faltante > 0" [class.ok]="r.revisado && !r.porAsignar && !r.faltante">
+                          <td><strong>{{ r.clave }}</strong> <app-marca-seguridad [clave]="r.clave" /><small class="sub">{{ r.medicamento }}</small></td>
+                          <td class="number">{{ r.tiene }}</td>
+                          <td class="regreso">
+                            <label class="check"><input type="checkbox" [checked]="regreso()[r.clave] === 'todo'" (change)="marcarCompleto(r.clave, $any($event.target).checked)" [attr.aria-label]="'Regresó completo ' + r.clave" /> Todo</label>
+                            <input class="corta" type="number" min="0" [max]="r.tiene" placeholder="o cuántas"
+                                   [ngModel]="regreso()[r.clave] === 'todo' ? null : regreso()[r.clave]" (ngModelChange)="escribirRegreso(r.clave, $event)" [attr.aria-label]="'Piezas que regresaron de ' + r.clave" />
+                          </td>
+                          <td class="number">{{ r.revisado ? r.noRegreso : '' }}</td>
+                          <td class="number">
+                            @if (r.noRegreso > 0) {
+                              {{ r.utilizado }}@if (r.porAsignar > 0) {<small class="error"> faltan {{ r.porAsignar }}</small>}
+                            }
+                          </td>
+                          <td>
+                            @if (r.noRegreso > r.utilizado || r.extravio) {
+                              <label class="check"><input type="checkbox" [checked]="r.extravio" (change)="marcarNoFueAPaciente(r.clave, $any($event.target).checked)" /> Se rompió o se perdió</label>
+                            } @else if (r.revisado) { ✓ }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                @if (hayFaltantes()) {
+                  <div class="field">
+                    <label for="motivo-faltante">¿Qué pasó con lo que se rompió o se perdió?</label>
+                    <input id="motivo-faltante" maxlength="300" [ngModel]="motivoFaltante()" (ngModelChange)="motivoFaltante.set($event)" placeholder="Ej. se rompió una ampolleta al prepararla" />
+                    <small class="sub">Se da de baja como extravío (queda quién y cuándo) y la caja queda para reponer.</small>
+                  </div>
+                }
+
+                @if (porAsignar().length || usos().length) {
+                <p class="eyebrow">2 · ¿A qué paciente se aplicó lo que no regresó?</p>
                 <div class="en-linea">
                   <input [ngModel]="usoExpediente()" (ngModelChange)="usoExpediente.set($event); usoNombre.set('')" (keyup.enter)="buscarPaciente()" placeholder="No. expediente" />
                   <button class="btn secondary" type="button" [disabled]="buscandoPaciente()" (click)="buscarPaciente()">{{ buscandoPaciente() ? 'Buscando…' : 'Buscar' }}</button>
@@ -314,8 +356,8 @@
                   <div class="en-linea agregar">
                     <select [ngModel]="usoClave()" (ngModelChange)="usoClave.set($event)">
                       <option value="">Medicamento utilizado</option>
-                      @for (r of renglones(); track r.clave) {
-                        @if (r.tiene > 0) { <option [value]="r.clave">{{ r.clave }} · {{ r.medicamento }}</option> }
+                      @for (r of resumenVale(); track r.clave) {
+                        @if (r.tiene > 0) { <option [value]="r.clave">{{ r.porAsignar ? '⚠ faltan ' + r.porAsignar + ' · ' : '' }}{{ r.clave }} · {{ r.medicamento }}</option> }
                       }
                     </select>
                     <input class="corta" type="number" min="1" [ngModel]="usoPiezas()" (ngModelChange)="usoPiezas.set($event === null || $event === '' ? null : +$event)" (keyup.enter)="agregarUso()" placeholder="Piezas" />
@@ -331,37 +373,6 @@
                   </ul>
                 }
 
-                <div class="en-linea">
-                  <p class="eyebrow">Checklist de devolución: revisa cada medicamento que regresó en la caja</p>
-                  <button class="link" type="button" (click)="marcarTodoCompleto()">Todo regresó completo</button>
-                </div>
-                <div class="table-wrap">
-                  <table class="checklist">
-                    <thead><tr><th>Clave</th><th class="number">Surtido</th><th class="number">Utilizado</th><th class="number">Debe regresar</th><th>¿Regresó?</th><th class="number">Falta</th></tr></thead>
-                    <tbody>
-                      @for (r of resumenVale(); track r.clave) {
-                        <tr [class.usado]="r.utilizado > 0" [class.falta]="r.devolucion < 0 || r.faltante > 0" [class.ok]="r.revisado && r.faltante === 0 && r.devolucion >= 0">
-                          <td><strong>{{ r.clave }}</strong> <app-marca-seguridad [clave]="r.clave" /><small class="sub">{{ r.medicamento }}</small></td>
-                          <td class="number">{{ r.tiene }}</td>
-                          <td class="number">{{ r.utilizado }}</td>
-                          <td class="number"><strong>{{ r.devolucion }}</strong></td>
-                          <td class="regreso">
-                            <label class="check"><input type="checkbox" [checked]="regreso()[r.clave] === 'todo'" (change)="marcarCompleto(r.clave, $any($event.target).checked)" [attr.aria-label]="'Regresó completo ' + r.clave" /> Completo</label>
-                            <input class="corta" type="number" min="0" [max]="r.devolucion" placeholder="o cuántas"
-                                   [ngModel]="regreso()[r.clave] === 'todo' ? null : regreso()[r.clave]" (ngModelChange)="escribirRegreso(r.clave, $event)" [attr.aria-label]="'Piezas que regresaron de ' + r.clave" />
-                          </td>
-                          <td class="number">@if (r.faltante > 0) { <strong class="error">{{ r.faltante }}</strong> } @else if (r.revisado) { ✓ }</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-                @if (hayFaltantes()) {
-                  <div class="field">
-                    <label for="motivo-faltante">No regresó todo: ¿qué pasó? (si se usó en un paciente, regístralo arriba como utilizado)</label>
-                    <input id="motivo-faltante" maxlength="300" [ngModel]="motivoFaltante()" (ngModelChange)="motivoFaltante.set($event)" placeholder="Ej. se rompió una ampolleta en sala; el anestesiólogo lo reportará" />
-                    <small class="sub">Lo que falta se da de baja como extravío (queda quién y cuándo) y la caja queda para reponer.</small>
-                  </div>
                 }
                 @if (usos().length) {
                   <div class="field">

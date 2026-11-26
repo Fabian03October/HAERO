@@ -111,8 +111,10 @@ export class OperacionCaja {
   readonly justificacion = signal('');
   // Una indicación médica (PDF) por paciente: expediente → archivo.
   readonly indicaciones = signal<Record<string, File>>({});
-  // Checklist de devolución: por clave, 'todo' (regresó lo que debía) o las piezas que regresaron; null = sin revisar.
+  // Checklist de devolución: por clave, 'todo' (regresó todo lo que salió) o las piezas que regresaron; null = sin revisar.
   readonly regreso = signal<Record<string, number | 'todo' | null>>({});
+  // Lo que no regresó y NO fue a un paciente (se rompió o se perdió): se da de baja como extravío con su motivo.
+  readonly noFueAPaciente = signal<Record<string, boolean>>({});
   readonly motivoFaltante = signal('');
   readonly pacientesUso = computed(() => {
     const vistos = new Map<string, { expediente: string; nombre: string }>();
@@ -125,8 +127,14 @@ export class OperacionCaja {
       const utilizado = this.usos().filter((u) => u.clave === r.clave).reduce((t, u) => t + u.piezas, 0);
       const devolucion = r.tiene - utilizado;
       const marcado = this.regreso()[r.clave] ?? null;
-      const regreso = marcado === 'todo' ? Math.max(devolucion, 0) : marcado;
-      return { ...r, utilizado, devolucion, regreso, revisado: marcado !== null, faltante: regreso === null ? 0 : Math.max(devolucion - regreso, 0) };
+      // "Completo" = regresó todo lo que salió (no se usó nada).
+      const regreso = marcado === 'todo' ? r.tiene : marcado;
+      // Lo que no regresó se aplicó a un paciente: falta decir a quién (salvo que se haya roto o perdido).
+      const noRegreso = regreso === null ? 0 : Math.max(r.tiene - regreso, 0);
+      const extravio = !!this.noFueAPaciente()[r.clave];
+      const porAsignar = extravio ? 0 : Math.max(noRegreso - utilizado, 0);
+      const faltante = extravio ? Math.max(noRegreso - utilizado, 0) : 0;
+      return { ...r, utilizado, devolucion, regreso, revisado: marcado !== null, noRegreso, porAsignar, extravio, faltante };
     }),
   );
   readonly hayFaltantes = computed(() => this.resumenVale().some((r) => r.faltante > 0));
@@ -142,7 +150,15 @@ export class OperacionCaja {
 
   marcarTodoCompleto(): void {
     this.regreso.set(Object.fromEntries(this.renglones().map((r) => [r.clave, 'todo' as const])));
+    this.noFueAPaciente.set({});
   }
+
+  marcarNoFueAPaciente(clave: string, valor: boolean): void {
+    this.noFueAPaciente.update((r) => ({ ...r, [clave]: valor }));
+  }
+
+  /** Para elegir el medicamento al registrar a qué paciente se le aplicó: primero lo que falta asignar. */
+  readonly porAsignar = computed(() => this.resumenVale().filter((r) => r.porAsignar > 0));
 
   // Tablero: cajas en quirófano (por regresar) y las que regresaron hoy.
   readonly porRegresar = computed(() =>
@@ -162,8 +178,11 @@ export class OperacionCaja {
     if (this.resumenVale().some((r) => r.devolucion < 0)) faltan.push('corregir lo utilizado (es más de lo que salió)');
     const sinRevisar = this.resumenVale().filter((r) => !r.revisado).length;
     if (sinRevisar) faltan.push(`revisar en el checklist ${sinRevisar} medicamento(s)`);
-    if (this.resumenVale().some((r) => r.regreso !== null && r.regreso > Math.max(r.devolucion, 0))) faltan.push('corregir lo que regresó (es más de lo que debía quedar)');
-    if (this.hayFaltantes() && !this.motivoFaltante().trim()) faltan.push('el motivo de lo que no regresó');
+    if (this.resumenVale().some((r) => r.regreso !== null && r.regreso > r.tiene)) faltan.push('corregir lo que regresó (es más de lo que salió)');
+    if (this.resumenVale().some((r) => r.regreso !== null && r.utilizado > r.noRegreso)) faltan.push('corregir lo utilizado (es más de lo que no regresó)');
+    const sinPaciente = this.porAsignar();
+    if (sinPaciente.length) faltan.push(`decir a qué paciente se aplicó: ${sinPaciente.map((r) => `${r.porAsignar} de ${r.clave}`).join(', ')}`);
+    if (this.hayFaltantes() && !this.motivoFaltante().trim()) faltan.push('qué pasó con lo que se rompió o se perdió');
     if (this.usos().length) {
       if (!this.justificacion().trim()) faltan.push('la justificación');
       const sinPdf = this.pacientesUso().filter((p) => !this.indicaciones()[p.expediente]);
@@ -218,6 +237,7 @@ export class OperacionCaja {
     this.medicoUsuario.set(null);
     this.medicosSugeridos.set([]);
     this.regreso.set({});
+    this.noFueAPaciente.set({});
     this.motivoFaltante.set('');
     this.cargarExistencias();
   }
