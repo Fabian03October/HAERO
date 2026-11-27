@@ -27,6 +27,6 @@ class GlobalExceptionHandlerTest {
                 .manejarViolacionIntegridad(new DataIntegrityViolationException("duplicado", causa));
 
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(respuesta.getBody().get("mensaje")).startsWith("Ese registro de Intelisis ya se recibió en HAERO");
+        assertThat(respuesta.getBody().get("mensaje")).startsWith("Ese registro de Intelisis ya se recibió en SICOMED");
     }
 }
