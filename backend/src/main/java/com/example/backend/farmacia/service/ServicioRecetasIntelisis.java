@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * HU28: recetas firmadas del paciente en Intelisis (vsa_Receta y vsa_RecetaD), para que
  * Farmacia elija la receta y se llenen solos el folio y las claves.
  *
- * Validado con datos reales (2026-10-27): vsa_Receta.ExpKey es Cte.Cliente (el expediente),
+ * Validado con datos reales (2026-10-27): vsa_Receta.ExpKey es Cte.Cliente (número interno; el expediente es Cte.ClaveECE),
  * cada receta trae dos números de 6 dígitos: ID_Receta (el que usa el envío a AAMATES) y
  * Folio; se busca por cualquiera de los dos. vsa_RecetaD.Articulo es la clave del catálogo.
  * Solo se leen folio, fecha, origen, médico, clave y cantidad: nada de diagnósticos ni indicaciones.
@@ -77,7 +77,9 @@ public class ServicioRecetasIntelisis {
         if (exp == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta el expediente del paciente");
         }
-        return consultar("WHERE r.ExpKey = ? AND r.Estatus = 'FIRMADO' AND r.Fecha >= DATEADD(day, ?, GETDATE())", exp, -dias);
+        // El expediente es ClaveECE; las recetas se ligan por ExpKey = Cte.Cliente.
+        return consultar("WHERE r.ExpKey IN (SELECT c.Cliente FROM Cte c WITH (NOLOCK) WHERE " + NombrePaciente.FILTRO_EXPEDIENTE + ") "
+                + "AND r.Estatus = 'FIRMADO' AND r.Fecha >= DATEADD(day, ?, GETDATE())", exp, exp, -dias);
     }
 
     /** La receta con ese folio (Folio o ID_Receta), con su paciente. */
@@ -101,7 +103,7 @@ public class ServicioRecetasIntelisis {
         try {
             Map<Integer, Object[]> recetas = new LinkedHashMap<>();
             // Médico: quien hizo la receta (siempre viene); el adscrito solo en algunas (unas 1 de cada 4).
-            intelisis.query("SELECT TOP (" + MAXIMO_RECETAS + ") r.ID_Receta, r.Folio, r.Fecha, r.Origen, c.Cliente, " + NombrePaciente.SQL + ", c.CURP, "
+            intelisis.query("SELECT TOP (" + MAXIMO_RECETAS + ") r.ID_Receta, r.Folio, r.Fecha, r.Origen, " + NombrePaciente.EXPEDIENTE_SQL + ", " + NombrePaciente.SQL + ", c.CURP, "
                     + "COALESCE(um.Nombre, r.Usuario), CASE WHEN r.MedicoAdscrito <> r.Usuario THEN COALESCE(ua.Nombre, r.MedicoAdscrito) END, r.Estatus "
                     + "FROM vsa_Receta r WITH (NOLOCK) LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = r.ExpKey "
                     + "LEFT JOIN Usuario um WITH (NOLOCK) ON um.Usuario = r.Usuario "

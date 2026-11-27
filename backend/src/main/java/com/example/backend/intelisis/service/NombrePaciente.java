@@ -13,6 +13,19 @@ public final class NombrePaciente {
             + "THEN LTRIM(RTRIM(LTRIM(RTRIM(c.PersonalNombres)) + ' ' + LTRIM(RTRIM(c.PersonalApellidoPaterno)) + ' ' "
             + "+ ISNULL(LTRIM(RTRIM(c.PersonalApellidoMaterno)), ''))) ELSE LTRIM(RTRIM(c.Nombre)) END";
 
+    /**
+     * Número de expediente del hospital: Cte.ClaveECE (el "Expdte" que imprime Intelisis; validado 2026-11-27 con la
+     * solicitud 118108: Expdte 77509 = ClaveECE, Cliente = 142121). Cte.Cliente es el número interno con el que se
+     * ligan las tablas (ExpKey); solo si el paciente no tiene ClaveECE se usa Cliente.
+     */
+    public static final String EXPEDIENTE_SQL = "COALESCE(NULLIF(LTRIM(RTRIM(c.ClaveECE)), ''), LTRIM(RTRIM(c.Cliente)))";
+
+    /**
+     * Buscar a un paciente por su expediente (un parámetro "?"). No se acepta Cliente y ClaveECE a la vez: el mismo
+     * número puede ser de dos personas distintas (73499 es Cliente de una y ClaveECE de otra).
+     */
+    public static final String FILTRO_EXPEDIENTE = "(c.ClaveECE = CAST(? AS VARCHAR(50)) OR (NULLIF(LTRIM(RTRIM(c.ClaveECE)), '') IS NULL AND c.Cliente = CAST(? AS VARCHAR(50))))";
+
     private NombrePaciente() {
     }
 

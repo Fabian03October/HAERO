@@ -112,7 +112,7 @@ public class ServicioSincronizacionHospitalizacion {
                     WHERE ce.Activo = 1 AND (e.Estatus IS NULL OR e.Estatus = 'ALTA')
                     """, (rs, n) -> new Object[]{texto(rs, 1), texto(rs, 2), texto(rs, 3), texto(rs, 4)});
             Map<Integer, Estancia> estancias = new LinkedHashMap<>();
-            intelisis.query("SELECT a.ID_IngArea, a.ID_IngHosp, a.Espacio, a.Servicio, a.FechaIngreso, i.ExpKey, " + NombrePaciente.SQL + ", a.Usuario, c.CURP "
+            intelisis.query("SELECT a.ID_IngArea, a.ID_IngHosp, a.Espacio, a.Servicio, a.FechaIngreso, " + NombrePaciente.EXPEDIENTE_SQL + ", " + NombrePaciente.SQL + ", a.Usuario, c.CURP "
                     + INTERNADOS.replace("WHERE", "LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = i.ExpKey WHERE"), rs -> {
                 Timestamp fecha = rs.getTimestamp(5);
                 estancias.put(rs.getInt(1), new Estancia(rs.getInt(1), rs.getInt(2), texto(rs, 3), texto(rs, 4),

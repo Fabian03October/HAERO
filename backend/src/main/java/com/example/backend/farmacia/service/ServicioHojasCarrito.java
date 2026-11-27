@@ -1,5 +1,7 @@
 package com.example.backend.farmacia.service;
 
+import com.example.backend.intelisis.service.NombrePaciente;
+
 import com.example.backend.farmacia.dto.CarritoResponse;
 import com.example.backend.farmacia.dto.HojaBajaResponse;
 import com.example.backend.farmacia.dto.HojaIndicacionesResponse;
@@ -205,7 +207,8 @@ public class ServicioHojasCarrito {
             List<Object> ingresos = internados.stream().map(i -> (Object) i.idIngreso()).toList();
             List<Object> expedientes = internados.stream().map(ServicioCarrito.Internado::expediente).filter(e -> e != null).map(e -> (Object) e).toList();
             if (!expedientes.isEmpty()) {
-                intelisis.query("SELECT Cliente, Sexo, FechaNacimiento FROM Cte WITH (NOLOCK) WHERE Cliente IN (" + marcadores(expedientes.size()) + ")",
+                // El expediente guardado es ClaveECE (o Cliente si el paciente no tiene ClaveECE).
+                intelisis.query("SELECT " + NombrePaciente.EXPEDIENTE_SQL + ", c.Sexo, c.FechaNacimiento FROM Cte c WITH (NOLOCK) WHERE " + NombrePaciente.EXPEDIENTE_SQL + " IN (" + marcadores(expedientes.size()) + ")",
                         rs -> {
                             Map<String, Object> p = new HashMap<>();
                             p.put("sexo", limpio(rs.getString(2)));

@@ -71,7 +71,7 @@ public class ServicioBajasPacienteIntelisis {
 
     /** Por expediente: se toma el nombre del paciente en Cte y se buscan sus bajas. */
     public Resultado delExpediente(String expediente, LocalDateTime desde, LocalDateTime antesDe) {
-        return delPacienteSegun("c.Cliente = CAST(? AS VARCHAR(50))", expediente, desde, antesDe);
+        return delPacienteSegun(NombrePaciente.FILTRO_EXPEDIENTE, expediente, desde, antesDe);
     }
 
     public Resultado delCurp(String curp, LocalDateTime desde, LocalDateTime antesDe) {
@@ -103,7 +103,7 @@ public class ServicioBajasPacienteIntelisis {
             // La misma persona puede estar dos veces en Cte (otro expediente, el nombre en otro orden): se juntan
             // los que comparten CURP y la baja se reconoce por sus palabras, en cualquier orden.
             Map<String, java.util.Set<String>> expedientesPorLlave = new HashMap<>();
-            intelisis.query("SELECT TOP (20) LTRIM(RTRIM(c.Nombre)), " + NombrePaciente.SQL + ", c.Cliente FROM Cte c WITH (NOLOCK) WHERE (" + filtroCte
+            intelisis.query("SELECT TOP (20) LTRIM(RTRIM(c.Nombre)), " + NombrePaciente.SQL + ", " + NombrePaciente.EXPEDIENTE_SQL + " FROM Cte c WITH (NOLOCK) WHERE (" + filtroCte
                             + ") OR (NULLIF(LTRIM(c.CURP), '') IS NOT NULL AND c.CURP IN (SELECT c.CURP FROM Cte c WITH (NOLOCK) WHERE " + filtroCte + "))",
                     rs -> {
                         for (String nombre : new String[]{rs.getString(1), rs.getString(2)}) {
@@ -112,7 +112,7 @@ public class ServicioBajasPacienteIntelisis {
                                 expedientesPorLlave.computeIfAbsent(llave, k -> new java.util.TreeSet<>()).add(limpio(rs.getString(3)));
                             }
                         }
-                    }, valor, valor);
+                    }, java.util.Collections.nCopies(2 * (int) filtroCte.chars().filter(ch -> ch == '?').count(), valor).toArray());
             if (expedientesPorLlave.isEmpty()) {
                 return new Resultado(List.of(), null);
             }
@@ -195,7 +195,7 @@ public class ServicioBajasPacienteIntelisis {
         for (int i = 0; i < nombres.size(); i += 1000) {
             List<String> grupo = nombres.subList(i, Math.min(i + 1000, nombres.size()));
             String marcadores = grupo.stream().map(n -> "CAST(? AS VARCHAR(100))").collect(Collectors.joining(", "));
-            intelisis.query("SELECT LTRIM(RTRIM(c.Nombre)), c.Cliente FROM Cte c WITH (NOLOCK) WHERE c.Nombre IN (" + marcadores + ")", rs -> {
+            intelisis.query("SELECT LTRIM(RTRIM(c.Nombre)), " + NombrePaciente.EXPEDIENTE_SQL + " FROM Cte c WITH (NOLOCK) WHERE c.Nombre IN (" + marcadores + ")", rs -> {
                 String expediente = limpio(rs.getString(2));
                 if (expediente != null) {
                     encontrados.computeIfAbsent(rs.getString(1), k -> new java.util.TreeSet<>()).add(expediente);

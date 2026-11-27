@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *    renglón (vsa_AuxTxSolD) es el servicio HRAE3251 QUIMIOTERAPIA; los medicamentos solo vienen
  *    escritos en Notas, sin clave (BaseQuimio y QuimioBase nunca se llenan).
  *  - El "Folio" de la hoja impresa es ID_AuxTxSol (la columna Folio casi siempre está vacía).
- *  - ExpKey es Cte.Cliente (el expediente) y MedicoAdscrito es Usuario.Usuario.
+ *  - ExpKey es Cte.Cliente (número interno); el expediente que se guarda es Cte.ClaveECE. MedicoAdscrito es Usuario.Usuario.
  *  - Casi todas quedan SINFIRMAR; las canceladas traen CancelFecha y no se leen.
  *  - Se piden en promedio 18 días antes de la fecha requerida (hasta casi un año): por eso se leen las
  *    de los últimos días configurados y, aunque sean más viejas, las que todavía se requieren.
@@ -42,13 +42,13 @@ public class ServicioSincronizacionQuimio {
 
     /** Columnas de una solicitud (agregar el WHERE). Las usa también la consulta de un folio fuera de la ventana. */
     static final String SELECT_SOLICITUD = """
-            SELECT s.ID_AuxTxSol, s.Fecha, s.FechaRequerida, s.Estatus, s.ExpKey, {NOMBRE}, s.ServicioSolicita, s.Dx, s.Notas,
+            SELECT s.ID_AuxTxSol, s.Fecha, s.FechaRequerida, s.Estatus, {EXPEDIENTE}, {NOMBRE}, s.ServicioSolicita, s.Dx, s.Notas,
                    s.MedicoAdscrito, u.Nombre, c.CURP
             FROM vsa_AuxTxSol s WITH (NOLOCK)
             LEFT JOIN Cte c WITH (NOLOCK) ON c.Cliente = s.ExpKey
             LEFT JOIN Usuario u WITH (NOLOCK) ON u.Usuario = s.MedicoAdscrito
             WHERE s.Servicio = 'ONCOLOGIA MEDICA' AND s.CancelFecha IS NULL
-            """.replace("{NOMBRE}", NombrePaciente.SQL);
+            """.replace("{NOMBRE}", NombrePaciente.SQL).replace("{EXPEDIENTE}", NombrePaciente.EXPEDIENTE_SQL);
 
     private final ConexionIntelisis conexion;
     private final JdbcTemplate haero;

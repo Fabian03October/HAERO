@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * datos del paciente al que se le entrega una receta.
  *
  * Por validar en la red del hospital: el paciente está en Cte (Cte.Cliente, el mismo que
- * usan vsa_IngHosp y vsa_Receta) y el número de expediente es Cte.Cliente.
+ * usan vsa_IngHosp y vsa_Receta) y el número de expediente del hospital es Cte.ClaveECE (ver NombrePaciente.EXPEDIENTE_SQL).
  */
 @Service
 public class ServicioPacientesIntelisis {
@@ -35,7 +35,7 @@ public class ServicioPacientesIntelisis {
     private static final int MINIMO_NOMBRE = 3;
     // Formato oficial de la CURP (18 caracteres), igual que en la pantalla.
     private static final Pattern PATRON_CURP = Pattern.compile("^[A-Z][AEIOUX][A-Z]{2}\\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\\d$");
-    private static final String SELECT = "SELECT TOP (" + MAXIMO + ") c.Cliente, " + NombrePaciente.SQL + ", c.CURP FROM Cte c WITH (NOLOCK) ";
+    private static final String SELECT = "SELECT TOP (" + MAXIMO + ") " + NombrePaciente.EXPEDIENTE_SQL + ", " + NombrePaciente.SQL + ", c.CURP FROM Cte c WITH (NOLOCK) ";
 
     private final ConexionIntelisis conexion;
 
@@ -64,7 +64,7 @@ public class ServicioPacientesIntelisis {
                 "No hay conexión con Intelisis para buscar al paciente. " + conexion.motivoNoDisponible()));
         try {
             if (exp != null) {
-                return consultar(intelisis, SELECT + "WHERE c.Cliente = ? ORDER BY c.Nombre", exp);
+                return consultar(intelisis, SELECT + "WHERE " + NombrePaciente.FILTRO_EXPEDIENTE + " ORDER BY c.Nombre", exp, exp);
             }
             if (cur != null) {
                 return consultar(intelisis, SELECT + "WHERE c.CURP = ? ORDER BY c.Nombre", cur);
@@ -85,7 +85,7 @@ public class ServicioPacientesIntelisis {
                 parametros.add("%" + escaparLike(par[1]) + "%");
                 return "(" + like + " AND " + like + ")";
             }).collect(java.util.stream.Collectors.joining(" OR "));
-            String sql = "SELECT TOP (" + CANDIDATOS + ") c.Cliente, " + NombrePaciente.SQL + ", c.CURP FROM Cte c WITH (NOLOCK) "
+            String sql = "SELECT TOP (" + CANDIDATOS + ") " + NombrePaciente.EXPEDIENTE_SQL + ", " + NombrePaciente.SQL + ", c.CURP FROM Cte c WITH (NOLOCK) "
                     + where + " ORDER BY (" + puntaje + ") DESC, c.Nombre";
             // El SELECT lleva el puntaje en el ORDER BY: sus parámetros van antes que los del WHERE en el texto, pero aquí van
             // después; se reacomodan para que coincidan con el orden en que aparecen los "?".
