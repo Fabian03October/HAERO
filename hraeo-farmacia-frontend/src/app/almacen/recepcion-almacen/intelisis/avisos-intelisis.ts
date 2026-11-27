@@ -19,7 +19,7 @@ const TIPO_TEXTO: Record<AvisoIntelisis['tipo'], string> = {
 
 // Avisos de cambios en Intelisis (diseño aprobado). "Por revisar": pedido o partida
 // cancelados (no recibir) o un cambio de Intelisis sobre un lote que Almacén ya tiene;
-// HAERO no lo modificó. "Informativos": lo nuevo que llegó solo (claves, pedidos,
+// SICOMED no lo modificó. "Informativos": lo nuevo que llegó solo (claves, pedidos,
 // lotes por recibir).
 @Component({
   selector: 'app-avisos-intelisis',

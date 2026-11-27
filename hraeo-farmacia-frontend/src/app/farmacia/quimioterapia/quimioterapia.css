@@ -319,3 +319,17 @@ tr.fila-solicitud:hover td { background: var(--color-guinda-suave); }
 .barra-imprimir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .barra-imprimir .sub { flex: 1 1 260px; color: #6f6f6f; font-size: 12px; }
 .ts-folio .elegir { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* En Quimio las tablas (nota, surtido) se ven completas con el scroll de la página: el recuadro con scroll propio
+   cortaba renglones y la barra de "Registrar entrega" quedaba encima. */
+.table-wrap { max-height: none; overflow-x: auto; overflow-y: visible; }
+.tabla-nota thead th { position: static; }
+.barra-registrar { margin-top: 12px; }
+/* La columna principal no se estira al ancho del texto más largo (claves con descripciones largas). */
+.surtir-principal { grid-template-columns: minmax(0, 1fr); }
+.surtir-principal > * { min-width: 0; }
+.tabla-nota { width: 100%; table-layout: fixed; }
+.tabla-nota th:first-child, .tabla-nota td.en-nota { width: 26%; }
+.tabla-nota th.number, .tabla-nota td:last-child { width: 52px; }
+.tabla-nota .claves-sugeridas, .tabla-nota button { max-width: 100%; overflow-wrap: anywhere; }
+.tabla-nota button, .tabla-nota button * { white-space: normal; text-align: left; }

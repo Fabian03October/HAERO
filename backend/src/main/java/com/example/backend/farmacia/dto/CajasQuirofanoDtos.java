@@ -19,7 +19,7 @@ public final class CajasQuirofanoDtos {
     public record ContenidoRequest(String clave, Integer cantidad, Boolean aparte, String descripcion) {
     }
 
-    /** Alta o cambio de una caja. El código es opcional al darla de alta (si no, HAERO lo genera). */
+    /** Alta o cambio de una caja. El código es opcional al darla de alta (si no, SICOMED lo genera). */
     public record GuardarCajaRequest(String codigo, String nombre, String servicio, List<ContenidoRequest> contenido,
                                      String justificacion) {
     }

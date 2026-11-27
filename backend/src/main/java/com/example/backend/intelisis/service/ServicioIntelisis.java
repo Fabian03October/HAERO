@@ -27,7 +27,7 @@ import java.util.Map;
 
 /**
  * Consultas de la integracion con Intelisis. Todo sale de las tablas espejo en
- * la base de HAERO (nunca de Intelisis), con una sola consulta por pantalla.
+ * la base de SICOMED (nunca de Intelisis), con una sola consulta por pantalla.
  */
 @Service
 public class ServicioIntelisis {
@@ -75,13 +75,13 @@ public class ServicioIntelisis {
     }
 
     /**
-     * Compara en cajas, por clave, la existencia vigente de HAERO contra la de los almacenes
-     * del hospital en Intelisis (diseno aprobado: HAERO lleva el control y Supervision ve,
+     * Compara en cajas, por clave, la existencia vigente de SICOMED contra la de los almacenes
+     * del hospital en Intelisis (diseno aprobado: SICOMED lleva el control y Supervision ve,
      * por ejemplo, 20 contra 50). Intelisis guarda piezas en la clave "-1" y cajas en la
      * clave base (antes de la Conversion); se pasa todo a cajas con las piezas por caja
      * del catalogo. En ambos lados se ignoran los lotes ya caducados.
      *
-     * En Intelisis Almacen y Farmacia son el mismo almacen 25301, asi que del lado de HAERO
+     * En Intelisis Almacen y Farmacia son el mismo almacen 25301, asi que del lado de SICOMED
      * se suman las cajas de Almacen y las piezas de Farmacia pasadas a cajas: un despacho a
      * Farmacia no es una diferencia (HU27 CA6).
      */

@@ -10,15 +10,15 @@ const MS_REVISAR_AVANCE = 3000;
 
 const ESTADO_TEXTO: Record<EstadoComparacion, string> = {
   EN_AMBOS: 'En ambos',
-  SOLO_HAERO: 'Solo en HAERO',
+  SOLO_HAERO: 'Solo en SICOMED',
   SOLO_INTELISIS: 'Solo en Intelisis',
 };
 
 // Intelisis: avisos y comparación (paso 4 del diseño aprobado). Pone lado a lado, en
-// cajas, lo que Almacén dio de alta y recibió en HAERO y lo que dice Intelisis (por
+// cajas, lo que Almacén dio de alta y recibió en SICOMED y lo que dice Intelisis (por
 // ejemplo 20 contra 50), para que Almacén y Supervisión vean qué falta dar de alta o
-// qué hay que ajustar en Intelisis. HAERO lleva el control. Lee la copia de consulta
-// en HAERO, así que abre rápido aunque Intelisis no responda.
+// qué hay que ajustar en Intelisis. SICOMED lleva el control. Lee la copia de consulta
+// en SICOMED, así que abre rápido aunque Intelisis no responda.
 @Component({
   selector: 'app-comparacion-intelisis',
   imports: [DatePipe, DecimalPipe, AvisosIntelisis, Paginador],
@@ -54,7 +54,7 @@ export class ComparacionIntelisis {
       { valor: 'DIFERENCIA' as const, etiqueta: 'Con diferencia', total: filas.filter((fila) => this.conDiferencia(fila)).length },
       { valor: 'TODOS' as const, etiqueta: 'Todas', total: filas.length },
       { valor: 'EN_AMBOS' as const, etiqueta: 'En ambos', total: contar('EN_AMBOS') },
-      { valor: 'SOLO_HAERO' as const, etiqueta: 'Solo en HAERO', total: contar('SOLO_HAERO') },
+      { valor: 'SOLO_HAERO' as const, etiqueta: 'Solo en SICOMED', total: contar('SOLO_HAERO') },
       { valor: 'SOLO_INTELISIS' as const, etiqueta: 'Solo en Intelisis', total: contar('SOLO_INTELISIS') },
     ];
   });
@@ -129,7 +129,7 @@ export class ComparacionIntelisis {
   }
 
   /**
-   * Cajas de más en Intelisis (positivo) o en HAERO (negativo); 0 si cuadran y null si
+   * Cajas de más en Intelisis (positivo) o en SICOMED (negativo); 0 si cuadran y null si
    * Intelisis tiene la clave pero no se sabe cuántas piezas trae la caja.
    */
   diferencia(fila: ComparacionClave): number | null {
@@ -161,7 +161,7 @@ export class ComparacionIntelisis {
     });
   }
 
-  /** Piezas de más en Intelisis (positivo) o en HAERO (negativo); null si no se sabe cuántas piezas trae la caja. */
+  /** Piezas de más en Intelisis (positivo) o en SICOMED (negativo); null si no se sabe cuántas piezas trae la caja. */
   diferenciaLote(l: LoteConciliado): number | null {
     return l.haeroPiezas == null ? null : (l.intelisisPiezas ?? 0) - l.haeroPiezas;
   }

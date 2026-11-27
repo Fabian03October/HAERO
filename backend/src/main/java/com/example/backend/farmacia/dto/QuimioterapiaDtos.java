@@ -112,7 +112,7 @@ public final class QuimioterapiaDtos {
                                 String unidadContenido, int existencia, boolean usadaAntes) {
     }
 
-    /** Un medicamento que HAERO encontró en la nota, con la dosis escrita junto a él y sus claves posibles. */
+    /** Un medicamento que SICOMED encontró en la nota, con la dosis escrita junto a él y sus claves posibles. */
     /** soloSiNoHay: alternativa que solo se da si falta lo indicado ("EN CASO DE DESABASTO DE siNoHayDe DAR…").
      * solucion: diluyente o lavado (cloruro de sodio, glucosa…) junto por volumen; veces = bolsas. */
     public record MedicamentoEnNota(String texto, String farmaco, BigDecimal dosisCantidad, String dosisUnidad,

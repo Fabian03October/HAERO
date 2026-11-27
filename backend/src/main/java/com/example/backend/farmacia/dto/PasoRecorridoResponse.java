@@ -14,7 +14,7 @@ public class PasoRecorridoResponse {
     // De dónde salió el dato: "HAERO", "Intelisis" o null si no hay registro.
     private String fuente;
 
-    /** Paso con datos de HAERO: tiene fuente solo si hay fecha. */
+    /** Paso con datos de SICOMED: tiene fuente solo si hay fecha. */
     public PasoRecorridoResponse(String etapa, LocalDateTime fecha, String detalle) {
         this(etapa, fecha, detalle, fecha != null ? "HAERO" : null);
     }

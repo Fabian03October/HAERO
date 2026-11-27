@@ -3,9 +3,9 @@ import { ActivatedRoute } from '@angular/router';
 import { mensajeDeError } from '../../almacen/almacen-api';
 import { HojaBaja, HospitalizacionApi } from '../hospitalizacion-api';
 
-// Hoja de baja propia de HAERO con el acomodo del "Consumo Farmacia" de Intelisis. Se abre en otra
+// Hoja de baja propia de SICOMED con el acomodo del "Consumo Farmacia" de Intelisis. Se abre en otra
 // pestaña y manda a imprimir sola.
-// ?central=CE-HCLIN&dia=2026-07-29&ingreso=123: hojas por paciente (detalle en HAERO).
+// ?central=CE-HCLIN&dia=2026-07-29&ingreso=123: hojas por paciente (detalle en SICOMED).
 // ?central=CE-HCLIN&volumen=1&folio=4: baja por volumen del área, la que se captura en Intelisis.
 // Día, ingreso y folio son opcionales.
 @Component({

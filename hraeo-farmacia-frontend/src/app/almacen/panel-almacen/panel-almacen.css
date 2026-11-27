@@ -1,7 +1,7 @@
 /* Marco común de las pantallas (igual que Farmacia); aquí solo va lo propio de Almacén. */
 @import '../../shared/estilos/pantalla.css';
 
-/* Avisos de Intelisis por revisar (cancelaciones y cambios en lotes que ya están en HAERO). */
+/* Avisos de Intelisis por revisar (cancelaciones y cambios en lotes que ya están en SICOMED). */
 .aviso-intelisis {
   display: grid;
   gap: 3px;

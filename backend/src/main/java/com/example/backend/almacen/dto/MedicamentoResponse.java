@@ -14,7 +14,7 @@ public class MedicamentoResponse {
     private Integer piezasPorCaja;
     private String descripcion;
 
-    // Datos de Intelisis; vacíos en las claves capturadas a mano en HAERO.
+    // Datos de Intelisis; vacíos en las claves capturadas a mano en SICOMED.
     private String formaFarmaceutica;
     private String concentracion;
     private String grupoTerapeutico;
@@ -30,7 +30,7 @@ public class MedicamentoResponse {
     private String origen;
     private LocalDateTime sincronizadoEn;
 
-    // Dada de alta en HAERO = ya tiene al menos un código de barras. Solo las claves
+    // Dada de alta en SICOMED = ya tiene al menos un código de barras. Solo las claves
     // dadas de alta entran al inventario y se pueden despachar.
     private boolean dadoDeAlta;
     private int codigosBarras;

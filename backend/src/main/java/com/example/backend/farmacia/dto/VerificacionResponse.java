@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** HU32: lo entregado en HAERO contra lo dado de baja en Intelisis. */
+/** HU32: lo entregado en SICOMED contra lo dado de baja en Intelisis. */
 @Getter
 @AllArgsConstructor
 public class VerificacionResponse {

@@ -115,8 +115,8 @@ export class PanelAlmacen {
     return esperadas ? Math.min(100, Math.round((recibidas / esperadas) * 100)) : 0;
   }
 
-  // Lo que Intelisis todavía espera de esos pedidos. No se usa lo recibido en HAERO: lo que
-  // Intelisis recibió antes de que HAERO arrancara ya está en los anaqueles (alta inicial).
+  // Lo que Intelisis todavía espera de esos pedidos. No se usa lo recibido en SICOMED: lo que
+  // Intelisis recibió antes de que SICOMED arrancara ya está en los anaqueles (alta inicial).
   private cajasPendientes(): number {
     return this.pedidos.porRecibirAhora().reduce((total, pedido) => total + pedido.cajasPendientesIntelisis, 0);
   }

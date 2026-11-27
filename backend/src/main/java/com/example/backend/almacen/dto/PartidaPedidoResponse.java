@@ -10,7 +10,7 @@ public class PartidaPedidoResponse {
     private String nombreGenerico;
     // Lo esperado, según Intelisis (sin lo cancelado).
     private Integer cantidadEsperada;
-    // Lo que Almacén recibió físicamente en HAERO.
+    // Lo que Almacén recibió físicamente en SICOMED.
     private Integer cantidadRecibida;
     private String cucop;
     // Lo que dice Intelisis: recibido allá y cancelado.

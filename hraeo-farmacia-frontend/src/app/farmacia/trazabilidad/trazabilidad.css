@@ -5,7 +5,7 @@
 .centro { text-align: center; }
 tr.seleccionado td { background: var(--color-guinda-suave); }
 
-/* Origen del dato: HAERO o Intelisis. */
+/* Origen del dato: SICOMED o Intelisis. */
 .fuente { display: inline-block; margin: 0 2px; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; vertical-align: middle; }
 .fuente.haero { background: var(--color-guinda-suave); color: var(--color-guinda); }
 .fuente.intelisis { background: var(--color-dorado-suave); color: var(--color-dorado); }

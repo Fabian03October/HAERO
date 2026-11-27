@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Una clave comparada en cajas entre HAERO (lo que dio de alta y recibió Almacén) e
+ * Una clave comparada en cajas entre SICOMED (lo que dio de alta y recibió Almacén) e
  * Intelisis (la copia de consulta). Intelisis guarda piezas en la clave "-1" y cajas
  * en la clave base; se convierten con las piezas por caja del catálogo.
  */

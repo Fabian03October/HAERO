@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 /**
  * Aviso de un cambio en Intelisis. nivel INFO = solo para enterarse; REVISAR =
- * Intelisis cambió algo que afecta lo que Almacén ya movió en HAERO (HAERO no lo tocó).
+ * Intelisis cambió algo que afecta lo que Almacén ya movió en SICOMED (SICOMED no lo tocó).
  */
 @Getter
 @AllArgsConstructor

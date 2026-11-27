@@ -41,7 +41,7 @@ public class IntelisisController {
         return ResponseEntity.ok(servicioIntelisis.comparacion());
     }
 
-    // Detalle por lote de una clave para conciliar (HAERO en piezas contra Intelisis).
+    // Detalle por lote de una clave para conciliar (SICOMED en piezas contra Intelisis).
     @GetMapping("/comparacion/{clave}/lotes")
     public ResponseEntity<List<LoteConciliadoResponse>> lotes(@PathVariable String clave) {
         return ResponseEntity.ok(servicioIntelisis.lotes(clave));

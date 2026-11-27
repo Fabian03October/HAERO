@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * cada receta trae dos números de 6 dígitos: ID_Receta (el que usa el envío a AAMATES) y
  * Folio; se busca por cualquiera de los dos. vsa_RecetaD.Articulo es la clave del catálogo.
  * Solo se leen folio, fecha, origen, médico, clave y cantidad: nada de diagnósticos ni indicaciones.
- * Igual que los pacientes, se consulta en el momento y no se copia a HAERO.
+ * Igual que los pacientes, se consulta en el momento y no se copia a SICOMED.
  */
 @Service
 public class ServicioRecetasIntelisis {

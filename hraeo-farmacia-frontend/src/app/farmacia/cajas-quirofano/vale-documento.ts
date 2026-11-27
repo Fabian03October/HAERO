@@ -71,7 +71,7 @@ export function datosVale(caja: CajaQuirofano, vale: ValeCaja | null): DatosVale
       };
     }),
     firmas: [vale.medico ?? '', vale.entregadoPor ?? '', vale.recibidoPor ?? ''],
-    folio: `Vale HAERO V-${vale.id}`,
+    folio: `Vale SICOMED V-${vale.id}`,
   };
 }
 

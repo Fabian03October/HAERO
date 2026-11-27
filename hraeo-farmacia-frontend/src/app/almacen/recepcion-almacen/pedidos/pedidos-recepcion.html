@@ -41,7 +41,7 @@
           <th>Proveedor</th>
           <th>Claves</th>
           <th>Entrega</th>
-          <th class="number">Recibido en HAERO</th>
+          <th class="number">Recibido en SICOMED</th>
           <th>Estado</th>
         </tr>
       </thead>
@@ -90,7 +90,7 @@
     </table>
   </div>
   <app-paginador [control]="pag" />
-  <p class="card-help">"Recibido en HAERO" son las cajas que Almacén registró aquí al dar entrada. El estado lo decide Intelisis: un pedido cancelado allá ya no se puede recibir.</p>
+  <p class="card-help">"Recibido en SICOMED" son las cajas que Almacén registró aquí al dar entrada. El estado lo decide Intelisis: un pedido cancelado allá ya no se puede recibir.</p>
 </section>
 
 <!-- Detalle de un pedido. -->
@@ -114,7 +114,7 @@
           <dt>Estado</dt>
           <dd><span [class]="'status ' + pedidos.estadoTexto(pedido).toLowerCase()">{{ pedidos.estadoTexto(pedido) }}</span></dd>
         </div>
-        <div><dt>Recibido en HAERO</dt><dd>{{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} cajas ({{ avance(pedido) }}%)</dd></div>
+        <div><dt>Recibido en SICOMED</dt><dd>{{ pedido.cajasRecibidas }} de {{ pedido.cajasEsperadas }} cajas ({{ avance(pedido) }}%)</dd></div>
       </dl>
       <div class="detalle-avance" aria-hidden="true"><span [style.width.%]="avance(pedido)"></span></div>
 
@@ -130,7 +130,7 @@
               <th>Clave</th>
               <th>CUCOP</th>
               <th class="number">Esperadas</th>
-              <th class="number">Recibidas en HAERO</th>
+              <th class="number">Recibidas en SICOMED</th>
               <th class="number">Recibidas en Intelisis</th>
               <th class="number">Canceladas</th>
             </tr>

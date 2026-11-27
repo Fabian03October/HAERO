@@ -55,11 +55,11 @@ public class GlobalExceptionHandler {
         String detalle = String.valueOf(ex.getMostSpecificCause().getMessage());
         if (detalle.contains("UX_lote_registro_intelisis")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("mensaje", "Ese registro de Intelisis ya se recibió en HAERO (otra persona lo registró al mismo tiempo). Vuelve a escanear la caja."));
+                    .body(Map.of("mensaje", "Ese registro de Intelisis ya se recibió en SICOMED (otra persona lo registró al mismo tiempo). Vuelve a escanear la caja."));
         }
         if (detalle.contains("UX_lote_alta_inicial")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("mensaje", "Ese lote ya se dio de alta en HAERO (otra persona lo registró al mismo tiempo). Vuelve a escanear la caja."));
+                    .body(Map.of("mensaje", "Ese lote ya se dio de alta en SICOMED (otra persona lo registró al mismo tiempo). Vuelve a escanear la caja."));
         }
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("mensaje", "Los datos enviados entran en conflicto con información existente"));

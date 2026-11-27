@@ -15,7 +15,7 @@ const SECCIONES_COMUNES: Seccion[] = [
   {
     titulo: 'Objeto y alcance',
     puntos: [
-      'Las presentes políticas regulan el acceso y el uso del sistema HAERO, herramienta institucional del Hospital Regional de Alta Especialidad de Oaxaca para el control del almacenamiento, la distribución y la dispensación de medicamentos.',
+      'Las presentes políticas regulan el acceso y el uso del sistema SICOMED, herramienta institucional del Hospital Regional de Alta Especialidad de Oaxaca para el control del almacenamiento, la distribución y la dispensación de medicamentos.',
       'Son de observancia obligatoria para todo el personal que cuente con una cuenta de acceso al sistema, independientemente de su área o tipo de contratación.',
       'La aceptación de estas políticas es requisito indispensable para utilizar el sistema.',
     ],

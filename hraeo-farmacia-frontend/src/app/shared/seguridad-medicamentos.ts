@@ -49,7 +49,7 @@ export class SeguridadMedicamentos {
     });
   }
 
-  /** Acepta la clave de HAERO o la de Intelisis con su "-1". */
+  /** Acepta la clave de SICOMED o la de Intelisis con su "-1". */
   marcas(clave: string | null | undefined): MarcasSeguridad {
     if (!clave) return SIN_MARCAS;
     return this.porClave().get(clave.replace(/-1$/, '')) ?? SIN_MARCAS;

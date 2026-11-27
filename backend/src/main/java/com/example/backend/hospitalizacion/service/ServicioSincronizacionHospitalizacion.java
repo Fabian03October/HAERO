@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Lee de Intelisis (solo SELECT) las camas, los internados y los medicamentos de sus
- * indicaciones, y los compara con la foto anterior guardada en HAERO para registrar las
+ * indicaciones, y los compara con la foto anterior guardada en SICOMED para registrar las
  * novedades que Intelisis no avisa.
  *
  * Validado con datos reales (2026-10-27):
@@ -104,7 +104,7 @@ public class ServicioSincronizacionHospitalizacion {
             bitacora = abrirBitacora(inicio);
             JdbcTemplate intelisis = conexion.plantilla().orElseThrow(() -> new IllegalStateException(conexion.motivoNoDisponible()));
 
-            // 1) Leer de Intelisis, fuera de la transacción de HAERO.
+            // 1) Leer de Intelisis, fuera de la transacción de SICOMED.
             List<Object[]> camas = intelisis.query("""
                     SELECT ce.Espacio, e.Nombre, e.Tipo, ce.CenEnf
                     FROM vsa_CenEnfEspacio ce WITH (NOLOCK)

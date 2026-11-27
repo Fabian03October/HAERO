@@ -10,7 +10,7 @@ const RESULTADOS = 8;
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 // Buscador de claves del catálogo para Farmacia. Por omisión solo muestra las claves dadas de alta
-// en HAERO (las que tienen código de caja; las demás no tienen inventario aquí). En el alta inicial
+// en SICOMED (las que tienen código de caja; las demás no tienen inventario aquí). En el alta inicial
 // se muestra todo el catálogo de Intelisis, porque ahí es donde se dan de alta.
 @Component({
   selector: 'app-buscador-medicamento',

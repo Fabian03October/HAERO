@@ -242,7 +242,7 @@ public class ServicioRegistrosIntelisis {
 
     private static String bloqueoEntrada(Acumulado a, Long recibido, List<LoteHaero> lotes) {
         if (recibido != null) {
-            return "Ya se recibió en HAERO.";
+            return "Ya se recibió en SICOMED.";
         }
         if (a.pedidoCancelado) {
             return "El pedido " + a.numeroPedido + " está cancelado en Intelisis: no recibir.";
@@ -258,12 +258,12 @@ public class ServicioRegistrosIntelisis {
                 && a.lote.equalsIgnoreCase(l.loteIntelisis()) && l.diaAlta() != null && a.fecha != null
                 && !l.diaAlta().isBefore(a.fecha));
         if (incluidoEnAlta) {
-            return "Este lote ya entró a HAERO con el alta inicial, que ya incluía esta entrada.";
+            return "Este lote ya entró a SICOMED con el alta inicial, que ya incluía esta entrada.";
         }
         // Canjes (HU18) y entradas por préstamo (HU20) crean el lote sin registro de Intelisis;
         // cuando Intelisis captura esa misma entrada, recibirla otra vez contaría las cajas dos veces.
         if (yaEntroSinIntelisis(a.lote, lotes)) {
-            return "Este lote ya entró a HAERO por un canje o un préstamo; no lo recibas otra vez.";
+            return "Este lote ya entró a SICOMED por un canje o un préstamo; no lo recibas otra vez.";
         }
         return null;
     }
@@ -274,7 +274,7 @@ public class ServicioRegistrosIntelisis {
 
     private static String bloqueoAltaInicial(Acumulado a, List<LoteHaero> lotes) {
         if (loteDelAltaInicial(a, lotes) != null) {
-            return "Ese lote ya está en HAERO.";
+            return "Ese lote ya está en SICOMED.";
         }
         if (a.caducidad == null) {
             return "Intelisis no tiene la caducidad de este lote; pide que la capturen antes de darlo de alta.";

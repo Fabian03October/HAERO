@@ -17,7 +17,7 @@ public class RecetaIntelisisResponse {
     // NOTA EVOLUCION, CONSULTA EXTERNA, TRIAGE...
     private String origen;
     private PacienteResponse paciente;
-    // Estado de esa receta en HAERO (SURTIDA, PARCIAL o NO_DISPENSADA); null si aún no se registra.
+    // Estado de esa receta en SICOMED (SURTIDA, PARCIAL o NO_DISPENSADA); null si aún no se registra.
     private String estadoEnHaero;
     private List<PartidaRecetaIntelisis> partidas;
     // Médico que hizo la receta (vsa_Receta.Usuario) y, si es otro, su médico adscrito.

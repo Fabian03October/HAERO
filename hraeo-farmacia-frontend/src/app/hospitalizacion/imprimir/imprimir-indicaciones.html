@@ -21,10 +21,10 @@
 
     <div class="datos-paciente">
       <div><b>Nombre:</b> {{ h.paciente }}</div>
-      <div><b>Fecha de impresión:</b> {{ fechaLarga(h.fechaImpresion) }}</div>
       <div><b>Sexo:</b> {{ h.sexo ?? '' }} &nbsp;&nbsp; <b>Edad:</b> {{ h.edad ?? '' }}</div>
       <div><b>Fecha de nacimiento:</b> {{ fechaCorta(h.fechaNacimiento) }} &nbsp;&nbsp; <b>Expediente:</b> {{ h.expediente }}</div>
       <div><b>Cama:</b> {{ h.cama }} &nbsp;&nbsp; <b>Área:</b> {{ h.area }}</div>
+      <div><b>Fecha de impresión:</b> {{ fechaLarga(h.fechaImpresion) }}</div>
     </div>
 
     @if (!h.intelisisDisponible) {
@@ -100,7 +100,7 @@
 
     <footer class="pie">
       <span>{{ fechaLarga(h.fechaImpresion) }}</span>
-      <span>Impreso desde HAERO</span>
+      <span>Impreso desde SICOMED</span>
     </footer>
   </section>
 } @empty {

@@ -5,7 +5,7 @@ import { AlmacenApi, EstatusPedido, EstatusPedidoIntelisis, PartidaPedido, Pedid
 export type EstadoPedido = EstatusPedido;
 
 // Pedido de Intelisis con un resumen de sus partidas para las listas y el Inicio.
-// Los pedidos se leen de Intelisis (allá se capturan y se cancelan); HAERO solo
+// Los pedidos se leen de Intelisis (allá se capturan y se cancelan); SICOMED solo
 // guarda lo que Almacén recibió físicamente (cajasRecibidas).
 export interface Pedido {
   id: number;
@@ -23,11 +23,11 @@ export interface Pedido {
   clave: string;
   medicamento: string;
   cajasEsperadas: number;
-  // Recibidas en HAERO (lo que registró Almacén) y lo que dice Intelisis.
+  // Recibidas en SICOMED (lo que registró Almacén) y lo que dice Intelisis.
   cajasRecibidas: number;
   cajasRecibidasIntelisis: number;
   // Lo que Intelisis todavía espera recibir (lo esperado sin lo cancelado, menos lo que ya recibió).
-  // Lo que Intelisis recibió antes de que HAERO arrancara ya está en los anaqueles (alta inicial).
+  // Lo que Intelisis recibió antes de que SICOMED arrancara ya está en los anaqueles (alta inicial).
   cajasPendientesIntelisis: number;
 }
 
@@ -103,8 +103,8 @@ export class PedidosAlmacen {
 
   /**
    * El estado lo decide Intelisis. Recibido: concluido en Intelisis, o ya no le queda nada
-   * por recibir ahí, o Almacén recibió todo en HAERO. Parcial: ya llegó algo (en HAERO o en
-   * Intelisis). Así un pedido que Intelisis recibió antes de que HAERO arrancara no queda
+   * por recibir ahí, o Almacén recibió todo en SICOMED. Parcial: ya llegó algo (en SICOMED o en
+   * Intelisis). Así un pedido que Intelisis recibió antes de que SICOMED arrancara no queda
    * "por recibir" para siempre.
    */
   estadoTexto(pedido: Pedido): EstadoTextoPedido {

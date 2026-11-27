@@ -92,14 +92,14 @@ export function armarReporteVarios(lotes: ConsultaReporte[], generadoPor: string
   return { doc, nombre: `trazabilidad-${lotes.length}-consultas-${generado.toLocaleDateString('en-CA')}.pdf` };
 }
 
-/** Recorrido (línea de tiempo con datos de HAERO, tabla si todo es de Intelisis), compras, existencia y entregas. */
+/** Recorrido (línea de tiempo con datos de SICOMED, tabla si todo es de Intelisis), compras, existencia y entregas. */
 function seccion(doc: Documento, cab: Cabecera, y: number, resultado: Trazabilidad): number {
   const pasos = resultado.recorrido.filter((p) => p.fuente);
   if (conDatosHaero(resultado)) {
     y = lineaDeTiempo(doc, cab, y, resultado.recorrido);
   } else if (pasos.length) {
     y = tabla(doc, cab, y, resultado.modo === 'RECETA' ? 'Receta y surtido' : 'Recorrido del lote', ['Etapa', 'Fecha', 'Detalle', 'Origen'],
-      pasos.map((p) => [p.etapa, p.fecha ? fecha(p.fecha) : '—', p.detalle, p.fuente ?? '']), { 2: { cellWidth: 95 } });
+      pasos.map((p) => [p.etapa, p.fecha ? fecha(p.fecha) : '—', p.detalle, nombreFuente(p.fuente)]), { 2: { cellWidth: 95 } });
   }
   if (resultado.compras?.length) {
     y = tabla(doc, cab, y, 'Compras en Intelisis', ['Fecha', 'Compra', 'Origen', 'Contrato', 'Proveedor', 'Cantidad', 'Caducidad'],
@@ -111,7 +111,7 @@ function seccion(doc: Documento, cab: Cabecera, y: number, resultado: Trazabilid
       resultado.existencias.map((e) => [e.almacen, e.tipo, e.clave, String(e.cantidad)]), { 3: { halign: 'right' } });
   }
   return tabla(doc, cab, y, 'Entregas a pacientes', ['Fecha', 'Folio', 'Paciente', 'Expediente', 'Clave', 'Lote', 'Piezas', 'Registró', 'Origen'],
-    resultado.entregas.map((e) => [e.fecha ? fecha(e.fecha) : '—', e.folio, e.paciente, e.expediente ?? '—', e.clave, e.lote, String(e.piezas), e.despachador ?? '—', e.fuente]),
+    resultado.entregas.map((e) => [e.fecha ? fecha(e.fecha) : '—', e.folio, e.paciente, e.expediente ?? '—', e.clave, e.lote, String(e.piezas), e.despachador ?? '—', nombreFuente(e.fuente)]),
     { 1: { cellWidth: 30 }, 2: { cellWidth: 33 }, 6: { halign: 'right' } },
     'No hay entregas a pacientes para esta búsqueda.', 7);
 }
@@ -121,7 +121,7 @@ function origen(resultado: Trazabilidad): string {
     ...resultado.entregas.map((e) => e.fuente),
     ...resultado.recorrido.map((p) => p.fuente).filter((f): f is 'HAERO' | 'Intelisis' => !!f),
   ]);
-  return fuentes.size ? [...fuentes].join(' e ') : 'Sin datos';
+  return fuentes.size ? [...fuentes].map(nombreFuente).join(' e ') : 'Sin datos';
 }
 
 function resumenEntregas(resultado: Trazabilidad): string {
@@ -130,7 +130,7 @@ function resumenEntregas(resultado: Trazabilidad): string {
   return `${resultado.entregas.length} (${pacientes} ${pacientes === 1 ? 'paciente' : 'pacientes'}, ${piezas} piezas)`;
 }
 
-/** Misma regla que la pantalla: hay línea de tiempo si el lote tiene pasos o entregas registrados en HAERO. */
+/** Misma regla que la pantalla: hay línea de tiempo si el lote tiene pasos o entregas registrados en SICOMED. */
 export function conDatosHaero(resultado: Trazabilidad): boolean {
   return resultado.modo === 'LOTE' && (resultado.recorrido.some((p) => p.fuente === 'HAERO') || resultado.entregas.some((e) => e.fuente === 'HAERO'));
 }
@@ -227,4 +227,9 @@ function fecha(valor: string | null): string {
   return sinHora
     ? d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : d.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/** El origen se guarda como 'HAERO' (nombre anterior del sistema); en pantalla y reportes se llama SICOMED. */
+function nombreFuente(fuente: string | null | undefined): string {
+  return fuente === 'HAERO' ? 'SICOMED' : fuente ?? '';
 }

@@ -10,8 +10,8 @@ import { CorteDia, EstadoDia, FarmaciaApi, RenglonResumen, RenglonVerificacion, 
 
 // Farmacia · Baja en Intelisis (HU31, HU32). El resumen del día sale del backend (entregas menos
 // devoluciones; las bajas aparte); el responsable lo captura en Intelisis, marca aquí el día y
-// después verifica contra lo que HAERO lee del espejo de Intelisis.
-// HAERO no escribe en Intelisis: la baja por volumen la captura una persona con este resumen.
+// después verifica contra lo que SICOMED lee del espejo de Intelisis.
+// SICOMED no escribe en Intelisis: la baja por volumen la captura una persona con este resumen.
 @Component({
   selector: 'app-baja-intelisis',
   imports: [Paginador, FormsModule, Topbar, Sidebar],

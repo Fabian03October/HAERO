@@ -27,7 +27,7 @@ interface EntregaFila {
   fuente: 'HAERO' | 'Intelisis';
 }
 
-// Etapas que recorre un lote; se llenan con HAERO y, donde HAERO no sabe, con Intelisis.
+// Etapas que recorre un lote; se llenan con SICOMED y, donde SICOMED no sabe, con Intelisis.
 const ETAPAS: PasoRecorrido[] = [
   { etapa: 'Pedido y contrato', detalle: 'Compra de Intelisis con la que llegó', fecha: null, fuente: null },
   { etapa: 'Entrada a Almacén', detalle: 'Recepción con el registro de Intelisis', fecha: null, fuente: null },
@@ -71,7 +71,7 @@ export function queBuscar(entrada: string): Busqueda {
 }
 
 // Farmacia · Trazabilidad: un solo buscador para medicamento, lote, expediente, paciente o caja
-// escaneada. El recorrido junta HAERO con lo que copia la sincronización de Intelisis. Solo
+// escaneada. El recorrido junta SICOMED con lo que copia la sincronización de Intelisis. Solo
 // Farmacia y Supervisión ven los datos de pacientes y cada consulta queda registrada.
 @Component({
   selector: 'app-trazabilidad',
@@ -103,7 +103,7 @@ export class Trazabilidad {
   readonly generandoReporte = signal(false);
   // Última respuesta completa, para las tablas de Intelisis y el reporte PDF.
   readonly resultado = signal<TrazabilidadApi | null>(null);
-  // La línea de tiempo solo tiene sentido con pasos registrados en HAERO; si todo viene de Intelisis, van tablas.
+  // La línea de tiempo solo tiene sentido con pasos registrados en SICOMED; si todo viene de Intelisis, van tablas.
   readonly mostrarLinea = computed(() => {
     const resultado = this.resultado();
     return !!resultado && conDatosHaero(resultado);
@@ -266,7 +266,7 @@ export class Trazabilidad {
     this.pagEntregas.reiniciar();
     const avisos = [resultado.aviso ?? ''];
     if (!resultado.entregas.length) {
-      avisos.push(resultado.modo === 'LOTE' ? 'No hay entregas a pacientes de este lote en HAERO ni en Intelisis.' : 'No hay entregas registradas para esa búsqueda.');
+      avisos.push(resultado.modo === 'LOTE' ? 'No hay entregas a pacientes de este lote en SICOMED ni en Intelisis.' : 'No hay entregas registradas para esa búsqueda.');
     }
     this.aviso.set(avisos.filter(Boolean).join(' '));
   }

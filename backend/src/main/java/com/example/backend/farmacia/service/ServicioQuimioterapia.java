@@ -72,7 +72,7 @@ import java.util.Set;
  *
  *  - Una solicitud puede cubrir varias sesiones o ciclos: cada surtido es una sesión (1, 2, 3…) y
  *    todas deben ser del mismo paciente.
- *  - La dosis se puede capturar en mg (o la unidad indicada) contra lo que trae cada frasco: HAERO
+ *  - La dosis se puede capturar en mg (o la unidad indicada) contra lo que trae cada frasco: SICOMED
  *    calcula lo que sobra y Farmacia dice si se desecha (MERMA) o se guarda (RESGUARDO).
  *  - Si se surte la alternativa habiendo existencia de la principal, se pide el motivo.
  *  - Si Intelisis no responde, se confirma al paciente con el expediente físico y queda justificado.
@@ -363,7 +363,7 @@ public class ServicioQuimioterapia {
                 ultima.isEmpty() ? null : (String) ultima.get(0).get("error"), total == null ? 0 : total);
     }
 
-    /** La solicitud con cuántas sesiones se han surtido de ella en HAERO. */
+    /** La solicitud con cuántas sesiones se han surtido de ella en SICOMED. */
     // fecha_requerida = la que manda: la última reprogramación (Oncología dio otra fecha) o la de Intelisis.
     private static final String SOLICITUDES_CON_SESIONES = """
             SELECT s.folio, s.fecha, COALESCE(CAST(rp.fecha_nueva AS DATETIME2), s.fecha_requerida) AS fecha_requerida, s.estatus,

@@ -110,7 +110,7 @@
     </dl>
 
     @if (item.origenCpm === 'INTELISIS') {
-      <div class="message info">HAERO todavía no tiene 6 meses de salidas propias. El CPM ({{ item.cpm }}) y los meses de abajo salen del consumo real de Farmacia en Intelisis, en cajas; al completar los 6 meses se usan las salidas de HAERO.</div>
+      <div class="message info">SICOMED todavía no tiene 6 meses de salidas propias. El CPM ({{ item.cpm }}) y los meses de abajo salen del consumo real de Farmacia en Intelisis, en cajas; al completar los 6 meses se usan las salidas de SICOMED.</div>
     } @else if (!item.mesesHistorial) {
       <div class="message info">Todavía no hay meses cerrados con salidas registradas. El CPM aparece al cerrar el primer mes.</div>
     } @else if (item.mesesHistorial < 6) {

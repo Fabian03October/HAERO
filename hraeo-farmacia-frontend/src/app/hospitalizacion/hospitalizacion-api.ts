@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../api-config';
 import { Session } from '../auth/session';
 
 // Tipos copiados de los DTOs del backend (com.example.backend.hospitalizacion.dto).
-// Los datos salen de la lectura de Intelisis que HAERO hace cada 5 minutos.
+// Los datos salen de la lectura de Intelisis que SICOMED hace cada 5 minutos.
 
 export interface AreaHospitalizacion {
   central: string;
@@ -210,7 +210,7 @@ export interface HojaIndicaciones {
   intelisisDisponible: boolean;
 }
 
-// Hoja de baja propia de HAERO (mismo acomodo que "Consumo Farmacia").
+// Hoja de baja propia de SICOMED (mismo acomodo que "Consumo Farmacia").
 export interface PartidaBaja {
   articulo: string;
   descripcion: string;
@@ -315,7 +315,7 @@ export class HospitalizacionApi {
   }
 
   /** Reconoce la caja por su código de barras y dice a qué pacientes del área les toca. */
-  /** Con `clave`, un código que HAERO no conocía queda ligado a ese medicamento (HU42). */
+  /** Con `clave`, un código que SICOMED no conocía queda ligado a ese medicamento (HU42). */
   escanear(central: string, codigo: string, lote?: string, clave?: string): Observable<EscaneoCarrito> {
     return this.http.post<EscaneoCarrito>(`${API_BASE_URL}/farmacia/carrito/escanear`, { central, codigo, lote, clave }, this.cabeceras());
   }

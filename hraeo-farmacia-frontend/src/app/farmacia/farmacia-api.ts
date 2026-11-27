@@ -153,7 +153,7 @@ export interface RecetaIntelisis {
   fecha: string | null;
   origen: string | null;
   paciente: Paciente;
-  // Estado de esa receta en HAERO; null si todavía no se registra.
+  // Estado de esa receta en SICOMED; null si todavía no se registra.
   estadoEnHaero: EstadoReceta | null;
   partidas: PartidaRecetaIntelisis[];
   // Médico que hizo la receta y, si es otro, su médico adscrito.
@@ -357,7 +357,7 @@ export interface PasoRecorrido {
   fuente: 'HAERO' | 'Intelisis' | null;
 }
 
-// Lote de un medicamento con lo que saben HAERO e Intelisis (existencias en sus unidades).
+// Lote de un medicamento con lo que saben SICOMED e Intelisis (existencias en sus unidades).
 export interface LoteTrazable {
   clave: string;
   medicamento: string | null;
@@ -381,7 +381,7 @@ export interface EntregaPaciente {
   lote: string;
   piezas: number;
   despachador: string;
-  // HAERO (entrega registrada en HAERO) o Intelisis (baja de Farmacia anterior a HAERO).
+  // SICOMED (entrega registrada en SICOMED) o Intelisis (baja de Farmacia anterior a SICOMED).
   fuente: 'HAERO' | 'Intelisis';
 }
 
@@ -480,7 +480,7 @@ export interface ResumenQuimio {
   surtidasHoy: number;
 }
 
-// Clave del catálogo que puede ser la que escribió el médico (HAERO solo sugiere; Farmacia confirma).
+// Clave del catálogo que puede ser la que escribió el médico (SICOMED solo sugiere; Farmacia confirma).
 export interface ClaveSugerida {
   clave: string;
   nombre: string;
@@ -839,7 +839,7 @@ export class FarmaciaApi {
     return this.http.get<Trazabilidad>(`${this.base}/trazabilidad`, { ...this.cabeceras(), params: { ...params, ...periodo } });
   }
 
-  /** Lotes de un medicamento (clave o nombre) o de un número de lote, en HAERO y en Intelisis. */
+  /** Lotes de un medicamento (clave o nombre) o de un número de lote, en SICOMED y en Intelisis. */
   trazabilidadLotes(q: string): Observable<LoteTrazable[]> {
     return this.http.get<LoteTrazable[]>(`${this.base}/trazabilidad/lotes`, { ...this.cabeceras(), params: { q } });
   }

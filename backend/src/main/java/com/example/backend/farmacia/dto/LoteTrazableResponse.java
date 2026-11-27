@@ -6,7 +6,7 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/** Un lote de un medicamento, juntando lo que saben HAERO e Intelisis, para elegir cuál rastrear. */
+/** Un lote de un medicamento, juntando lo que saben SICOMED e Intelisis, para elegir cuál rastrear. */
 @Getter
 @AllArgsConstructor
 public class LoteTrazableResponse {
@@ -17,7 +17,7 @@ public class LoteTrazableResponse {
     // Sufijos con los que aparece en Intelisis (origen del recurso: SCC, UNOPS, FONSABI...).
     private String sufijos;
     private LocalDate caducidad;
-    // Piezas hoy en el inventario de Farmacia de HAERO; null si el lote no está en Farmacia.
+    // Piezas hoy en el inventario de Farmacia de SICOMED; null si el lote no está en Farmacia.
     private Integer piezasFarmacia;
     // Existencia en Intelisis: artículo sin "-1" (almacén) y con "-1" (farmacia), en sus unidades.
     private BigDecimal existenciaAlmacenIntelisis;

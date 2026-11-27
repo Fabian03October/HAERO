@@ -7,7 +7,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class PartidaRecetaIntelisis {
-    // Clave del catálogo de HAERO; null si el médico escribió el fármaco sin clave.
+    // Clave del catálogo de SICOMED; null si el médico escribió el fármaco sin clave.
     private String clave;
     private String medicamento;
     private Integer piezasPorCaja;

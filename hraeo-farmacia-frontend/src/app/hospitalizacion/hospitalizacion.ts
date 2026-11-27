@@ -41,7 +41,7 @@ type Vista = 'CAMAS' | 'LISTA' | 'CARRITO' | 'SURTIDOS';
 type Paso = 1 | 2 | 3;
 type FiltroCamas = '' | 'OCUPADA' | 'LIBRE' | 'NOVEDADES';
 
-// Hospitalización: camas por área con quién está, sus medicamentos y las novedades que HAERO
+// Hospitalización: camas por área con quién está, sus medicamentos y las novedades que SICOMED
 // detecta en Intelisis (ingresos, egresos, cambios de cama, medicamentos nuevos o suspendidos).
 // La usan Farmacia y Supervisión; son datos clínicos bajo las políticas de uso y privacidad, y
 // abrir el detalle de una cama queda registrado.
@@ -91,7 +91,7 @@ export class Hospitalizacion {
   readonly elegidosImprimir = signal<Set<number>>(new Set());
   readonly terminando = signal(false);
   readonly carrito = signal<Carrito | null>(null);
-  // HU42: caja con un código que HAERO no conoce; se elige de qué medicamento pendiente es.
+  // HU42: caja con un código que SICOMED no conoce; se elige de qué medicamento pendiente es.
   readonly codigoDesconocido = signal<{ codigo: string; lote?: string } | null>(null);
   readonly filtroDesconocido = signal('');
   readonly clavesPendientes = computed(() => {
@@ -197,7 +197,7 @@ export class Hospitalizacion {
     return [...totales.entries()].map(([clave, t]) => ({ clave, ...t })).sort((a, b) => a.medicamento.localeCompare(b.medicamento));
   });
 
-  // Surtidos del día: hojas por paciente (detalle en HAERO) y bajas por volumen (las de Intelisis).
+  // Surtidos del día: hojas por paciente (detalle en SICOMED) y bajas por volumen (las de Intelisis).
   readonly diaSurtidos = signal(new Date().toLocaleDateString('en-CA'));
   readonly filtroSurtidos = signal('');
   readonly hojasDia = signal<HojaBaja[]>([]);

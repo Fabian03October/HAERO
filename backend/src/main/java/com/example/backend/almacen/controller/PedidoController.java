@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Pedidos de Intelisis, solo consulta (HU22 y HU11). En HAERO ya no se capturan ni se
+ * Pedidos de Intelisis, solo consulta (HU22 y HU11). En SICOMED ya no se capturan ni se
  * cancelan pedidos: eso se hace en Intelisis y llega con la sincronizacion.
  */
 @RestController

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 public class LineaCarrito {
     private String clave;
     private String medicamento;
-    // Clave del catálogo de HAERO; si no, solo se muestra (no se puede surtir por escaneo).
+    // Clave del catálogo de SICOMED; si no, solo se muestra (no se puede surtir por escaneo).
     private boolean enCatalogo;
     // Referencia para el despachador (la cantidad la captura él): "1 GRAMO INTRAVENOSA c/8 horas".
     private String posologia;

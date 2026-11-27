@@ -88,7 +88,7 @@ public class ServicioSincronizacionQuimio {
                     Long.class, Timestamp.valueOf(LocalDateTime.now()));
             JdbcTemplate intelisis = conexion.plantilla().orElseThrow(() -> new IllegalStateException(conexion.motivoNoDisponible()));
 
-            // 1) Leer de Intelisis, fuera de la transacción de HAERO.
+            // 1) Leer de Intelisis, fuera de la transacción de SICOMED.
             List<Object[]> solicitudes = intelisis.query(SELECT_SOLICITUD
                             + " AND (s.Fecha >= DATEADD(day, ?, GETDATE()) OR s.FechaRequerida >= DATEADD(day, ?, GETDATE()))",
                     (rs, n) -> fila(rs), -dias, -DIAS_REQUERIDA_ATRAS);

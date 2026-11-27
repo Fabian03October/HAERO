@@ -1,7 +1,7 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción · Integración Intelisis</p>
   <h1>Intelisis: avisos y comparación</h1>
-  <p>Lo que cambió en Intelisis y, en cajas, si cuadra con lo que tiene Almacén en HAERO. Intelisis solo se consulta; esta pantalla no cambia nada.</p>
+  <p>Lo que cambió en Intelisis y, en cajas, si cuadra con lo que tiene Almacén en SICOMED. Intelisis solo se consulta; esta pantalla no cambia nada.</p>
 </header>
 
 @if (error()) {
@@ -70,7 +70,7 @@
   <div class="card-heading">
     <div>
       <p class="eyebrow">Por clave</p>
-      <h2>HAERO contra Intelisis</h2>
+      <h2>SICOMED contra Intelisis</h2>
     </div>
     <div class="counters">
       <span>{{ visibles().length }} de {{ filas().length }} claves</span>
@@ -94,10 +94,10 @@
         <tr>
           <th>Clave</th>
           <th>Estado</th>
-          <th class="number">HAERO (cajas)</th>
+          <th class="number">SICOMED (cajas)</th>
           <th class="number">Intelisis (cajas)</th>
           <th class="number">Diferencia</th>
-          <th>HAERO próx. caducidad</th>
+          <th>SICOMED próx. caducidad</th>
           <th>Intelisis próx. caducidad</th>
         </tr>
       </thead>
@@ -126,7 +126,7 @@
               <td class="number">
                 @if (diferencia(fila); as dif) {
                   <strong [class]="dif > 0 ? 'mas-intelisis' : 'mas-haero'">{{ dif > 0 ? '+' : '' }}{{ dif | number: '1.0-2' }}</strong>
-                  <small>{{ dif > 0 ? 'más en Intelisis' : 'más en HAERO' }}</small>
+                  <small>{{ dif > 0 ? 'más en Intelisis' : 'más en SICOMED' }}</small>
                 } @else if (diferencia(fila) === null) {
                   <small>Sin piezas por caja</small>
                 } @else {
@@ -146,7 +146,7 @@
                   } @else {
                     <table class="tabla-lotes">
                       <thead>
-                        <tr><th>Lote</th><th>Caducidad</th><th class="number">Almacén (cajas)</th><th class="number">Farmacia (piezas)</th><th class="number">HAERO (piezas)</th><th class="number">Intelisis (piezas)</th><th class="number">Diferencia</th></tr>
+                        <tr><th>Lote</th><th>Caducidad</th><th class="number">Almacén (cajas)</th><th class="number">Farmacia (piezas)</th><th class="number">SICOMED (piezas)</th><th class="number">Intelisis (piezas)</th><th class="number">Diferencia</th></tr>
                       </thead>
                       <tbody>
                         @for (l of lotes(); track l.lote) {
@@ -182,9 +182,9 @@
   </div>
   <app-paginador [control]="pag" />
   <p class="card-help">
-    HAERO lleva el control: si Intelisis tiene más, falta dar de alta o recibir en HAERO, o hay que ajustar Intelisis. Intelisis guarda
+    SICOMED lleva el control: si Intelisis tiene más, falta dar de alta o recibir en SICOMED, o hay que ajustar Intelisis. Intelisis guarda
     piezas; se pasan a cajas con las piezas por caja del catálogo (una fracción es una caja abierta). En ambos lados se ignoran los lotes caducados.
-    Del lado de Intelisis se suman sus dos almacenes (25301 y 25301-C) y del de HAERO, Almacén + Farmacia. "Ver por lote" compara en piezas;
+    Del lado de Intelisis se suman sus dos almacenes (25301 y 25301-C) y del de SICOMED, Almacén + Farmacia. "Ver por lote" compara en piezas;
     los lotes con terminación en Intelisis ("2503353 SCC") cuentan como el mismo lote.
   </p>
 </section>

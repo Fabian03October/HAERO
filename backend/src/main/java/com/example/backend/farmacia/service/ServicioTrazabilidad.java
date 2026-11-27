@@ -98,15 +98,15 @@ public class ServicioTrazabilidad {
                 .filter(l -> filtroClave == null || l.getMedicamento().getClave().equals(filtroClave))
                 .forEach(l -> enAlmacen.put(l.getId(), l));
         enFarmacia.stream().map(LoteFarmacia::getLoteAlmacen).filter(Objects::nonNull).forEach(l -> enAlmacen.putIfAbsent(l.getId(), l));
-        // Lo que copió la sincronización de Intelisis: sirve para lotes anteriores a HAERO o que no pasaron por él.
+        // Lo que copió la sincronización de Intelisis: sirve para lotes anteriores a SICOMED o que no pasaron por él.
         List<RecepcionIntelisis> recepciones = recepcionesIntelisis(lote, filtroClave);
         List<ExistenciaIntelisis> existencias = existenciasIntelisis(lote, filtroClave);
         List<MovimientoIntelisis> movimientos = movimientosFarmaciaIntelisis(lote, filtroClave);
-        // Antes de que HAERO dispensara, el paciente de cada baja de Farmacia está en Intelisis.
+        // Antes de que SICOMED dispensara, el paciente de cada baja de Farmacia está en Intelisis.
         ServicioBajasPacienteIntelisis.Resultado anteriores = bajasIntelisis.delLote(lote, filtroClave, periodo.desde(), periodo.antesDe(inicioDispensacionHaero()));
         if (enFarmacia.isEmpty() && enAlmacen.isEmpty() && recepciones.isEmpty() && existencias.isEmpty() && movimientos.isEmpty()
                 && anteriores.entregas().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay registro del lote " + lote + " en HAERO ni en Intelisis");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay registro del lote " + lote + " en SICOMED ni en Intelisis");
         }
 
         List<Long> idsFarmacia = enFarmacia.stream().map(LoteFarmacia::getId).toList();
@@ -148,7 +148,7 @@ public class ServicioTrazabilidad {
             return new Periodo(desde == null ? null : desde.atStartOfDay(), hasta == null ? null : hasta.plusDays(1).atStartOfDay());
         }
 
-        /** Límite superior para Intelisis: el fin del periodo o el inicio de HAERO, el que sea antes. */
+        /** Límite superior para Intelisis: el fin del periodo o el inicio de SICOMED, el que sea antes. */
         LocalDateTime antesDe(LocalDateTime inicioHaero) {
             return hasta == null ? inicioHaero : inicioHaero == null ? hasta : min(hasta, inicioHaero);
         }
@@ -168,13 +168,13 @@ public class ServicioTrazabilidad {
         return a.isBefore(b) ? a : b;
     }
 
-    /** Primera entrega registrada en HAERO: desde ahí manda HAERO; antes, las bajas de Intelisis. */
+    /** Primera entrega registrada en SICOMED: desde ahí manda SICOMED; antes, las bajas de Intelisis. */
     private LocalDateTime inicioDispensacionHaero() {
         Timestamp primera = haero.queryForObject("SELECT MIN(fecha) FROM farmacia_entrega", Timestamp.class);
         return primera == null ? null : primera.toLocalDateTime();
     }
 
-    /** Entregas de HAERO y de Intelisis en una sola lista, de la más reciente a la más antigua. */
+    /** Entregas de SICOMED y de Intelisis en una sola lista, de la más reciente a la más antigua. */
     private static List<EntregaPacienteResponse> juntar(List<PartidaEntrega> partidas, ServicioBajasPacienteIntelisis.Resultado anteriores) {
         List<EntregaPacienteResponse> todas = new ArrayList<>(partidas.stream().map(ServicioTrazabilidad::aRespuesta).toList());
         todas.addAll(anteriores.entregas());
@@ -186,7 +186,7 @@ public class ServicioTrazabilidad {
         LocalDateTime primera = entregas.stream().map(EntregaPacienteResponse::getFecha).filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
         long pacientes = entregas.stream().map(e -> e.getExpediente() != null ? e.getExpediente() : e.getPaciente()).distinct().count();
         int piezas = entregas.stream().mapToInt(EntregaPacienteResponse::getPiezas).sum();
-        return new PasoRecorridoResponse("Entregas a pacientes antes de HAERO", primera,
+        return new PasoRecorridoResponse("Entregas a pacientes antes de SICOMED", primera,
                 entregas.size() + (entregas.size() == 1 ? " entrega" : " entregas") + " a " + pacientes
                         + (pacientes == 1 ? " paciente" : " pacientes") + ", " + piezas + " piezas (bajas de Farmacia en Intelisis)", "Intelisis");
     }
@@ -242,7 +242,7 @@ public class ServicioTrazabilidad {
 
     /**
      * Por folio de receta de Intelisis: la receta (fecha, médico, medicamentos) y lo que Farmacia
-     * le dio a ese paciente para surtirla. En HAERO, las entregas de esa receta; antes de HAERO,
+     * le dio a ese paciente para surtirla. En SICOMED, las entregas de esa receta; antes de SICOMED,
      * las bajas de Farmacia a nombre del paciente desde el día de la receta hasta 7 días después,
      * de las claves recetadas (si ninguna coincide, todas las de esos días).
      */
@@ -297,7 +297,7 @@ public class ServicioTrazabilidad {
     private static final int DIAS_SURTIDO = 7;
 
     /**
-     * Lotes de un medicamento (por clave o nombre) o de un número de lote, juntando HAERO
+     * Lotes de un medicamento (por clave o nombre) o de un número de lote, juntando SICOMED
      * (Almacén y Farmacia) con el espejo de Intelisis (existencias y recepciones). No toca
      * datos de pacientes, por eso no se registra como consulta.
      */
@@ -568,7 +568,7 @@ public class ServicioTrazabilidad {
 
     private static PasoRecorridoResponse pasoEntradaAlmacen(java.util.Collection<Lote> lotes) {
         LocalDateTime fecha = lotes.stream().map(Lote::getFechaAlta).filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
-        String detalle = lotes.isEmpty() ? "El lote no pasó por Almacén en HAERO (se conoce por el alta inicial de Farmacia)"
+        String detalle = lotes.isEmpty() ? "El lote no pasó por Almacén en SICOMED (se conoce por el alta inicial de Farmacia)"
                 : lotes.stream().map(l -> l.getMedicamento().getClave() + " · caduca " + l.getCaducidad()
                         + (l.getMovimientoIntelisis() != null ? " · " + l.getMovimientoIntelisis() : "")
                         + (l.getCajasConfirmadas() != null ? " · " + l.getCajasConfirmadas() + " cajas" : ""))

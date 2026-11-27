@@ -29,7 +29,7 @@ public class Medicamento {
     private String descripcion;
 
     // Datos que vienen de Intelisis (Art y ArtMedicamento). Las claves capturadas
-    // a mano en HAERO los dejan vacíos.
+    // a mano en SICOMED los dejan vacíos.
     @Column(name = "forma_farmaceutica", length = 200)
     private String formaFarmaceutica;
 
@@ -67,7 +67,7 @@ public class Medicamento {
     @Column(name = "descripcion_completa", length = 255)
     private String descripcionCompleta;
 
-    // HAERO = capturada aquí; INTELISIS = la trae la sincronización.
+    // SICOMED = capturada aquí; INTELISIS = la trae la sincronización.
     @Column(nullable = false, length = 10)
     private String origen = "HAERO";
 

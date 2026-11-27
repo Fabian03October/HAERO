@@ -124,7 +124,7 @@ export class Devoluciones {
     });
   }
 
-  // Solo se devuelve lo que Farmacia entregó en HAERO. Si el folio es de una receta de Intelisis
+  // Solo se devuelve lo que Farmacia entregó en SICOMED. Si el folio es de una receta de Intelisis
   // que aún no se entrega aquí, se explica en lugar de solo decir que no hay resultados.
   private sinEntregas(texto: string): void {
     const general = `No hay entregas en Farmacia con "${texto}". Busca por el folio de la entrega (E-000123), el folio de la receta, el expediente o el lote.`;

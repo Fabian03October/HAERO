@@ -394,7 +394,7 @@ export class NuevaEntrega {
     });
   }
 
-  // Llena paciente, folio y claves con la receta de Intelisis; si ya está en HAERO, se completa.
+  // Llena paciente, folio y claves con la receta de Intelisis; si ya está en SICOMED, se completa.
   usarRecetaIntelisis(receta: RecetaIntelisis): void {
     if (!receta.folio) return this.mostrarMensaje('Esa receta no tiene folio en Intelisis; captúrala a mano.', 'error');
     if (receta.estadoEnHaero === 'SURTIDA') return this.cargarReceta(receta.folio);

@@ -14,7 +14,7 @@ export const SUPERVISION_MENU: ItemMenu[] = [
       { etiqueta: 'Existencias', routerLink: '/supervision/consultas/existencias' },
       { etiqueta: 'Salidas registradas', routerLink: '/supervision/consultas/salidas' },
       { etiqueta: 'Préstamos y transferencias', routerLink: '/supervision/consultas/prestamos' },
-      { etiqueta: 'HAERO contra Intelisis', routerLink: '/supervision/consultas/intelisis' },
+      { etiqueta: 'SICOMED contra Intelisis', routerLink: '/supervision/consultas/intelisis' },
     ],
   },
   {

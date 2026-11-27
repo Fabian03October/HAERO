@@ -88,7 +88,7 @@ export class SolicitudesFarmacia {
 
   constructor() {
     this.recargar();
-    // Solo se pueden pedir claves dadas de alta en HAERO (con código de barras): las demás no tienen inventario aquí.
+    // Solo se pueden pedir claves dadas de alta en SICOMED (con código de barras): las demás no tienen inventario aquí.
     this.api.listarMedicamentos().subscribe({ next: (lista) => this.catalogo.set(lista.filter((item) => item.dadoDeAlta)), error: () => {} });
   }
 

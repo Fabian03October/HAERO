@@ -114,7 +114,7 @@ type ClaveElegida = Pick<Medicamento, 'clave' | 'nombreGenerico'>;
 
 // Farmacia · Quimioterapia. La solicitud de procedimiento a Oncología Médica se lee de Intelisis
 // (cada 5 minutos): al elegirla o escribir el folio de la hoja se llenan solos el paciente, el
-// diagnóstico, el médico y la nota tal como la escribió. La nota no trae claves: HAERO sugiere las
+// diagnóstico, el médico y la nota tal como la escribió. La nota no trae claves: SICOMED sugiere las
 // del catálogo y Farmacia las confirma (o repite las del ciclo anterior del paciente). Se surte cada
 // frasco (escaneado o eligiendo el lote) y se registra a nombre de quien surte.
 // Se descuenta como una entrega normal de Farmacia. Intelisis solo se consulta.
@@ -308,9 +308,9 @@ export class Quimioterapia {
   readonly codigoSinClave = signal<{ codigo: string; gs1: DatosGs1 | null } | null>(null);
   // Caja escaneada que ya eligió su medicamento de la nota pero espera que se escriban las piezas.
   private readonly escaneoEnEspera = signal<{ codigo: string; gs1: DatosGs1 | null; clave: string } | null>(null);
-  // Código que HAERO no conoce, escaneado antes de elegir clave: se liga a la clave que se elija en la nota.
+  // Código que SICOMED no conoce, escaneado antes de elegir clave: se liga a la clave que se elija en la nota.
   private readonly codigoNuevoEnEspera = signal<{ codigo: string; gs1: DatosGs1 | null } | null>(null);
-  // Código de caja → clave (null = HAERO no lo conoce), para no consultar dos veces la misma caja.
+  // Código de caja → clave (null = SICOMED no lo conoce), para no consultar dos veces la misma caja.
   private readonly codigosConocidos = new Map<string, string | null>();
   readonly existencias = signal<LoteFarmacia[]>([]);
 
@@ -793,7 +793,7 @@ export class Quimioterapia {
     this.agregarDeNota(m, c, piezas);
   }
 
-  /** Piezas escritas en el renglón del medicamento (cuando HAERO no las pudo calcular). */
+  /** Piezas escritas en el renglón del medicamento (cuando SICOMED no las pudo calcular). */
   confirmarPiezas(m: MedicamentoEnNota): void {
     const pendiente = this.pendientePiezas();
     const clave = pendiente && m.claves.find((c) => c.clave === pendiente.clave);
@@ -1147,7 +1147,7 @@ export class Quimioterapia {
   }
 
   // ---------- Escaneo continuo ----------
-  // Se escanean las cajas de todos los medicamentos en cualquier orden (lector o cámara): HAERO
+  // Se escanean las cajas de todos los medicamentos en cualquier orden (lector o cámara): SICOMED
   // reconoce de qué clave es cada caja por su código, la suma a su renglón (3 de 5) y toma el lote
   // del código GS1; si la caja no trae lote, el que caduca primero.
 
@@ -1210,7 +1210,7 @@ export class Quimioterapia {
     this.escanearFrasco();
   }
 
-  /** Código que HAERO no conocía: Farmacia dice de qué medicamento es y queda aprendido al registrar. */
+  /** Código que SICOMED no conocía: Farmacia dice de qué medicamento es y queda aprendido al registrar. */
   elegirRenglonParaCodigo(r: RenglonQuimio): void {
     const pendiente = this.codigoSinClave();
     if (!pendiente) return;
@@ -1253,11 +1253,11 @@ export class Quimioterapia {
       if (porLote.length === 1) return this.sumarEscaneo(porLote[0], codigo, gs1);
       if (!this.renglones().length && this.medicamentosNota().length) {
         this.codigoNuevoEnEspera.set({ codigo, gs1 });
-        return this.avisoEscaneo('aviso', 'Este código todavía no está en HAERO. Elige arriba la clave de este medicamento (revisa su ficha): la caja se cuenta y el código queda guardado.');
+        return this.avisoEscaneo('aviso', 'Este código todavía no está en SICOMED. Elige arriba la clave de este medicamento (revisa su ficha): la caja se cuenta y el código queda guardado.');
       }
       if (!pendientes.length) return this.avisoEscaneo('error', 'Ya está escaneado todo lo de la indicación: esta caja sobra.');
       this.codigoSinClave.set({ codigo, gs1 });
-      return this.avisoEscaneo('aviso', 'Este código todavía no está en HAERO. Elige abajo de qué medicamento es y queda guardado.');
+      return this.avisoEscaneo('aviso', 'Este código todavía no está en SICOMED. Elige abajo de qué medicamento es y queda guardado.');
     }
     const deClave = this.renglones().filter((r) => this.claveSurtida(r) === clave);
     if (!deClave.length) {

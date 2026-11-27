@@ -43,7 +43,7 @@ public class TrazabilidadController {
         return ResponseEntity.ok(servicio.porLote(lote, clave, desde, hasta, authentication.getName()));
     }
 
-    // Lotes de un medicamento (clave o nombre) o de un número de lote, en HAERO y en Intelisis.
+    // Lotes de un medicamento (clave o nombre) o de un número de lote, en SICOMED y en Intelisis.
     @GetMapping("/lotes")
     public ResponseEntity<List<LoteTrazableResponse>> lotes(@RequestParam String q) {
         return ResponseEntity.ok(servicio.buscarLotes(q));

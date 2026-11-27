@@ -21,8 +21,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Catalogo de medicamentos (solo consulta). Los datos vienen de Intelisis; HAERO solo
- * agrega los codigos de barras. Una clave esta "dada de alta en HAERO" cuando ya tiene
+ * Catalogo de medicamentos (solo consulta). Los datos vienen de Intelisis; SICOMED solo
+ * agrega los codigos de barras. Una clave esta "dada de alta en SICOMED" cuando ya tiene
  * al menos un codigo de barras: solo esas entran al inventario y se pueden despachar.
  * Tambien agrega las marcas de seguridad del paciente: alto riesgo y red fria.
  */

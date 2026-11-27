@@ -10,9 +10,9 @@ import { Paginacion, Paginador } from '../../../shared/paginador/paginador';
 type FiltroAlta = 'TODOS' | 'ALTA' | 'SIN_ALTA';
 
 // Recepción · Catálogo de medicamentos (solo consulta). El catálogo se lee de
-// Intelisis: en HAERO no se captura nada. Lo único que HAERO le agrega a cada clave
+// Intelisis: en SICOMED no se captura nada. Lo único que SICOMED le agrega a cada clave
 // son sus códigos de barras, que se asocian al registrar la entrada de la caja; una
-// clave con código está "dada de alta en HAERO" y solo esas entran al inventario.
+// clave con código está "dada de alta en SICOMED" y solo esas entran al inventario.
 @Component({
   selector: 'app-catalogo-medicamentos',
   imports: [MarcaSeguridad, FormsModule, Paginador],
@@ -36,7 +36,7 @@ export class CatalogoMedicamentos {
     const dadas = lista.filter((item) => item.dadoDeAlta).length;
     return [
       { valor: 'TODOS' as const, etiqueta: 'Todas', total: lista.length },
-      { valor: 'ALTA' as const, etiqueta: 'Dadas de alta en HAERO', total: dadas },
+      { valor: 'ALTA' as const, etiqueta: 'Dadas de alta en SICOMED', total: dadas },
       { valor: 'SIN_ALTA' as const, etiqueta: 'Sin código de barras', total: lista.length - dadas },
     ];
   });

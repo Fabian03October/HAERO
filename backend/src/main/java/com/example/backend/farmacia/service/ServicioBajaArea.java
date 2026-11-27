@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * Baja por volumen de Quimioterapia y de Quirófano, igual que la de Hospitalización: en Intelisis se
- * captura UNA baja por área y día (totales por clave y lote) y el detalle por paciente queda en HAERO.
+ * captura UNA baja por área y día (totales por clave y lote) y el detalle por paciente queda en SICOMED.
  * "Terminar el día" le pone hoja a cada paciente con algo entregado hoy y suma lo que todavía no
  * estaba en la baja del día (si se termina otra vez, se suma a la misma, con el mismo folio).
  * Se imprimen con las mismas hojas que Hospitalización (central = QUIMIO o QUIROFANO).

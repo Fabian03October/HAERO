@@ -14,7 +14,7 @@ export interface Medicamento {
   presentacion: string;
   piezasPorCaja: number | null;
   descripcion: string | null;
-  // Datos de Intelisis; vienen vacíos en las claves capturadas a mano en HAERO.
+  // Datos de Intelisis; vienen vacíos en las claves capturadas a mano en SICOMED.
   formaFarmaceutica: string | null;
   concentracion: string | null;
   grupoTerapeutico: string | null;
@@ -29,7 +29,7 @@ export interface Medicamento {
   descripcionCompleta: string | null;
   origen: 'HAERO' | 'INTELISIS';
   sincronizadoEn: string | null;
-  // Dada de alta en HAERO = ya tiene código de barras; solo esas entran al inventario.
+  // Dada de alta en SICOMED = ya tiene código de barras; solo esas entran al inventario.
   dadoDeAlta: boolean;
   codigosBarras: number;
   // Seguridad del paciente. altoRiesgo es lo que se muestra: la marca de Almacén si la hay
@@ -52,7 +52,7 @@ export interface Existencia {
   // true en las existencias del lote que se debe despachar primero (HU15).
   fefo: boolean;
   proveedor: string;
-  // Registro de Intelisis del que salió el lote y día en que entró a HAERO.
+  // Registro de Intelisis del que salió el lote y día en que entró a SICOMED.
   movimientoIntelisis: string | null;
   fechaIngreso: string | null;
 }
@@ -65,7 +65,7 @@ export interface FiltroExistencias {
 
 export type EstatusPedido = 'ACTIVO' | 'CANCELADO';
 
-// Estatus del pedido en Intelisis (los pedidos se leen de allá; en HAERO no se capturan).
+// Estatus del pedido en Intelisis (los pedidos se leen de allá; en SICOMED no se capturan).
 export type EstatusPedidoIntelisis = 'PENDIENTE' | 'CONCLUIDO' | 'CANCELADO';
 
 export interface PartidaPedido {
@@ -73,7 +73,7 @@ export interface PartidaPedido {
   nombreGenerico: string;
   // Lo esperado según Intelisis (sin lo cancelado).
   cantidadEsperada: number;
-  // Lo que Almacén recibió físicamente en HAERO.
+  // Lo que Almacén recibió físicamente en SICOMED.
   cantidadRecibida: number;
   cucop: string | null;
   // Lo que dice Intelisis: recibido allá y cancelado.
@@ -426,7 +426,7 @@ export interface ConsumoMes {
   cajas: number;
 }
 
-// SISTEMA = salidas de HAERO; INTELISIS = consumo de Farmacia en Intelisis mientras HAERO no tenga 6 meses (HU38).
+// SISTEMA = salidas de SICOMED; INTELISIS = consumo de Farmacia en Intelisis mientras SICOMED no tenga 6 meses (HU38).
 export type OrigenCpm = 'SISTEMA' | 'INTELISIS';
 export type EstadoStock = 'DESABASTO' | 'SOBREABASTO' | 'NORMAL' | 'SIN_CONSUMO';
 
@@ -497,7 +497,7 @@ export type TipoAvisoIntelisis =
   | 'CARGA_INICIAL';
 
 // Aviso de un cambio en Intelisis. INFO = para enterarse; REVISAR = afecta lo que
-// Almacén ya movió en HAERO (HAERO no lo tocó).
+// Almacén ya movió en SICOMED (SICOMED no lo tocó).
 export interface AvisoIntelisis {
   id: number;
   fecha: string;
@@ -514,7 +514,7 @@ export interface AvisoIntelisis {
 
 export type EstadoComparacion = 'EN_AMBOS' | 'SOLO_HAERO' | 'SOLO_INTELISIS';
 
-// Un lote de la clave en piezas: HAERO (Almacén cajas × piezas por caja + Farmacia) contra Intelisis.
+// Un lote de la clave en piezas: SICOMED (Almacén cajas × piezas por caja + Farmacia) contra Intelisis.
 export interface LoteConciliado {
   lote: string;
   caducidad: string | null;
@@ -764,7 +764,7 @@ export class AlmacenApi {
     return this.http.get<Alerta[]>(`${API_BASE_URL}/almacen/alertas`, { ...this.cabeceras(), params: { activas } });
   }
 
-  // ---------- Integración Intelisis (lee el espejo en HAERO, nunca Intelisis directo) ----------
+  // ---------- Integración Intelisis (lee el espejo en SICOMED, nunca Intelisis directo) ----------
   estadoIntelisis(): Observable<EstadoIntelisis> {
     return this.http.get<EstadoIntelisis>(`${API_BASE_URL}/almacen/intelisis/estado`, this.cabeceras());
   }

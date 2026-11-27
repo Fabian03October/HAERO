@@ -9,7 +9,7 @@ const TEXTOS: Record<TipoError, { codigo: string; titulo: string; texto: string 
   'no-encontrada': {
     codigo: '404',
     titulo: 'Página no encontrada',
-    texto: 'La dirección que abriste no existe en HAERO. Revisa el enlace o regresa a tu panel.',
+    texto: 'La dirección que abriste no existe en SICOMED. Revisa el enlace o regresa a tu panel.',
   },
   'sin-acceso': {
     codigo: '403',
@@ -24,7 +24,7 @@ const TEXTOS: Record<TipoError, { codigo: string; titulo: string; texto: string 
   'sin-conexion': {
     codigo: 'Sin conexión',
     titulo: 'No hay conexión con el servidor',
-    texto: 'HAERO no pudo comunicarse con el servidor. Revisa la red del equipo e intenta de nuevo.',
+    texto: 'SICOMED no pudo comunicarse con el servidor. Revisa la red del equipo e intenta de nuevo.',
   },
 };
 

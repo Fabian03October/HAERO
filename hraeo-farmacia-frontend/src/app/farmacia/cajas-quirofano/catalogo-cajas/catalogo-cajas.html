@@ -63,7 +63,7 @@
             @if (!editando()) {
               <div class="field">
                 <label for="codigo">Código de barras de la caja (opcional)</label>
-                <input id="codigo" [ngModel]="codigo()" (ngModelChange)="codigo.set($event)" placeholder="Escanéalo si la caja ya trae uno; si no, HAERO genera CAJA-001…" />
+                <input id="codigo" [ngModel]="codigo()" (ngModelChange)="codigo.set($event)" placeholder="Escanéalo si la caja ya trae uno; si no, SICOMED genera CAJA-001…" />
               </div>
             }
 

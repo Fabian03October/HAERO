@@ -426,7 +426,7 @@ public class ServicioEntregas {
         return aRespuesta(receta);
     }
 
-    /** Recetas que arma HAERO para Hospitalización, Quimioterapia o Quirófano (no son de Ventanilla). */
+    /** Recetas que arma SICOMED para Hospitalización, Quimioterapia o Quirófano (no son de Ventanilla). */
     static boolean interna(Receta receta) {
         return !"Ventanilla".equals(area(receta.getFolio()));
     }

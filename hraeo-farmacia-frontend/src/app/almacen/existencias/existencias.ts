@@ -341,7 +341,7 @@ export class Existencias {
     if (!captura) return '';
     if (cajas === null || !Number.isInteger(cajas) || cajas < 0) return 'Escribe un número entero de cajas.';
     if (captura.accion === 'AJUSTE') {
-      if (cajas === captura.renglon.cajas) return 'Las cajas contadas son las mismas que tiene HAERO.';
+      if (cajas === captura.renglon.cajas) return 'Las cajas contadas son las mismas que tiene SICOMED.';
       if (!this.motivo()) return 'Elige el motivo del ajuste.';
       return '';
     }

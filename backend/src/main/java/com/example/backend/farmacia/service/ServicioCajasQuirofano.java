@@ -194,7 +194,7 @@ public class ServicioCajasQuirofano {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ese paciente no tiene indicación médica en el vale"));
     }
 
-    /** Médicos de Intelisis guardados en HAERO, anestesiólogos primero, para elegir quién recibe la caja. */
+    /** Médicos de Intelisis guardados en SICOMED, anestesiólogos primero, para elegir quién recibe la caja. */
     public List<MedicoResponse> medicos(String nombre) {
         String texto = ServicioInventarioFarmacia.texto(nombre);
         if (texto == null || texto.length() < 2) {

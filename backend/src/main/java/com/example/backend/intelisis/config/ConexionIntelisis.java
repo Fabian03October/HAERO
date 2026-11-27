@@ -97,7 +97,7 @@ public class ConexionIntelisis {
         config.setMinimumIdle(0);
         config.setConnectionTimeout(15_000);
         config.setIdleTimeout(120_000);
-        // Si Intelisis no responde al arrancar, HAERO arranca igual: el pool se
+        // Si Intelisis no responde al arrancar, SICOMED arranca igual: el pool se
         // conecta hasta la primera sincronizacion.
         config.setInitializationFailTimeout(-1);
         log.info("Integración Intelisis encendida (solo lectura).");

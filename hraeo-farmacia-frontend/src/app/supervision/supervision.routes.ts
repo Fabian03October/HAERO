@@ -27,7 +27,7 @@ export const SUPERVISION_ROUTES: Routes = [
       { path: 'existencias', component: Existencias },
       { path: 'salidas', component: SalidasRegistradas },
       { path: 'prestamos', component: MovimientosExternos, data: { soloLectura: true } },
-      // HAERO contra Intelisis: avisos y diferencias en cajas (solo consulta).
+      // SICOMED contra Intelisis: avisos y diferencias en cajas (solo consulta).
       { path: 'intelisis', component: ComparacionIntelisis },
     ],
   },

@@ -248,7 +248,7 @@ public class ServicioDespacho {
 
         Medicamento medicamento = medicamentoRepository.findById(request.getClave())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "La clave " + request.getClave() + " no está en el catálogo"));
-        // Diseno aprobado: solo se piden claves dadas de alta en HAERO (con codigo de barras).
+        // Diseno aprobado: solo se piden claves dadas de alta en SICOMED (con codigo de barras).
         if (!codigoBarrasRepository.existsByMedicamentoClave(medicamento.getClave())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La clave " + medicamento.getClave() + " todavía no está dada de alta en el Almacén");
         }

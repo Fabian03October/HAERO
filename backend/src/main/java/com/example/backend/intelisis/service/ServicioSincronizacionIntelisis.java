@@ -30,11 +30,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Copia en segundo plano los datos de Intelisis a las tablas espejo de HAERO
+ * Copia en segundo plano los datos de Intelisis a las tablas espejo de SICOMED
  * (V15): catalogo de medicamentos, proveedores, existencia por lote y
  * recepciones de proveedor con sus lotes.
  *
- * Pensado para que HAERO siga rapido:
+ * Pensado para que SICOMED siga rapido:
  *  - Las pantallas nunca consultan Intelisis; leen el espejo.
  *  - Cada entidad se lee con UNA consulta por conjunto (sin un viaje por
  *    renglon) y sin bloquear al ERP (READ UNCOMMITTED).
@@ -134,7 +134,7 @@ public class ServicioSincronizacionIntelisis {
             JdbcTemplate intelisis = conexion.plantilla().orElseThrow(() -> new IllegalStateException(conexion.motivoNoDisponible()));
             LocalDate desde = LocalDate.now().minusDays(diasRecepciones);
 
-            // 1) Leer todo de Intelisis (fuera de cualquier transaccion de HAERO).
+            // 1) Leer todo de Intelisis (fuera de cualquier transaccion de SICOMED).
             Collection<Object[]> existencias = leerExistencias(intelisis);
             Collection<Object[]> articulos = leerArticulos(intelisis);
             Collection<Object[]> proveedores = leerProveedores(intelisis);
@@ -349,7 +349,7 @@ public class ServicioSincronizacionIntelisis {
     /**
      * Catalogo de Farmacia: las claves "-1" de Art (sin las G- de Farmacia
      * Gratuita), con la ficha de ArtMedicamento cuando existe; si no, los datos
-     * de Art. La clave de HAERO es la de Intelisis sin el "-1".
+     * de Art. La clave de SICOMED es la de Intelisis sin el "-1".
      * Tambien entran las claves 010/040 que en Intelisis solo existen para Almacen (sin su "-1",
      * porque nunca se les dio de alta para Consumo Farmacia): antes no aparecian en ninguna pantalla.
      */
@@ -578,7 +578,7 @@ public class ServicioSincronizacionIntelisis {
 
     /**
      * Lo que Farmacia dio de baja por volumen en el almacen principal ("Consumo Farmacia" y
-     * "Devolucion Farmacia"), por lote y en piezas, para verificarlo contra HAERO (HU32).
+     * "Devolucion Farmacia"), por lote y en piezas, para verificarlo contra SICOMED (HU32).
      * Por validar en la red del hospital: los nombres de los movimientos y el signo de
      * SerieLoteMov.Cantidad (se guarda en positivo; el tipo lo da el movimiento).
      */
@@ -671,13 +671,13 @@ public class ServicioSincronizacionIntelisis {
         }
     }
 
-    // ---------- Escritura en HAERO ----------
+    // ---------- Escritura en SICOMED ----------
 
     /**
      * El catalogo se lee de Intelisis (diseno aprobado): pasa la copia de consulta a la
      * tabla medicamento, que es la que usan lotes, pedidos y solicitudes. Actualiza las
-     * claves que ya existen y agrega las nuevas (con aviso informativo). En HAERO no se
-     * captura nada del catalogo; lo unico propio de HAERO son los codigos de barras.
+     * claves que ya existen y agrega las nuevas (con aviso informativo). En SICOMED no se
+     * captura nada del catalogo; lo unico propio de SICOMED son los codigos de barras.
      */
     private void actualizarCatalogoHaero() {
         haero.execute("""
@@ -730,7 +730,7 @@ public class ServicioSincronizacionIntelisis {
 
     /**
      * Los pedidos se leen de Intelisis (diseno aprobado): el pedido, su estatus, su
-     * contrato y lo esperado de cada partida son siempre los de Intelisis. HAERO solo
+     * contrato y lo esperado de cada partida son siempre los de Intelisis. SICOMED solo
      * guarda lo que Almacen recibio fisicamente (pedido_detalle.cantidad_recibida), que
      * aqui nunca se toca. Avisos: pedido nuevo (informativo) y pedido o partida
      * cancelados en Intelisis (por revisar: "no recibir").
@@ -792,14 +792,14 @@ public class ServicioSincronizacionIntelisis {
                 IF @primera = 1 AND EXISTS (SELECT 1 FROM #nuevos)
                     INSERT INTO aviso_intelisis (tipo, nivel, titulo, detalle)
                     SELECT 'CARGA_INICIAL', 'INFO', N'Pedidos cargados desde Intelisis',
-                           CONCAT(COUNT(*), N' pedidos del último año quedaron para consulta en HAERO.')
+                           CONCAT(COUNT(*), N' pedidos del último año quedaron para consulta en SICOMED.')
                     FROM #nuevos;
 
                 -- 2) Pedido que se cancela en Intelisis: aviso por revisar, para no recibirlo.
                 INSERT INTO aviso_intelisis (tipo, nivel, titulo, detalle, pedido_id)
                 SELECT 'PEDIDO_CANCELADO', 'REVISAR', N'Pedido cancelado en Intelisis: no recibir',
                        CONCAT(N'Pedido ', t.numero_pedido, N' de ', t.proveedor, N' se canceló en Intelisis',
-                              CASE WHEN r.recibidas > 0 THEN CONCAT(N'. Almacén ya había recibido ', r.recibidas, N' cajas en HAERO') ELSE N'' END,
+                              CASE WHEN r.recibidas > 0 THEN CONCAT(N'. Almacén ya había recibido ', r.recibidas, N' cajas en SICOMED') ELSE N'' END,
                               N'. Ya no se puede recibir.'),
                        t.id
                 FROM pedido t
@@ -823,14 +823,14 @@ public class ServicioSincronizacionIntelisis {
                 SELECT 'PARTIDA_CANCELADA', 'REVISAR', N'Partida cancelada en Intelisis: no recibir',
                        CONCAT(N'Pedido ', pe.numero_pedido, N', clave ', d.medicamento_clave, N': Intelisis canceló ',
                               p.cancelada - ISNULL(d.cancelada_intelisis, 0), N' cajas. Ahora se esperan ', p.esperada,
-                              N'; HAERO lleva ', d.cantidad_recibida, N' recibidas.'),
+                              N'; SICOMED lleva ', d.cantidad_recibida, N' recibidas.'),
                        d.medicamento_clave, pe.id
                 FROM pedido_detalle d
                 JOIN pedido pe ON pe.id = d.pedido_id
                 JOIN #par p ON p.compra_id = pe.compra_id_intelisis AND p.clave = d.medicamento_clave
                 WHERE pe.estatus <> 'CANCELADO' AND p.cancelada > ISNULL(d.cancelada_intelisis, 0);
 
-                -- 5) Partidas: lo esperado y lo de Intelisis; lo recibido por HAERO no se toca.
+                -- 5) Partidas: lo esperado y lo de Intelisis; lo recibido por SICOMED no se toca.
                 WITH destino AS (
                     SELECT d.* FROM pedido_detalle d
                     WHERE d.pedido_id IN (SELECT id FROM pedido WHERE compra_id_intelisis IS NOT NULL)
@@ -859,11 +859,11 @@ public class ServicioSincronizacionIntelisis {
     /**
      * Avisos de lotes (paso 4): compara la existencia por lote del almacen principal
      * contra lo que se vio la vez anterior (intelisis_lote_visto). Nunca cambia los
-     * lotes de HAERO:
+     * lotes de SICOMED:
      *  - LOTE_CAMBIO (por revisar): Intelisis cambio la caducidad de un lote que
-     *    Almacen tiene en HAERO con existencia.
+     *    Almacen tiene en SICOMED con existencia.
      *  - LOTE_POR_DAR_DE_ALTA (informativo): lote nuevo en Intelisis de una clave
-     *    dada de alta en HAERO (con codigo de barras) que HAERO todavia no tiene.
+     *    dada de alta en SICOMED (con codigo de barras) que SICOMED todavia no tiene.
      * La primera vez solo se toma la foto, sin avisos.
      */
     private void actualizarAvisosLotes() {
@@ -881,12 +881,12 @@ public class ServicioSincronizacionIntelisis {
                 WHERE x.almacen = @almacen
                 GROUP BY x.clave_base, x.serie_lote;
 
-                -- 1) Caducidad cambiada en Intelisis sobre un lote que HAERO tiene con existencia.
+                -- 1) Caducidad cambiada en Intelisis sobre un lote que SICOMED tiene con existencia.
                 INSERT INTO aviso_intelisis (tipo, nivel, titulo, detalle, medicamento_clave, lote_id)
                 SELECT 'LOTE_CAMBIO', 'REVISAR', N'Intelisis cambió la caducidad de un lote',
                        CONCAT(l.medicamento_clave, N' lote ', l.numero_lote, N': Intelisis cambió la caducidad de ',
                               ISNULL(FORMAT(v.caducidad, 'dd/MM/yyyy'), N'sin dato'), N' a ', ISNULL(FORMAT(e.caducidad, 'dd/MM/yyyy'), N'sin dato'),
-                              N'. HAERO tiene ', FORMAT(l.caducidad, 'dd/MM/yyyy'), N' y no la cambió; revisa cuál es la correcta.'),
+                              N'. SICOMED tiene ', FORMAT(l.caducidad, 'dd/MM/yyyy'), N' y no la cambió; revisa cuál es la correcta.'),
                        l.medicamento_clave, l.id
                 FROM #ex e
                 JOIN intelisis_lote_visto v ON v.clave = e.clave AND v.serie_lote = e.serie_lote
@@ -895,9 +895,9 @@ public class ServicioSincronizacionIntelisis {
                   AND ISNULL(e.caducidad, '19000101') <> l.caducidad
                   AND EXISTS (SELECT 1 FROM existencia ex WHERE ex.lote_id = l.id AND ex.cantidad_cajas > 0);
 
-                -- 2) Lote nuevo en Intelisis de una clave dada de alta, que HAERO todavía no tiene.
+                -- 2) Lote nuevo en Intelisis de una clave dada de alta, que SICOMED todavía no tiene.
                 INSERT INTO aviso_intelisis (tipo, nivel, titulo, detalle, medicamento_clave)
-                SELECT 'LOTE_POR_DAR_DE_ALTA', 'INFO', N'Lote nuevo en Intelisis por recibir en HAERO',
+                SELECT 'LOTE_POR_DAR_DE_ALTA', 'INFO', N'Lote nuevo en Intelisis por recibir en SICOMED',
                        CONCAT(e.clave, N' · ', LEFT(m.nombre_generico, 60), N', lote ', e.serie_lote,
                               CASE WHEN m.piezas_por_caja > 0
                                    THEN CONCAT(N': ', FORMAT(e.piezas / m.piezas_por_caja, '0.##'), N' cajas')

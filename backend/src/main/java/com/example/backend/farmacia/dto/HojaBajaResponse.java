@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Hoja de baja propia de HAERO (mismo acomodo que el "Consumo Farmacia" de Intelisis): una por
- * paciente y día, con folio consecutivo de HAERO. El folio se escribe en "Observaciones" al
+ * Hoja de baja propia de SICOMED (mismo acomodo que el "Consumo Farmacia" de Intelisis): una por
+ * paciente y día, con folio consecutivo de SICOMED. El folio se escribe en "Observaciones" al
  * capturar la baja en Intelisis.
  */
 @Getter
@@ -23,7 +23,7 @@ public class HojaBajaResponse {
     private String expediente;
     private String cama;
     private String area;
-    // "Folio HAERO 000123 · 29/07/2026"
+    // "Folio SICOMED 000123 · 29/07/2026"
     private String observaciones;
     private List<PartidaBajaResponse> partidas;
     private int totalPiezas;

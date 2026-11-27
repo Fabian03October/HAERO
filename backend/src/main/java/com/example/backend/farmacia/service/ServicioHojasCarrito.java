@@ -44,9 +44,9 @@ import java.util.Optional;
  * Lo que se imprime del carrito de Hospitalización:
  *  - Antes de armarlo: "Indicaciones médicas activas", igual a la de Intelisis (una por paciente).
  *    Indicaciones generales, dieta, médicos, sexo y fecha de nacimiento se LEEN de Intelisis en
- *    ese momento y no se guardan; los medicamentos salen de lo que HAERO ya guarda.
- *  - Al terminarlo: la hoja de baja propia de HAERO (mismo acomodo que "Consumo Farmacia"), una
- *    por paciente y día, con folio consecutivo de HAERO. Precio y unidad se leen de Intelisis.
+ *    ese momento y no se guardan; los medicamentos salen de lo que SICOMED ya guarda.
+ *  - Al terminarlo: la hoja de baja propia de SICOMED (mismo acomodo que "Consumo Farmacia"), una
+ *    por paciente y día, con folio consecutivo de SICOMED. Precio y unidad se leen de Intelisis.
  *
  * Validado (2026-10-28): el precio es ArtCosto.CostoPromedio de Farmacia (empresa NBR, sucursal 0),
  * el mismo con que se captura el "Consumo Farmacia"; los médicos salen de Usuario + Personal.
@@ -193,7 +193,7 @@ public class ServicioHojasCarrito {
         final Map<Integer, String[]> dietas = new HashMap<>();
     }
 
-    /** Lo que no se guarda en HAERO, leído en el momento (solo SELECT). Si falla, la hoja sale sin eso. */
+    /** Lo que no se guarda en SICOMED, leído en el momento (solo SELECT). Si falla, la hoja sale sin eso. */
     private DeIntelisis leerDeIntelisis(List<ServicioCarrito.Internado> internados) {
         DeIntelisis datos = new DeIntelisis();
         Optional<JdbcTemplate> plantilla = conexion.plantilla();
@@ -274,7 +274,7 @@ public class ServicioHojasCarrito {
     /**
      * Termina el carrito del área (el del día o uno de urgencia): si algo que se metió se canceló
      * después o el paciente egresó, pide que se decida; asigna la hoja de cada paciente con algo
-     * surtido hoy (detalle en HAERO) y suma lo surtido desde el último carrito a la baja por volumen
+     * surtido hoy (detalle en SICOMED) y suma lo surtido desde el último carrito a la baja por volumen
      * del área y día (la que se captura en Intelisis). Regresa esa baja (vacío si no hubo surtidos nuevos).
      */
     @Transactional

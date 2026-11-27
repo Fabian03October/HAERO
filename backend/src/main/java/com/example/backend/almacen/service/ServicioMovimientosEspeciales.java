@@ -390,7 +390,7 @@ public class ServicioMovimientosEspeciales {
         int antes = existencia.getCantidadCajas();
         int diferencia = request.getCajasContadas() - antes;
         if (diferencia == 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las cajas contadas son las mismas que tiene HAERO; no hay nada que ajustar");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las cajas contadas son las mismas que tiene SICOMED; no hay nada que ajustar");
         }
         existencia.setCantidadCajas(request.getCajasContadas());
         existenciaRepository.save(existencia);

@@ -11,7 +11,7 @@
           <div>
             <p class="eyebrow">Farmacia · Oncología</p>
             <h1>Quimioterapia</h1>
-            <p class="hero-text">Las solicitudes de Oncología Médica se leen de Intelisis: elige una (o escribe el folio de la hoja) y se llenan solos el paciente, el diagnóstico, el médico y la nota. HAERO sugiere la clave de cada medicamento de la nota; tú la confirmas, escaneas las cajas y registras la entrega.</p>
+            <p class="hero-text">Las solicitudes de Oncología Médica se leen de Intelisis: elige una (o escribe el folio de la hoja) y se llenan solos el paciente, el diagnóstico, el médico y la nota. SICOMED sugiere la clave de cada medicamento de la nota; tú la confirmas, escaneas las cajas y registras la entrega.</p>
           </div>
           <div class="lectura">
             @if (estado(); as e) {
@@ -185,6 +185,7 @@
                     <!-- El paciente no puede pasar: Farmacia llama a Oncología Médica y anota la fecha que le dan. -->
                     <div class="reprogramar" (click)="$event.stopPropagation()">
                       <strong>Reprogramar la quimioterapia</strong>
+                      <small class="sub">Solo cuando Oncología Médica cambia la fecha y <b>no</b> la captura en Intelisis (por ejemplo, por teléfono). Si el médico hace una nueva solicitud en Intelisis y le da otra hoja al paciente, esa aparece sola en la lista como solicitud nueva y no hay que reprogramar nada.</small>
                       <label><span>Nueva fecha (la que dio Oncología Médica)</span>
                         <input type="date" [min]="hoyDia" [ngModel]="fechaReprogramar()" (ngModelChange)="fechaReprogramar.set($event ?? '')" />
                       </label>
@@ -499,7 +500,7 @@
                         @if (claveEsperando(m); as sel) {
                           <div class="elegida-completa">
                             <strong>{{ sel.clave }}</strong> {{ sel.nombre }}{{ sel.forma ? ' · ' + sel.forma : '' }}{{ sel.concentracion ? ' · ' + sel.concentracion : '' }}
-                            <small>HAERO no sabe cuánto trae cada pieza de esta clave: escribe las piezas a la derecha y da Enter.</small>
+                            <small>SICOMED no sabe cuánto trae cada pieza de esta clave: escribe las piezas a la derecha y da Enter.</small>
                           </div>
                         }
                       </td>
@@ -525,7 +526,7 @@
                 </tbody>
               </table>
             </div>
-            <p class="nota">Pasa el mouse sobre el medicamento para ver el renglón de la nota y sobre la clave para ver su nombre completo. Si HAERO no puede calcular las piezas, te las pide en el renglón (Enter agrega). Cada medicamento lleva una clave: si eliges otra, se cambia; para combinar presentaciones usa "+ Agregar otro medicamento".</p>
+            <p class="nota">Pasa el mouse sobre el medicamento para ver el renglón de la nota y sobre la clave para ver su nombre completo. Si SICOMED no puede calcular las piezas, te las pide en el renglón (Enter agrega). Cada medicamento lleva una clave: si eliges otra, se cambia; para combinar presentaciones usa "+ Agregar otro medicamento".</p>
           }
 
           <!-- Lo que ya va en la indicación -->
@@ -622,7 +623,7 @@
               <div class="acciones">
                 <button class="btn" type="button" (click)="agregarRenglon()">Agregar a la indicación</button>
               </div>
-              <p class="nota">Para un medicamento que HAERO no encontró, búscalo por el nombre genérico. Si la nota no es clara, confirma con el médico antes de surtir.</p>
+              <p class="nota">Para un medicamento que SICOMED no encontró, búscalo por el nombre genérico. Si la nota no es clara, confirma con el médico antes de surtir.</p>
             </div>
           </div>
           }
@@ -642,7 +643,7 @@
               </span>
             </div>
 
-            <!-- Escaneo continuo: cualquier caja, en cualquier orden; HAERO sabe de qué medicamento es. -->
+            <!-- Escaneo continuo: cualquier caja, en cualquier orden; SICOMED sabe de qué medicamento es. -->
             @if (previasQuimio().length) {
               <div class="banner warn">
                 <strong>Revisa que no se duplique: ya se le entregó en los últimos 7 días</strong>
@@ -652,7 +653,7 @@
               </div>
             }
             <div class="escaner-grande" [class.listo]="renglones().length && escaneoCompleto()">
-              <label for="escaner-surtido">Escanea las cajas de todos los medicamentos, en cualquier orden: HAERO reconoce cada caja y la acomoda en su medicamento de la nota</label>
+              <label for="escaner-surtido">Escanea las cajas de todos los medicamentos, en cualquier orden: SICOMED reconoce cada caja y la acomoda en su medicamento de la nota</label>
               <div class="scanner">
                 <input id="escaner-surtido" [(ngModel)]="codigoFrasco" (keyup.enter)="escanearFrasco()" autocomplete="off"
                        placeholder="Da clic aquí y pasa las cajas por el lector" />

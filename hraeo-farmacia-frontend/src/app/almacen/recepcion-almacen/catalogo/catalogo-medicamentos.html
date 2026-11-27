@@ -1,7 +1,7 @@
 <header class="screen-heading">
   <p class="eyebrow">Recepción · Catálogo</p>
   <h1>Catálogo de medicamentos</h1>
-  <p>Los medicamentos y sus datos vienen de Intelisis; aquí solo se consultan. Una clave queda dada de alta en HAERO cuando Almacén escanea su código de barras al registrar la entrada.</p>
+  <p>Los medicamentos y sus datos vienen de Intelisis; aquí solo se consultan. Una clave queda dada de alta en SICOMED cuando Almacén escanea su código de barras al registrar la entrada.</p>
 </header>
 
 <section class="card">
@@ -14,7 +14,7 @@
       <span>{{ medicamentos().length }} de {{ datos.catalogo().length }} claves</span>
     </div>
   </div>
-  <div class="filter-tabs origen-tabs" role="group" aria-label="Filtrar por alta en HAERO">
+  <div class="filter-tabs origen-tabs" role="group" aria-label="Filtrar por alta en SICOMED">
     @for (opcion of filtrosAlta(); track opcion.valor) {
       <button type="button" [class.active]="filtroAlta() === opcion.valor" [attr.aria-pressed]="filtroAlta() === opcion.valor" (click)="elegirAlta(opcion.valor)">
         {{ opcion.etiqueta }} <span>{{ opcion.total }}</span>
@@ -36,7 +36,7 @@
           <th class="number">Piezas/caja</th>
           <th>Cuadro básico</th>
           <th>Estatus</th>
-          <th>Alta en HAERO</th>
+          <th>Alta en SICOMED</th>
         </tr>
       </thead>
       <tbody>
@@ -76,7 +76,7 @@
   <p class="card-help">Solo medicamentos del Cuadro Básico (claves 010 y 040). Las piezas por caja salen de los movimientos "Conversion" de Intelisis.</p>
 </section>
 
-<!-- Detalle del medicamento: todos sus datos de Intelisis y sus códigos de barras en HAERO. -->
+<!-- Detalle del medicamento: todos sus datos de Intelisis y sus códigos de barras en SICOMED. -->
 @if (detalle(); as item) {
   <div class="detalle-fondo" (click)="cerrarDetalle()">
     <section class="detalle" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo" (click)="$event.stopPropagation()">
@@ -86,7 +86,7 @@
           <h2 id="detalle-titulo">{{ item.nombreGenerico }}</h2>
           <div class="detalle-etiquetas">
             @if (item.dadoDeAlta) {
-              <span class="etiqueta">Dada de alta en HAERO</span>
+              <span class="etiqueta">Dada de alta en SICOMED</span>
             } @else {
               <span class="etiqueta origen">Sin código de barras</span>
             }
@@ -113,7 +113,7 @@
         <div><dt>Unidad de compra</dt><dd>{{ item.unidadCompra ?? '—' }}</dd></div>
         <div><dt>Unidad mínima</dt><dd>{{ item.unidadMinima ?? '—' }}</dd></div>
         <div><dt>Riesgo</dt><dd>{{ item.riesgo ?? '—' }}</dd></div>
-        <div><dt>Códigos de barras en HAERO</dt><dd>{{ item.codigosBarras }}</dd></div>
+        <div><dt>Códigos de barras en SICOMED</dt><dd>{{ item.codigosBarras }}</dd></div>
         <div><dt>Última sincronización</dt><dd>{{ item.sincronizadoEn ? fecha(item.sincronizadoEn) : '—' }}</dd></div>
         <div class="ancho"><dt>Descripción</dt><dd>{{ item.descripcionCompleta ?? item.descripcion ?? '—' }}</dd></div>
         <div class="ancho"><dt>Indicación principal</dt><dd>{{ item.principalIndicacion ?? '—' }}</dd></div>

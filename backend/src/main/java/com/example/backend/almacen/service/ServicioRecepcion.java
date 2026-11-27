@@ -75,7 +75,7 @@ public class ServicioRecepcion {
 
     // Ya no hay "asociar código" por separado: un código solo se asocia a su clave al
     // registrar una entrada o un alta inicial, para que ninguna clave quede "dada de alta"
-    // sin existencia en HAERO.
+    // sin existencia en SICOMED.
 
     /** Registros de Intelisis que se pueden elegir para una clave (ENTRADA o ALTA_INICIAL). */
     public List<RegistroIntelisisResponse> registrosIntelisis(String clave, String tipo) {
@@ -137,7 +137,7 @@ public class ServicioRecepcion {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, registro.bloqueo());
         }
 
-        // El código de barras es lo que da de alta la clave en HAERO.
+        // El código de barras es lo que da de alta la clave en SICOMED.
         CodigoBarras codigoBarras = codigoBarrasRepository.findById(codigo).orElse(null);
         if (codigoBarras != null && !codigoBarras.getMedicamento().getClave().equals(clave)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

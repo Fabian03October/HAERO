@@ -399,7 +399,7 @@
                   </div>
                 }
               } @else if (vista() === 'SURTIDOS') {
-                <!-- Surtidos del día: detalle por paciente (HAERO) y bajas por volumen (Intelisis) -->
+                <!-- Surtidos del día: detalle por paciente (SICOMED) y bajas por volumen (Intelisis) -->
                 <div class="barra">
                   <input type="date" [ngModel]="diaSurtidos()" (ngModelChange)="diaSurtidos.set($event); cargarSurtidos()" aria-label="Día" />
                   <input class="buscar" [ngModel]="filtroSurtidos()" (ngModelChange)="filtroSurtidos.set($event)" placeholder="Buscar por cama, expediente o paciente" />

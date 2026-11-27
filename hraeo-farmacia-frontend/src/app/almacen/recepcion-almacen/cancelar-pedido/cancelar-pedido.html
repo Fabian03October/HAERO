@@ -23,7 +23,7 @@
           <li>
             <strong>{{ pedido.numero }} · No recibir</strong>
             <span>{{ pedido.proveedor }}{{ pedido.contrato ? ' · contrato ' + pedido.contrato : '' }}</span>
-            <small>Claves {{ pedido.clave }} · cancelado {{ (pedido.fechaCancelacion | date: 'dd/MM/yyyy') ?? 'sin fecha' }}{{ pedido.cajasRecibidas ? ' · ya se habían recibido ' + pedido.cajasRecibidas + ' cajas en HAERO' : '' }}</small>
+            <small>Claves {{ pedido.clave }} · cancelado {{ (pedido.fechaCancelacion | date: 'dd/MM/yyyy') ?? 'sin fecha' }}{{ pedido.cajasRecibidas ? ' · ya se habían recibido ' + pedido.cajasRecibidas + ' cajas en SICOMED' : '' }}</small>
           </li>
         }
       </ul>
@@ -48,7 +48,7 @@
           <li>
             <strong>{{ item.pedido.numero }} · {{ item.partida.clave }}</strong>
             <span>{{ item.partida.nombreGenerico }}</span>
-            <small>Intelisis canceló {{ item.partida.canceladaIntelisis }} cajas · se esperan {{ item.partida.cantidadEsperada }} · HAERO lleva {{ item.partida.cantidadRecibida }}</small>
+            <small>Intelisis canceló {{ item.partida.canceladaIntelisis }} cajas · se esperan {{ item.partida.cantidadEsperada }} · SICOMED lleva {{ item.partida.cantidadRecibida }}</small>
           </li>
         }
       </ul>

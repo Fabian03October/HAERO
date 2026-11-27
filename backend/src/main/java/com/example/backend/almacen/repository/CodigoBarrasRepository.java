@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface CodigoBarrasRepository extends JpaRepository<CodigoBarras, String> {
 
-    /** Cuantos codigos de barras tiene cada clave: [clave, total]. Una clave con codigo esta dada de alta en HAERO. */
+    /** Cuantos codigos de barras tiene cada clave: [clave, total]. Una clave con codigo esta dada de alta en SICOMED. */
     @Query("SELECT c.medicamento.clave, COUNT(c) FROM CodigoBarras c GROUP BY c.medicamento.clave")
     List<Object[]> contarPorClave();
 

@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * maximo), tal como las agrupa la carta CRC de ServicioRotacion en el
  * documento de diseno. El CPM nunca se guarda: se calcula al vuelo con las
  * salidas reales (tipo SALIDA, despachos a Farmacia - HU14) de los ultimos 6
- * meses cerrados. Mientras HAERO no tenga esos 6 meses de salidas propias,
+ * meses cerrados. Mientras SICOMED no tenga esos 6 meses de salidas propias,
  * el CPM sale del consumo real de Farmacia en Intelisis por clave y mes
  * (HU38, tabla intelisis_consumo_mes que llena la sincronizacion).
  */

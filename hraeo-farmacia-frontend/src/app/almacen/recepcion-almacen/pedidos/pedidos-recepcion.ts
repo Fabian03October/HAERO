@@ -13,7 +13,7 @@ const FILTROS: FiltroPedidos[] = ['AHORA', 'POR_RECIBIR', 'RECIBIDOS', 'CANCELAD
 // Se pinta por páginas: Intelisis trae cientos de pedidos del último año.
 
 // Recepción · Pedidos (HU22), solo consulta. Los pedidos se leen de Intelisis, con
-// su contrato y entrega comprometida; ahí se capturan y se cancelan. HAERO muestra
+// su contrato y entrega comprometida; ahí se capturan y se cancelan. SICOMED muestra
 // aparte lo que Almacén recibió físicamente contra cada pedido.
 @Component({
   selector: 'app-pedidos-recepcion',

@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Catalogo de medicamentos. El catalogo se lee de Intelisis (diseno aprobado); en HAERO
- * no se dan de alta claves. Lo unico propio de HAERO son los codigos de barras (se asocian
+ * Catalogo de medicamentos. El catalogo se lee de Intelisis (diseno aprobado); en SICOMED
+ * no se dan de alta claves. Lo unico propio de SICOMED son los codigos de barras (se asocian
  * al registrar la entrada) y las marcas de seguridad (alto riesgo y red fria).
  */
 @RestController

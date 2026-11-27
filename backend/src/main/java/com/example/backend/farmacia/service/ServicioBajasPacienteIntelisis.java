@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Entregas a pacientes ANTERIORES a HAERO, leídas en vivo de Intelisis (solo lectura).
+ * Entregas a pacientes ANTERIORES a SICOMED, leídas en vivo de Intelisis (solo lectura).
  *
  * Validado en la red del hospital (2026-11-23): cada "Consumo Farmacia" del almacén 25301 es un
  * documento por paciente, con el nombre completo del paciente en Inv.Referencia y los lotes en
@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * un único paciente con ese nombre (≈62 % de los casos; con homónimos o el nombre escrito
  * distinto se muestra solo el nombre como quedó en la baja).
  *
- * Los pacientes no se copian a HAERO: se consulta al momento, como en Dispensación.
+ * Los pacientes no se copian a SICOMED: se consulta al momento, como en Dispensación.
  */
 @Service
 public class ServicioBajasPacienteIntelisis {
@@ -97,7 +97,7 @@ public class ServicioBajasPacienteIntelisis {
     private Resultado delPacienteSegun(String filtroCte, String valor, LocalDateTime desde, LocalDateTime antesDe) {
         JdbcTemplate intelisis = conexion.plantilla().orElse(null);
         if (intelisis == null) {
-            return Resultado.sinConexion("Sin conexión con Intelisis: no se muestran las entregas anteriores a HAERO. " + conexion.motivoNoDisponible());
+            return Resultado.sinConexion("Sin conexión con Intelisis: no se muestran las entregas anteriores a SICOMED. " + conexion.motivoNoDisponible());
         }
         try {
             // La misma persona puede estar dos veces en Cte (otro expediente, el nombre en otro orden): se juntan
@@ -135,14 +135,14 @@ public class ServicioBajasPacienteIntelisis {
             return new Resultado(deLaPersona, r.aviso());
         } catch (DataAccessException e) {
             log.warn("No se pudo buscar al paciente en Intelisis: {}", e.getMostSpecificCause().getMessage());
-            return Resultado.sinConexion("Intelisis no respondió: no se muestran las entregas anteriores a HAERO.");
+            return Resultado.sinConexion("Intelisis no respondió: no se muestran las entregas anteriores a SICOMED.");
         }
     }
 
     private Resultado consultar(String filtro, LocalDateTime desde, LocalDateTime antesDe, Object... parametros) {
         JdbcTemplate intelisis = conexion.plantilla().orElse(null);
         if (intelisis == null) {
-            return Resultado.sinConexion("Sin conexión con Intelisis: no se muestran las entregas anteriores a HAERO. " + conexion.motivoNoDisponible());
+            return Resultado.sinConexion("Sin conexión con Intelisis: no se muestran las entregas anteriores a SICOMED. " + conexion.motivoNoDisponible());
         }
         List<Object> args = new ArrayList<>(movimientosConsumo);
         args.addAll(Arrays.asList(parametros));
@@ -178,7 +178,7 @@ public class ServicioBajasPacienteIntelisis {
                     ? "Intelisis tiene más de " + MAXIMO + " entregas para esta búsqueda; se muestran las más recientes." : null);
         } catch (DataAccessException e) {
             log.warn("No se pudieron leer las bajas por paciente de Intelisis: {}", e.getMostSpecificCause().getMessage());
-            return Resultado.sinConexion("Intelisis no respondió: no se muestran las entregas anteriores a HAERO.");
+            return Resultado.sinConexion("Intelisis no respondió: no se muestran las entregas anteriores a SICOMED.");
         }
     }
 

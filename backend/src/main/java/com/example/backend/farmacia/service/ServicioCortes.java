@@ -43,7 +43,7 @@ import java.util.TreeMap;
  * HU31: resumen del día para dar una sola baja por volumen en Intelisis ("Consumo Farmacia"),
  * y HU32: verificación contra lo que se capturó en Intelisis.
  *
- * HAERO no escribe en Intelisis: la baja la captura una persona con este resumen y la marca
+ * SICOMED no escribe en Intelisis: la baja la captura una persona con este resumen y la marca
  * aquí. La verificación lee el espejo que llena la sincronización (intelisis_mov_farmacia_lote).
  */
 @Service
@@ -276,7 +276,7 @@ public class ServicioCortes {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Primero marca el día como dado de baja en Intelisis"));
         CorteDiaResponse resumen = resumen(dia);
 
-        // Lo que HAERO dice que salió ese día: consumo menos las "Devolucion Farmacia" del día.
+        // Lo que SICOMED dice que salió ese día: consumo menos las "Devolucion Farmacia" del día.
         Map<String, int[]> haeroPorLote = new TreeMap<>();
         Map<String, String[]> nombres = new LinkedHashMap<>();
         resumen.getConsumo().forEach(r -> sumar(haeroPorLote, nombres, r.getClaveIntelisis(), r.getLote(), r.getPiezas()));

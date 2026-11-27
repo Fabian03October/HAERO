@@ -410,7 +410,7 @@ public class ServicioCarrito {
                             "El paciente de la cama " + internado.espacio + " no tiene " + clave + " por surtir hoy");
                 });
 
-        // La receta del día del paciente; lo "indicado" en HAERO es lo que el despachador decide surtir.
+        // La receta del día del paciente; lo "indicado" en SICOMED es lo que el despachador decide surtir.
         String folio = folio(hoy, internado.idIngreso);
         Receta receta = recetaRepository.findByFolioIgnoreCase(folio).orElseGet(() -> {
             Receta nueva = new Receta();

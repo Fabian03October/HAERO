@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Pedidos (HU22) y pedidos cancelados (HU11), solo consulta. Los pedidos se leen de
- * Intelisis (diseno aprobado): ahi se capturan y se cancelan. HAERO solo guarda lo que
+ * Intelisis (diseno aprobado): ahi se capturan y se cancelan. SICOMED solo guarda lo que
  * Almacen recibio fisicamente contra cada pedido, al registrar la entrada (HU10).
  */
 @Service

@@ -18,8 +18,8 @@ import java.util.regex.Pattern;
 /**
  * HU28 CA1: busca al paciente en Intelisis, en solo lectura, por expediente, nombre o CURP.
  *
- * A diferencia del catálogo, los pacientes NO se copian a HAERO (son datos personales de
- * salud): se consulta Intelisis en el momento, con pocas filas, y HAERO solo guarda los
+ * A diferencia del catálogo, los pacientes NO se copian a SICOMED (son datos personales de
+ * salud): se consulta Intelisis en el momento, con pocas filas, y SICOMED solo guarda los
  * datos del paciente al que se le entrega una receta.
  *
  * Por validar en la red del hospital: el paciente está en Cte (Cte.Cliente, el mismo que

@@ -40,7 +40,7 @@ export class CpmClave {
   readonly mesMayor = computed(() => Math.max(1, ...(this.detalle()?.meses.map((mes) => mes.cajas) ?? [])));
 
   // ---------- Vista general ----------
-  // Cajas de todas las claves por mes (cada clave con su origen de CPM: HAERO o Intelisis).
+  // Cajas de todas las claves por mes (cada clave con su origen de CPM: SICOMED o Intelisis).
   readonly mesesGenerales = computed(() =>
     this.rotacion.ventana().map((mes) => ({
       mes,

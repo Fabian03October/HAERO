@@ -42,7 +42,7 @@ export class SeguridadMedicamentos {
     return [
       { valor: 'ALTO' as Filtro, etiqueta: 'Alto riesgo', total: lista.filter((m) => m.altoRiesgo).length },
       { valor: 'FRIA' as Filtro, etiqueta: 'Red fría', total: lista.filter((m) => m.redFria).length },
-      { valor: 'DIFERENTE' as Filtro, etiqueta: 'Corregidas en HAERO', total: lista.filter((m) => m.altoRiesgoMarcado !== null).length },
+      { valor: 'DIFERENTE' as Filtro, etiqueta: 'Corregidas en SICOMED', total: lista.filter((m) => m.altoRiesgoMarcado !== null).length },
       { valor: 'TODAS' as Filtro, etiqueta: 'Todas', total: lista.length },
     ];
   });

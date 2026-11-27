@@ -11,7 +11,7 @@
           <div>
             <p class="eyebrow">Trazabilidad</p>
             <h1>Trazabilidad de medicamentos</h1>
-            <p class="hero-text">Busca un medicamento, un lote o un paciente, o escanea la caja. El recorrido junta lo registrado en HAERO con lo que llega de Intelisis. Sirve para actuar ante una alerta sanitaria o un retiro del proveedor.</p>
+            <p class="hero-text">Busca un medicamento, un lote o un paciente, o escanea la caja. El recorrido junta lo registrado en SICOMED con lo que llega de Intelisis. Sirve para actuar ante una alerta sanitaria o un retiro del proveedor.</p>
           </div>
         </header>
 
@@ -72,7 +72,7 @@
                     <th>Medicamento</th>
                     <th>Lote</th>
                     <th>Caducidad</th>
-                    <th class="number">Farmacia HAERO (piezas)</th>
+                    <th class="number">Farmacia SICOMED (piezas)</th>
                     <th class="number">Intelisis almacén</th>
                     <th class="number">Intelisis farmacia</th>
                     <th class="centro">Registrado en</th>
@@ -90,7 +90,7 @@
                       <td class="number">{{ l.existenciaAlmacenIntelisis ?? '—' }}</td>
                       <td class="number">{{ l.existenciaFarmaciaIntelisis ?? '—' }}</td>
                       <td class="centro">
-                        @if (l.enHaero) { <span class="fuente haero">HAERO</span> }
+                        @if (l.enHaero) { <span class="fuente haero">SICOMED</span> }
                         @if (l.enIntelisis) { <span class="fuente intelisis">Intelisis</span> }
                       </td>
                       <td class="centro"><button class="link" type="button" (click)="verLote(l.lote, l.clave)">Ver recorrido</button></td>
@@ -123,13 +123,13 @@
                 <button class="btn secondary" type="button" [disabled]="buscando()" (click)="descargarReporte('excel')">Excel</button>
               </div>
             </div>
-            <!-- La línea de tiempo solo con datos de HAERO; lo que viene solo de Intelisis se muestra en tablas. -->
+            <!-- La línea de tiempo solo con datos de SICOMED; lo que viene solo de Intelisis se muestra en tablas. -->
             @if (mostrarLinea()) {
               <ol class="recorrido">
                 @for (paso of recorrido(); track paso.etapa) {
                   <li [class.hecho]="!!paso.fuente">
                     <strong>{{ paso.etapa }}
-                      @if (paso.fuente) { <span class="fuente" [class.haero]="paso.fuente === 'HAERO'" [class.intelisis]="paso.fuente === 'Intelisis'">{{ paso.fuente }}</span> }
+                      @if (paso.fuente) { <span class="fuente" [class.haero]="paso.fuente === 'HAERO'" [class.intelisis]="paso.fuente === 'Intelisis'">{{ paso.fuente === 'HAERO' ? 'SICOMED' : paso.fuente }}</span> }
                     </strong>
                     @if (paso.fecha || !paso.fuente) {
                       <span>{{ paso.fecha ?? 'Sin datos' }}</span>
@@ -148,7 +148,7 @@
                         <td><strong>{{ paso.etapa }}</strong></td>
                         <td>{{ paso.fecha ?? '—' }}</td>
                         <td class="detalle">{{ paso.detalle }}</td>
-                        <td class="centro"><span class="fuente" [class.haero]="paso.fuente === 'HAERO'" [class.intelisis]="paso.fuente === 'Intelisis'">{{ paso.fuente }}</span></td>
+                        <td class="centro"><span class="fuente" [class.haero]="paso.fuente === 'HAERO'" [class.intelisis]="paso.fuente === 'Intelisis'">{{ paso.fuente === 'HAERO' ? 'SICOMED' : paso.fuente }}</span></td>
                       </tr>
                     }
                   </tbody>
@@ -228,7 +228,7 @@
                       </td>
                       <td class="number">{{ entrega.piezas }}</td>
                       <td>{{ entrega.despachador }}</td>
-                      <td class="centro"><span class="fuente" [class.haero]="entrega.fuente === 'HAERO'" [class.intelisis]="entrega.fuente === 'Intelisis'">{{ entrega.fuente }}</span></td>
+                      <td class="centro"><span class="fuente" [class.haero]="entrega.fuente === 'HAERO'" [class.intelisis]="entrega.fuente === 'Intelisis'">{{ entrega.fuente === 'HAERO' ? 'SICOMED' : entrega.fuente }}</span></td>
                     </tr>
                   } @empty {
                     <tr><td colspan="6" class="empty">Busca un medicamento, un lote o un paciente para ver sus entregas.</td></tr>
@@ -238,7 +238,7 @@
             </div>
             <app-paginador [control]="pagEntregas" />
             @if (entregas().length) {
-              <p class="hint">Las entregas desde que Farmacia usa HAERO salen de HAERO; las anteriores, de las bajas de Farmacia en Intelisis (el paciente es el nombre registrado en la baja).</p>
+              <p class="hint">Las entregas desde que Farmacia usa SICOMED salen de SICOMED; las anteriores, de las bajas de Farmacia en Intelisis (el paciente es el nombre registrado en la baja).</p>
             }
           </section>
       </div>

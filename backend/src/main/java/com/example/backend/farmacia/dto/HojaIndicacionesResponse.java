@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * "Indicaciones médicas activas" de un paciente, igual a la de Intelisis. Las indicaciones
  * generales, la dieta, los médicos, el sexo y la fecha de nacimiento se leen de Intelisis al
- * imprimir y no se guardan en HAERO.
+ * imprimir y no se guardan en SICOMED.
  */
 @Getter
 @AllArgsConstructor
