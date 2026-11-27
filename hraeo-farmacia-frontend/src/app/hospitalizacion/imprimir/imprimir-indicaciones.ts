@@ -16,20 +16,46 @@ export class ImprimirIndicaciones {
   readonly hojas = signal<HojaIndicaciones[]>([]);
   readonly cargando = signal(true);
   readonly error = signal('');
+  // Elegir qué indicaciones salen en la hoja (las desmarcadas no se imprimen): idIngreso → índices desmarcados.
+  readonly elegir: boolean;
+  readonly fuera = signal<Set<string>>(new Set());
 
   constructor() {
     const parametros = inject(ActivatedRoute).snapshot.queryParamMap;
+    this.elegir = parametros.get('elegir') === '1';
     const ingresos = (parametros.get('ingresos') ?? '').split(',').filter(Boolean).map(Number);
     this.api.indicaciones(parametros.get('central') ?? '', ingresos, parametros.get('dia') ?? undefined).subscribe({
       next: (hojas) => {
         this.hojas.set(hojas);
         this.cargando.set(false);
-        if (hojas.length) setTimeout(() => window.print(), 300);
+        if (hojas.length && !this.elegir) setTimeout(() => window.print(), 300);
       },
       error: (error) => {
         this.cargando.set(false);
         this.error.set(mensajeDeError(error, 'No se pudieron preparar las indicaciones.'));
       },
+    });
+  }
+
+  llave(hoja: number, tipo: 'h' | 'i', i: number): string {
+    return `${hoja}-${tipo}-${i}`;
+  }
+
+  alternar(llave: string): void {
+    this.fuera.update((s) => {
+      const nuevo = new Set(s);
+      if (!nuevo.delete(llave)) nuevo.add(llave);
+      return nuevo;
+    });
+  }
+
+  marcarTodas(hoja: HojaIndicaciones, todas: boolean): void {
+    const llaves = [...hoja.medicamentosPorHorario.map((_, i) => this.llave(hoja.idIngreso, 'h', i)),
+      ...hoja.medicamentosPorInfusion.map((_, i) => this.llave(hoja.idIngreso, 'i', i))];
+    this.fuera.update((s) => {
+      const nuevo = new Set(s);
+      for (const l of llaves) todas ? nuevo.delete(l) : nuevo.add(l);
+      return nuevo;
     });
   }
 

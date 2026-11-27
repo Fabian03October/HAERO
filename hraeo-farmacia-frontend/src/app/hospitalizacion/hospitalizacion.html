@@ -187,6 +187,7 @@
                           <span>{{ cama.paciente ?? 'Paciente' }}</span>
                           <small>Exp. {{ cama.expediente ?? '—' }} · {{ cama.lineas.length }} {{ cama.lineas.length === 1 ? 'medicamento' : 'medicamentos' }}</small>
                           <button class="link imprimir-cama" type="button" (click)="imprimirIndicaciones([cama.idIngreso])">🖨 Su hoja</button>
+                          <button class="link imprimir-cama" type="button" (click)="imprimirIndicaciones([cama.idIngreso], undefined, true)">Elegir qué imprimir</button>
                           <button class="link" type="button" [disabled]="cargandoHistorial() === cama.idIngreso" (click)="verHistorial(cama)">{{ historial()?.idIngreso === cama.idIngreso ? 'Cerrar historial' : 'Historial 7 días' }}</button>
                         </div>
                       </div>

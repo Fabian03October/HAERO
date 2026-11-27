@@ -4,7 +4,7 @@
   } @else if (error()) {
     <span class="error">{{ error() }}</span>
   } @else {
-    <span>{{ hojas().length }} {{ hojas().length === 1 ? 'hoja' : 'hojas' }} de indicaciones médicas</span>
+    <span>{{ hojas().length }} {{ hojas().length === 1 ? 'hoja' : 'hojas' }} de indicaciones médicas{{ elegir ? ' · desmarca las indicaciones que no quieras imprimir' : '' }}</span>
     <button type="button" (click)="imprimir()">🖨 Imprimir</button>
   }
 </div>
@@ -41,8 +41,18 @@
     </div>
 
     <div class="seccion">Medicamentos por Horario</div>
+    @if (elegir) {
+      <div class="elegir no-imprimir">
+        <button type="button" (click)="marcarTodas(h, true)">Marcar todas</button>
+        <button type="button" (click)="marcarTodas(h, false)">Desmarcar todas</button>
+      </div>
+    }
     @for (m of h.medicamentosPorHorario; track $index) {
-      <div class="medicamento">
+      @let clave = llave(h.idIngreso, 'h', $index);
+      <div class="medicamento" [class.no-imprimir]="fuera().has(clave)" [class.desmarcado]="fuera().has(clave)">
+        @if (elegir) {
+          <input class="casilla no-imprimir" type="checkbox" [checked]="!fuera().has(clave)" (change)="alternar(clave)" [attr.aria-label]="'Imprimir ' + m.descripcion" />
+        }
         <div class="med-texto">
           <div class="med-nombre">{{ m.clave }} - {{ m.descripcion }}</div>
           <div>{{ m.indicacion }}</div>
@@ -61,7 +71,11 @@
     @if (h.medicamentosPorInfusion.length) {
       <div class="seccion">Medicamentos por Infusión Continua</div>
       @for (m of h.medicamentosPorInfusion; track $index) {
-        <div class="medicamento">
+        @let clave = llave(h.idIngreso, 'i', $index);
+        <div class="medicamento" [class.no-imprimir]="fuera().has(clave)" [class.desmarcado]="fuera().has(clave)">
+          @if (elegir) {
+            <input class="casilla no-imprimir" type="checkbox" [checked]="!fuera().has(clave)" (change)="alternar(clave)" [attr.aria-label]="'Imprimir ' + m.descripcion" />
+          }
           <div class="med-texto">
             <div class="med-nombre">+ {{ m.clave }} - {{ m.descripcion }}</div>
             <div>{{ m.indicacion }}@if (m.nota) {&nbsp; Nota: {{ m.nota }}}</div>

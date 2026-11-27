@@ -330,9 +330,10 @@ export class Hospitalizacion {
   }
 
   // Abre en otra pestaña la hoja "Indicaciones médicas activas" (todas, elegidas o de un paciente).
-  imprimirIndicaciones(ingresos: number[] = [], dia?: string): void {
+  /** elegir: abre la hoja sin mandarla a imprimir, para desmarcar las indicaciones que no se quieren (p. ej. solo la nueva). */
+  imprimirIndicaciones(ingresos: number[] = [], dia?: string, elegir = false): void {
     const url = this.router.serializeUrl(this.router.createUrlTree(['/farmacia/hospitalizacion/imprimir/indicaciones'], {
-      queryParams: { central: this.area(), ingresos: ingresos.length ? ingresos.join(',') : null, dia: dia ?? null },
+      queryParams: { central: this.area(), ingresos: ingresos.length ? ingresos.join(',') : null, dia: dia ?? null, elegir: elegir ? 1 : null },
     }));
     window.open(url, '_blank');
   }

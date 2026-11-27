@@ -37,6 +37,13 @@
 .partidas tfoot td { border-bottom: 0; }
 .firma-surtio { width: 320px; margin: 60px auto 0; text-align: center; text-transform: uppercase; }
 
+/* Elegir qué indicaciones imprimir: casilla a la izquierda; lo desmarcado se ve tenue y no sale en la impresión. */
+.elegir { display: flex; gap: 8px; margin: 4px 0; }
+.elegir button { padding: 4px 10px; border: 1px solid #bbb; border-radius: 6px; background: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+.medicamento:has(.casilla) { grid-template-columns: 22px minmax(0, 1fr) 150px; }
+.medicamento.desmarcado { opacity: .35; }
+.casilla { margin-top: 2px; width: 16px; height: 16px; }
+
 @media print {
   /* Sin margen de página: así el navegador no imprime su encabezado ni su pie (la fecha y el link de la página).
      El margen lo da la hoja: a la izquierda 2.5 cm para perforar y armar el cuadernillo. "clone" repite el margen en
@@ -46,6 +53,8 @@
   /* Que los fondos grises (secciones, encabezados de tabla) sí salgan en la impresión. */
   :host, :host * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .no-imprimir { display: none !important; }
+  /* Al imprimir no está la casilla de elegir: el renglón vuelve a sus dos columnas. */
+  .medicamento:has(.casilla) { grid-template-columns: minmax(0, 1fr) 150px; }
   /* page-break-* además de break-*: Safari solo respeta los antiguos; así cada paciente empieza en hoja nueva. */
   .hoja { width: auto; min-height: auto; margin: 0; padding: 0.5in 0.45in 0.55in 1in; -webkit-box-decoration-break: clone; box-decoration-break: clone;
           break-after: page; page-break-after: always; }
