@@ -92,6 +92,20 @@ public class ServicioSincronizacionQuimio {
             List<Object[]> solicitudes = intelisis.query(SELECT_SOLICITUD
                             + " AND (s.Fecha >= DATEADD(day, ?, GETDATE()) OR s.FechaRequerida >= DATEADD(day, ?, GETDATE()))",
                     (rs, n) -> fila(rs), -dias, -DIAS_REQUERIDA_ATRAS);
+            // Las de años pasados que Farmacia reprogramó (historial) se siguen copiando mientras su nueva fecha esté vigente.
+            solicitudes = new java.util.ArrayList<>(solicitudes);
+            java.util.Set<Integer> copiadas = new java.util.HashSet<>();
+            solicitudes.forEach(f -> copiadas.add((Integer) f[0]));
+            List<Integer> reprogramadas = haero.queryForList("""
+                    SELECT r.folio FROM quimio_reprogramacion r
+                    WHERE r.id = (SELECT MAX(r2.id) FROM quimio_reprogramacion r2 WHERE r2.folio = r.folio) AND r.fecha_nueva >= ?
+                    """, Integer.class, java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(DIAS_REQUERIDA_ATRAS)))
+                    .stream().filter(f -> !copiadas.contains(f)).limit(1000).toList();
+            if (!reprogramadas.isEmpty()) {
+                solicitudes.addAll(intelisis.query(SELECT_SOLICITUD + " AND s.ID_AuxTxSol IN ("
+                                + String.join(",", java.util.Collections.nCopies(reprogramadas.size(), "?")) + ")",
+                        (rs, n) -> fila(rs), reprogramadas.toArray()));
+            }
 
             // 2) Reemplazar la copia de una vez: lo que salió de la ventana se borra (datos clínicos).
             Timestamp ahora = Timestamp.valueOf(LocalDateTime.now());
@@ -122,6 +136,21 @@ public class ServicioSincronizacionQuimio {
         } finally {
             enCurso.set(false);
         }
+    }
+
+    /** Copia una sola solicitud de Intelisis (una del historial que se va a reprogramar). false si no está en Intelisis. */
+    public boolean copiarSolicitud(int folio) {
+        JdbcTemplate intelisis = conexion.plantilla().orElseThrow(() -> new IllegalStateException(conexion.motivoNoDisponible()));
+        List<Object[]> filas = intelisis.query(SELECT_SOLICITUD + " AND s.ID_AuxTxSol = ?", (rs, n) -> fila(rs), folio);
+        if (filas.isEmpty()) return false;
+        Object[] f = Arrays.copyOf(filas.get(0), filas.get(0).length + 1);
+        f[f.length - 1] = Timestamp.valueOf(LocalDateTime.now());
+        haero.update("""
+                INSERT INTO quimio_solicitud (folio, fecha, fecha_requerida, estatus, expediente, paciente, servicio_solicita,
+                                              diagnostico, notas, medico_usuario, medico, actualizado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, f);
+        return true;
     }
 
     /** Una fila de SELECT_SOLICITUD como valores para quimio_solicitud (sin actualizado_en). */

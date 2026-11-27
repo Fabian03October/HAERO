@@ -201,6 +201,16 @@
                 <p class="eyebrow">{{ modo() === 'LOTE' || !modo() ? 'Pacientes que recibieron el lote' : modo() === 'RECETA' ? 'Lo que se dio de baja para la receta' : 'Lotes que recibió · ' + titulo() }}</p>
                 <h2>Entregas</h2>
               </div>
+              @if (medicos().length) {
+                <label class="filtro-medico">Médico
+                  <select [ngModel]="medicoFiltro()" (ngModelChange)="medicoFiltro.set($event)">
+                    <option value="">Todos los médicos</option>
+                    @for (m of medicos(); track m) {
+                      <option [value]="m">{{ m }}</option>
+                    }
+                  </select>
+                </label>
+              }
             </div>
             <div class="table-wrap">
               <table>
@@ -227,7 +237,7 @@
                         <small class="sub">{{ entrega.clave }}</small>
                       </td>
                       <td class="number">{{ entrega.piezas }}</td>
-                      <td>{{ entrega.despachador }}</td>
+                      <td>{{ entrega.despachador }}@if (entrega.medico) {<small class="sub">Dr(a). {{ entrega.medico }}</small>}</td>
                       <td class="centro"><span class="fuente" [class.haero]="entrega.fuente === 'HAERO'" [class.intelisis]="entrega.fuente === 'Intelisis'">{{ entrega.fuente === 'HAERO' ? 'SICOMED' : entrega.fuente }}</span></td>
                     </tr>
                   } @empty {

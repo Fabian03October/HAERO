@@ -18,4 +18,11 @@ public class EntregaPacienteResponse {
     private String despachador;
     // "HAERO" (entrega registrada en SICOMED) o "Intelisis" (baja de Farmacia anterior a SICOMED).
     private String fuente;
+    // Médico de la receta (solo entregas de SICOMED; las bajas de Intelisis no lo traen).
+    private String medico;
+
+    public EntregaPacienteResponse(LocalDateTime fecha, String folio, String paciente, String expediente, String clave, String lote,
+                                   int piezas, String despachador, String fuente) {
+        this(fecha, folio, paciente, expediente, clave, lote, piezas, despachador, fuente, null);
+    }
 }

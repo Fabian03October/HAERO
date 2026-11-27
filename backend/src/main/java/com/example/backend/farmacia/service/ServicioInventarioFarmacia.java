@@ -327,7 +327,30 @@ public class ServicioInventarioFarmacia {
 
     // ---------- HU35: caducados y mermas ----------
 
-    /** CA1: los lotes vencidos con piezas, sugeridos para darse de baja (nunca se dan de baja solos). */
+    /**
+     * Los lotes vencidos con piezas pasan solos a Caducados y mermas. Se registra a nombre de quien abre la
+     * pantalla (todo movimiento guarda quién y cuándo), con el detalle de que fue automática.
+     * shortcut: corre al abrir Caducados y mermas, no a medianoche; si se quiere a una hora fija, falta un usuario "sistema".
+     */
+    @Transactional
+    public int bajasAutomaticasPorCaducidad(String nombreUsuario) {
+        LocalDate hoy = LocalDate.now();
+        List<LoteFarmacia> vencidos = loteFarmaciaRepository.findAllConMedicamento().stream()
+                .filter(l -> l.getPiezas() > 0 && l.getCaducidad().isBefore(hoy))
+                .toList();
+        if (vencidos.isEmpty()) return 0;
+        Usuario usuario = usuario(nombreUsuario);
+        for (LoteFarmacia lote : vencidos) {
+            int piezas = lote.getPiezas();
+            String detalle = "Baja automática: el lote venció el "
+                    + lote.getCaducidad().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            BajaFarmacia baja = guardarBaja(lote, piezas, BajaFarmacia.CADUCIDAD, detalle, null, usuario);
+            mover(lote, MovimientoFarmacia.BAJA, -piezas, baja.getId(), usuario);
+        }
+        return vencidos.size();
+    }
+
+    /** CA1: los lotes vencidos con piezas que todavía no se dan de baja (con la baja automática, casi siempre vacío). */
     public List<LoteFarmaciaResponse> sugeridosParaBaja() {
         return existencias().stream().filter(l -> "VENCIDO".equals(l.getEstado())).toList();
     }

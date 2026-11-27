@@ -69,4 +69,9 @@ public class QuimioRenglon {
     @Nationalized
     @Column(name = "motivo_no_surtido", length = 200)
     private String motivoNoSurtido;
+
+    // Surtido incompleto: por qué se dieron menos piezas de las indicadas (null si se surtió completo).
+    @Nationalized
+    @Column(name = "motivo_parcial", length = 200)
+    private String motivoParcial;
 }

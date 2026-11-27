@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -200,6 +201,7 @@ public class ServicioDespacho {
         List<String> sinExistencia = new ArrayList<>();
         for (Solicitud solicitud : abiertas) {
             String clave = solicitud.getMedicamento().getClave();
+            exigirCajasPorPaquete(solicitud);
             SugerenciaDespachoResponse sugerencia = sugerir(solicitud.getId());
             if (sugerencia.getPartidas().isEmpty()) {
                 if (!parcial) {
@@ -256,6 +258,10 @@ public class ServicioDespacho {
         Solicitud solicitud = new Solicitud();
         solicitud.setMedicamento(medicamento);
         solicitud.setCantidadSolicitada(request.getCantidad());
+        if ("PAQUETE".equalsIgnoreCase(request.getUnidad())) {
+            // Hasta que Almacén anote las cajas por paquete, cantidad_solicitada guarda los paquetes.
+            solicitud.setPaquetes(request.getCantidad());
+        }
         solicitud.setCantidadAtendida(0);
         solicitud.setEstatus("PENDIENTE");
         solicitud.setUsuario(usuario);
@@ -315,6 +321,7 @@ public class ServicioDespacho {
     @Transactional
     public DespacharSolicitudResponse despachar(Long solicitudId, DespacharSolicitudRequest request, String nombreUsuarioSolicitante) {
         Solicitud solicitud = buscarSolicitud(solicitudId);
+        exigirCajasPorPaquete(solicitud);
 
         if ("ATENDIDA".equals(solicitud.getEstatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La solicitud ya fue atendida");
@@ -503,6 +510,34 @@ public class ServicioDespacho {
         return false;
     }
 
+    private static void exigirCajasPorPaquete(Solicitud solicitud) {
+        if (solicitud.getPaquetes() != null && solicitud.getCajasPorPaquete() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, solicitud.getMedicamento().getClave() + ": se pidieron "
+                    + solicitud.getPaquetes() + " paquetes; anota primero cuántas cajas trae cada paquete");
+        }
+    }
+
+    /** Almacén anota cuántas cajas trae cada paquete; desde ahí el pedido sigue en cajas (paquetes × cajas). */
+    @Transactional
+    public SolicitudResponse anotarCajasPorPaquete(Long solicitudId, Integer cajasPorPaquete, String nombreUsuario) {
+        Solicitud solicitud = buscarSolicitud(solicitudId);
+        if (solicitud.getPaquetes() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esta solicitud se pidió en cajas, no en paquetes");
+        }
+        if (solicitud.getCantidadAtendida() > 0 || !"PENDIENTE".equals(solicitud.getEstatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ya se empezó a despachar; las cajas por paquete ya no cambian");
+        }
+        if (cajasPorPaquete == null || cajasPorPaquete <= 0 || cajasPorPaquete > 1000) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las cajas por paquete deben ser un número entre 1 y 1000");
+        }
+        solicitud.setCajasPorPaquete(cajasPorPaquete);
+        solicitud.setCantidadSolicitada(solicitud.getPaquetes() * cajasPorPaquete);
+        solicitud.setCajasPorPaquetePor(usuarioRepository.findByNombreUsuario(nombreUsuario)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado")));
+        solicitud.setCajasPorPaqueteFecha(LocalDateTime.now());
+        return aRespuesta(solicitudRepository.save(solicitud));
+    }
+
     static final String SIN_EXISTENCIA = "Sin existencia en Almacén";
 
     /** Vale del pedido: lo entregado y lo que no se surtió con su motivo (para Almacén y Farmacia). */
@@ -515,7 +550,8 @@ public class ServicioDespacho {
                         m.getSolicitud().getMedicamento().getClave(), m.getSolicitud().getMedicamento().getNombreGenerico(),
                         m.getExistencia().getLote().getNumeroLote(), m.getExistencia().getLote().getCaducidad(),
                         m.getExistencia().getUbicacion(), m.getCantidadCajas(),
-                        m.getUsuario() == null ? null : m.getUsuario().getNombreCompleto(), m.getFecha()))
+                        m.getUsuario() == null ? null : m.getUsuario().getNombreCompleto(), m.getFecha(),
+                        m.getSolicitud().getCajasPorPaquete()))
                 .toList();
         var noSurtido = solicitudRepository.findByPedidoIdOrderByIdAsc(pedidoId).stream()
                 .filter(s -> s.getCantidadAtendida() < s.getCantidadSolicitada())
@@ -526,7 +562,8 @@ public class ServicioDespacho {
                                     .map(com.example.backend.almacen.entity.SolicitudFaltante::getMotivo).orElse("Todavía no se despacha");
                     return new com.example.backend.almacen.dto.ValePedidoResponse.NoSurtido(s.getMedicamento().getClave(),
                             s.getMedicamento().getNombreGenerico(), s.getCantidadSolicitada(), s.getCantidadAtendida(),
-                            s.getCantidadSolicitada() - s.getCantidadAtendida(), motivo, s.getEstatus());
+                            s.getCantidadSolicitada() - s.getCantidadAtendida(), motivo, s.getEstatus(),
+                            s.getPaquetes(), s.getCajasPorPaquete());
                 })
                 .toList();
         return new com.example.backend.almacen.dto.ValePedidoResponse(pedidoId,
@@ -571,7 +608,9 @@ public class ServicioDespacho {
                 solicitud.getFechaCierre(),
                 solicitud.getPedido() != null ? solicitud.getPedido().getId() : null,
                 solicitud.getId() == null ? null : faltanteRepository.findFirstBySolicitudIdOrderByIdDesc(solicitud.getId())
-                        .map(com.example.backend.almacen.entity.SolicitudFaltante::getMotivo).orElse(null)
+                        .map(com.example.backend.almacen.entity.SolicitudFaltante::getMotivo).orElse(null),
+                solicitud.getPaquetes(),
+                solicitud.getCajasPorPaquete()
         );
     }
 }

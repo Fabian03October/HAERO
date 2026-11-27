@@ -24,11 +24,12 @@ public final class QuimioterapiaDtos {
      * "noSurtido": no se entrega (sin existencia, o no se maneja y el paciente lo compra) con su "motivoNoSurtido";
      * lo demás de la indicación sí se entrega.
      */
+    /** grupo: el medicamento de la nota del que sale el renglón (varias claves del mismo medicamento comparten grupo). */
     public record RenglonQuimioRequest(String textoMedico, String clave, String alternativa, boolean usarAlternativa,
                                        String motivoAlternativa, String dosis, Integer piezas, String lote,
                                        BigDecimal dosisCantidad, String dosisUnidad, BigDecimal contenidoPorPieza,
                                        String destinoSobrante, List<LoteEscaneado> lotes, boolean noSurtido,
-                                       String motivoNoSurtido) {
+                                       String motivoNoSurtido, String motivoParcial, String grupo) {
     }
 
     /** Piezas de un lote escaneadas para un renglón; "codigo" es el código de barras de la caja (se aprende si es nuevo). */
@@ -51,7 +52,7 @@ public final class QuimioterapiaDtos {
                                         String medicamento, String dosis, int piezas, String motivoAlternativa,
                                         BigDecimal dosisCantidad, String dosisUnidad, BigDecimal contenidoPorPieza,
                                         BigDecimal sobrante, String destinoSobrante, String nombreIndicada, String nombreAlternativa,
-                                        boolean noSurtido, String motivoNoSurtido) {
+                                        boolean noSurtido, String motivoNoSurtido, String motivoParcial) {
     }
 
     public record QuimioResponse(Long id, String folio, int sesion, String expedienteSolicitud, String pacienteNombre,
@@ -109,7 +110,7 @@ public final class QuimioterapiaDtos {
      * de la concentración del catálogo (ej. 300 mg); existencia son las piezas vigentes en Farmacia.
      */
     public record ClaveSugerida(String clave, String nombre, String forma, String concentracion, BigDecimal contenidoPorPieza,
-                                String unidadContenido, int existencia, boolean usadaAntes) {
+                                String unidadContenido, int existencia, boolean usadaAntes, List<String> proveedores) {
     }
 
     /** Un medicamento que SICOMED encontró en la nota, con la dosis escrita junto a él y sus claves posibles. */

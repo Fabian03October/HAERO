@@ -64,6 +64,9 @@ interface RenglonQuimio {
   // No se surte (sin existencia, o no se maneja y el paciente lo compra): se entrega lo demás.
   noSurtido: boolean;
   motivoNoSurtido: string;
+  // Surtido incompleto: se dan menos piezas de las indicadas, con su motivo; lo que falta queda pendiente.
+  parcial?: boolean;
+  motivoParcial?: string;
 }
 
 // Avance de la solicitud abierta guardado en la pestaña (se recupera al recargar).
@@ -223,6 +226,7 @@ export class Quimioterapia {
     { valor: 'CON_PENDIENTES', etiqueta: 'Con pendientes' },
     { valor: 'SURTIDAS', etiqueta: 'Ya surtidas' },
     { valor: 'TODAS', etiqueta: 'Todas' },
+    { valor: 'HISTORIAL', etiqueta: 'Historial (años pasados)' },
   ];
 
   // ---------- 1. Solicitud y paciente ----------
@@ -332,7 +336,10 @@ export class Quimioterapia {
       if (this.pideMotivoAlternativa(r) && !r.motivoAlternativa.trim()) faltan.push(`el motivo de surtir la alternativa de ${r.principal.clave}`);
       if ((this.sobrante(r) ?? 0) > 0 && !r.destinoSobrante) faltan.push(`qué se hace con el sobrante de ${this.claveSurtida(r)}`);
       if (this.sobrante(r) !== null && this.sobrante(r)! < 0) faltan.push(`más piezas de ${this.claveSurtida(r)} (no alcanza la dosis)`);
-      if (!r.sinEscaneo && r.escaneos.length < r.piezas) faltan.push(`escanear ${r.piezas - r.escaneos.length} pieza(s) de ${this.claveSurtida(r)}`);
+      if (r.parcial && !r.sinEscaneo) {
+        if (!r.escaneos.length) faltan.push(`escanear al menos una pieza de ${this.claveSurtida(r)} (o márcalo como «No se surte»)`);
+        if (r.escaneos.length < r.piezas && !r.motivoParcial?.trim()) faltan.push(`por qué ${this.claveSurtida(r)} se surte incompleto`);
+      } else if (!r.sinEscaneo && r.escaneos.length < r.piezas) faltan.push(`escanear ${r.piezas - r.escaneos.length} pieza(s) de ${this.claveSurtida(r)}`);
       if (!r.sinEscaneo && r.escaneos.length > r.piezas) faltan.push(`quitar ${r.escaneos.length - r.piezas} pieza(s) escaneadas de más de ${this.claveSurtida(r)}`);
     }
     return faltan;
@@ -573,13 +580,23 @@ export class Quimioterapia {
     this.cargandoLista.set(true);
     this.pagSolicitudes.reiniciar();
     this.cargarResumen();
-    this.api.solicitudesQuimio(this.filtro(), this.buscarSolicitud(), this.desde(), this.hasta(), this.medico()).subscribe({
+    const historial = this.filtro() === 'HISTORIAL';
+    if (historial && !this.buscarSolicitud().trim() && !(this.desde() && this.hasta())) {
+      this.cargandoLista.set(false);
+      this.solicitudes.set([]);
+      this.mostrar('Historial: escribe el folio o el expediente, o elige el periodo (desde y hasta).', 'info');
+      return;
+    }
+    const consulta = historial
+      ? this.api.historialQuimio(this.buscarSolicitud(), this.desde(), this.hasta())
+      : this.api.solicitudesQuimio(this.filtro(), this.buscarSolicitud(), this.desde(), this.hasta(), this.medico());
+    consulta.subscribe({
       next: (lista) => {
         this.cargandoLista.set(false);
         this.solicitudes.set(lista);
         // Una hoja vieja puede ya no estar en la lista: con el folio se busca directo en Intelisis.
         const texto = this.buscarSolicitud().trim();
-        if (!lista.length && /^\d{1,9}$/.test(texto)) this.abrirSolicitud(texto);
+        if (!historial && !lista.length && /^\d{1,9}$/.test(texto)) this.abrirSolicitud(texto);
       },
       error: (e) => {
         this.cargandoLista.set(false);
@@ -833,10 +850,13 @@ export class Quimioterapia {
   private agregarDeNota(m: MedicamentoEnNota, c: ClaveSugerida, piezas: number): void {
     const dosisNota = m.dosisCantidad ? `${m.dosisCantidad} ${m.dosisUnidad ?? ''}`.trim() : '';
     const unidad = m.dosisUnidad && this.unidades.includes(m.dosisUnidad) ? m.dosisUnidad : 'mg';
-    // Una clave por medicamento de la nota: elegir otra la cambia (no se suma). Para combinar
-    // presentaciones (ej. 300 mg + 150 mg) se usa "+ Agregar otro medicamento".
+    // Otra clave del mismo medicamento se combina solo si es del mismo laboratorio (ej. 300 mg + 150 mg);
+    // si no, la cambia.
     const anteriores = this.renglonesDe(m);
-    const quitar = new Set(anteriores.map((r) => r.id));
+    const labs = (clave: string) => m.claves.find((x) => x.clave === clave)?.proveedores ?? [];
+    const comparte = (clave: string) => clave !== c.clave && labs(clave).some((p) => (c.proveedores ?? []).includes(p));
+    const combinar = anteriores.length > 0 && anteriores.every((r) => comparte(r.principal.clave));
+    const quitar = new Set(combinar ? [] : anteriores.map((r) => r.id));
     this.renglones.update((lista) => [
       ...lista.filter((r) => !quitar.has(r.id)),
       {
@@ -863,9 +883,11 @@ export class Quimioterapia {
     ]);
     this.pendientePiezas.set(null);
     this.piezasFila.set(null);
-    if (anteriores.length) {
+    if (combinar) {
+      this.mostrar(`${m.farmaco}: se combinó ${c.clave} (${piezas} pz) con ${anteriores.map((r) => r.principal.clave).join(', ')}; son del mismo laboratorio.`, 'info');
+    } else if (anteriores.length) {
       const antes = anteriores.map((r) => r.principal.clave).join(', ');
-      this.mostrar(`${m.farmaco}: se cambió ${antes} por ${c.clave} (${piezas} pz).`, 'info');
+      this.mostrar(`${m.farmaco}: se cambió ${antes} por ${c.clave} (${piezas} pz). Solo se combinan claves del mismo laboratorio.`, 'info');
     } else {
       this.mensaje.set('');
     }
@@ -1176,7 +1198,7 @@ export class Quimioterapia {
 
   readonly escaneoCompleto = computed(() => {
     const porEscanear = this.renglones().filter((r) => !r.sinEscaneo && !r.noSurtido);
-    return porEscanear.every((r) => this.escaneadas(r) === r.piezas);
+    return porEscanear.every((r) => (r.parcial ? this.escaneadas(r) > 0 && this.escaneadas(r) <= r.piezas : this.escaneadas(r) === r.piezas));
   });
 
   escanearFrasco(): void {
@@ -1235,10 +1257,17 @@ export class Quimioterapia {
   // Motivos rápidos para un medicamento que no se surte; "Otro" deja escribirlo.
   readonly motivosNoSurtido = ['Sin existencia en Farmacia', 'No se maneja en el hospital (el paciente lo compra)'];
 
+  readonly motivosParcial = ['No alcanza la existencia en Farmacia', 'Se completa en la siguiente sesión'];
+
+  /** Surtido incompleto: se entregan las piezas escaneadas y lo que falta queda pendiente con su motivo. */
+  marcarParcial(r: RenglonQuimio, parcial: boolean): void {
+    this.cambiarRenglon(r.id, { parcial, motivoParcial: parcial && this.existenciaDe(r) < r.piezas ? this.motivosParcial[0] : '' });
+  }
+
   /** Marca (o quita la marca) de "no se surte": se borra lo escaneado y se entrega lo demás. */
   marcarNoSurtido(r: RenglonQuimio, noSurtido: boolean): void {
     const motivo = noSurtido && this.existenciaDe(r) < r.piezas ? this.motivosNoSurtido[0] : '';
-    this.cambiarRenglon(r.id, { noSurtido, motivoNoSurtido: motivo, escaneos: [], lote: '', sinEscaneo: false, destinoSobrante: null });
+    this.cambiarRenglon(r.id, { noSurtido, motivoNoSurtido: motivo, escaneos: [], lote: '', sinEscaneo: false, destinoSobrante: null, parcial: false, motivoParcial: '' });
   }
 
   enfocarEscaner(): void {
@@ -1374,6 +1403,8 @@ export class Quimioterapia {
           lote: r.sinEscaneo && !r.noSurtido ? r.lote || null : null,
           noSurtido: r.noSurtido,
           motivoNoSurtido: r.noSurtido ? r.motivoNoSurtido.trim() : null,
+          grupo: r.deNota ?? null,
+          motivoParcial: r.parcial && !r.noSurtido && !r.sinEscaneo && this.escaneadas(r) < r.piezas ? r.motivoParcial?.trim() || null : null,
           lotes: r.sinEscaneo || r.noSurtido ? null : this.lotesEscaneados(r).map((l) => ({ lote: l.lote, piezas: l.piezas, codigo: l.codigo || null })),
           dosisCantidad: r.dosisCantidad,
           dosisUnidad: r.dosisCantidad ? r.dosisUnidad : null,

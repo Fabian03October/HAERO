@@ -12,10 +12,11 @@ public record ValePedidoResponse(Long pedidoId, String solicitadoPor, LocalDateT
                                  List<Entregado> entregado, List<NoSurtido> noSurtido) {
 
     public record Entregado(String clave, String medicamento, String lote, LocalDate caducidad, String ubicacion, int cajas,
-                            String despacho, LocalDateTime fecha) {
+                            String despacho, LocalDateTime fecha, Integer cajasPorPaquete) {
     }
 
     /** estatus: PARCIAL o PENDIENTE (falta), RECHAZADA (Almacén no la surtirá) o CANCELADA (Farmacia ya no la quiso). */
-    public record NoSurtido(String clave, String medicamento, int pedidas, int surtidas, int faltan, String motivo, String estatus) {
+    public record NoSurtido(String clave, String medicamento, int pedidas, int surtidas, int faltan, String motivo, String estatus,
+                            Integer paquetes, Integer cajasPorPaquete) {
     }
 }

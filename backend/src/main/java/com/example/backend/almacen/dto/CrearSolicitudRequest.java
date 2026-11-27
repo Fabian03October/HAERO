@@ -8,4 +8,6 @@ import lombok.Setter;
 public class CrearSolicitudRequest {
     private String clave;
     private Integer cantidad;
+    // CAJA (por omisión) o PAQUETE: con PAQUETE, cantidad son paquetes.
+    private String unidad;
 }

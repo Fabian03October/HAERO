@@ -208,7 +208,18 @@ public class ServicioMovimientosEspeciales {
                 .toList();
     }
 
-    /** CA1, CA2 y CA4: mueve un lote vencido al apartado; solo se llama despues de que el usuario confirma. */
+    /**
+     * Los lotes vencidos del Almacén pasan solos al apartado de caducados, a nombre de quien abre la pantalla.
+     * shortcut: corre al abrir Caducados, no a una hora fija; para eso falta un usuario "sistema".
+     */
+    @Transactional
+    public void apartarVencidos(String nombreUsuario) {
+        for (CaducadoResponse pendiente : listarCaducados(true)) {
+            moverACaducados(pendiente.getLoteId(), nombreUsuario);
+        }
+    }
+
+    /** CA1, CA2 y CA4: mueve un lote vencido al apartado. */
     @Transactional
     public CaducadoResponse moverACaducados(Long loteId, String nombreUsuario) {
         if (loteId == null) {

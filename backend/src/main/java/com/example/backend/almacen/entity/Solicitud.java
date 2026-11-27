@@ -56,4 +56,17 @@ public class Solicitud {
 
     @Column(name = "fecha_cierre")
     private LocalDateTime fechaCierre;
+
+    // Pedido por paquete: Farmacia pide paquetes y Almacén anota cuántas cajas trae cada uno (null = pedido en cajas).
+    private Integer paquetes;
+
+    @Column(name = "cajas_por_paquete")
+    private Integer cajasPorPaquete;
+
+    @ManyToOne
+    @JoinColumn(name = "cajas_por_paquete_por")
+    private Usuario cajasPorPaquetePor;
+
+    @Column(name = "cajas_por_paquete_fecha")
+    private LocalDateTime cajasPorPaqueteFecha;
 }

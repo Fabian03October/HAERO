@@ -137,7 +137,7 @@
             <div class="tarjetas-solicitud">
               @for (s of pagSolicitudes.visibles(); track s.folio) {
                 @let medias = enPausa()?.folioIntelisis === '' + s.folio;
-                <article class="tarjeta-solicitud" [class.medias]="medias" [class.pendiente]="s.pendientes > 0" [class.surtida]="s.sesionesSurtidas > 0 && !s.pendientes" (click)="abrirSolicitud(s.folio)">
+                <article class="tarjeta-solicitud" [class.medias]="medias" [class.pendiente]="s.pendientes > 0" [class.surtida]="s.sesionesSurtidas > 0 && !s.pendientes" (click)="filtro() !== 'HISTORIAL' && abrirSolicitud(s.folio)">
                   <div class="ts-folio">
                     <label class="elegir" (click)="$event.stopPropagation()">
                       <input type="checkbox" [attr.aria-label]="'Elegir solicitud ' + s.folio" [checked]="elegidasImprimir().has(s.folio)" (change)="alternarElegida(s.folio)" />
@@ -162,7 +162,9 @@
                     }
                   </div>
                   <div class="ts-estado">
-                    @if (medias) {
+                    @if (filtro() === 'HISTORIAL') {
+                      <span class="estado">Historial{{ s.sesionesSurtidas ? ' · surtida ' + s.sesionesSurtidas + ' vez(ces)' : '' }}</span>
+                    } @else if (medias) {
                       <span class="estado medias">A medias</span>
                     } @else if (s.pendientes) {
                       <span class="estado mal">Regresa por {{ s.pendientes }}</span>
@@ -173,11 +175,13 @@
                     }
                   </div>
                   <div class="ts-acciones">
-                    <button class="btn" type="button" [class.secondary]="!medias" (click)="$event.stopPropagation(); medias ? continuarPausada() : abrirSolicitud(s.folio)">
-                      {{ medias ? 'Continuar' : s.pendientes ? 'Surtir lo que falta' : s.sesionesSurtidas ? 'Ver / nueva sesión' : 'Surtir' }}
-                    </button>
+                    @if (filtro() !== 'HISTORIAL') {
+                      <button class="btn" type="button" [class.secondary]="!medias" (click)="$event.stopPropagation(); medias ? continuarPausada() : abrirSolicitud(s.folio)">
+                        {{ medias ? 'Continuar' : s.pendientes ? 'Surtir lo que falta' : s.sesionesSurtidas ? 'Ver / nueva sesión' : 'Surtir' }}
+                      </button>
+                    }
                     <button class="link" type="button" (click)="$event.stopPropagation(); imprimirSolicitudes([s.folio])">🖨 Su hoja</button>
-                    @if (!medias && (!s.sesionesSurtidas || s.pendientes)) {
+                    @if (filtro() === 'HISTORIAL' || (!medias && (!s.sesionesSurtidas || s.pendientes))) {
                       <button class="link" type="button" (click)="$event.stopPropagation(); abrirReprogramar(s)">Reprogramar</button>
                     }
                   </div>
@@ -747,6 +751,21 @@
                           {{ r.alternativa && r.usar === 'PRINCIPAL' ? 'Surte la alternativa' : 'Pide a Almacén' }} o márcalo como «No se surte» para entregar lo demás.
                         </p>
                       }
+                      @if (r.parcial) {
+                        <div class="no-surtido">
+                          <span>Se surte incompleto: {{ escaneadas(r) }} de {{ r.piezas }} piezas. Lo que falta queda pendiente. ¿Por qué?</span>
+                          <div class="segmentado" role="group" aria-label="Motivo del surtido parcial">
+                            @for (m of motivosParcial; track m) {
+                              <button type="button" [class.elegido]="r.motivoParcial === m" (click)="cambiarRenglon(r.id, { motivoParcial: m })">{{ m }}</button>
+                            }
+                          </div>
+                          <input class="celda" [ngModel]="r.motivoParcial" (ngModelChange)="cambiarRenglon(r.id, { motivoParcial: $event })"
+                                 maxlength="200" placeholder="U otro motivo (escríbelo)" aria-label="Motivo del surtido parcial" />
+                          <button class="link" type="button" (click)="marcarParcial(r, false)">Se surte completo</button>
+                        </div>
+                      } @else {
+                        <button class="link" type="button" (click)="marcarParcial(r, true)">Se surte incompleto (parcial)</button>
+                      }
                       <button class="link sin-escaneo" type="button" (click)="cambiarSinEscaneo(r, true)">No se puede escanear (caja sin código)</button>
                     } @else {
                       <div class="surtido-acciones">
@@ -865,7 +884,7 @@
                       <td class="nombre">
                         @for (r of q.renglones; track $index) {
                           <span class="alternativa-usada" [class.no-surtido-texto]="r.noSurtido">
-                            {{ r.claveSurtida }} {{ r.medicamento }} · {{ r.dosis }} · {{ r.noSurtido ? 'NO SURTIDO: ' + r.motivoNoSurtido : r.piezas + ' pz' }}{{ r.claveSurtida !== r.claveIndicada ? ' (alternativa de ' + r.claveIndicada + (r.motivoAlternativa ? ': ' + r.motivoAlternativa : '') + ')' : '' }}{{ r.sobrante ? ' · sobrante ' + r.sobrante + ' ' + r.dosisUnidad + ' (' + (r.destinoSobrante === 'MERMA' ? 'merma' : 'resguardo') + ')' : '' }}
+                            {{ r.claveSurtida }} {{ r.medicamento }} · {{ r.dosis }} · {{ r.noSurtido ? 'NO SURTIDO: ' + r.motivoNoSurtido : r.piezas + ' pz' + (r.motivoParcial ? ' · PARCIAL: ' + r.motivoParcial : '') }}{{ r.claveSurtida !== r.claveIndicada ? ' (alternativa de ' + r.claveIndicada + (r.motivoAlternativa ? ': ' + r.motivoAlternativa : '') + ')' : '' }}{{ r.sobrante ? ' · sobrante ' + r.sobrante + ' ' + r.dosisUnidad + ' (' + (r.destinoSobrante === 'MERMA' ? 'merma' : 'resguardo') + ')' : '' }}
                           </span>
                         }
                       </td>

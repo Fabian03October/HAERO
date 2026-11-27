@@ -640,6 +640,6 @@ public class ServicioTrazabilidad {
         var receta = entrega.getReceta();
         return new EntregaPacienteResponse(entrega.getFecha(), entrega.folio(), receta.getPacienteNombre(), receta.getPacienteExpediente(),
                 partida.getLote().getMedicamento().getClave(), partida.getLote().getNumeroLote(),
-                partida.getPiezas() - partida.getPiezasDevueltas(), entrega.getUsuario().getNombreCompleto(), "HAERO");
+                partida.getPiezas() - partida.getPiezasDevueltas(), entrega.getUsuario().getNombreCompleto(), "HAERO", receta.getMedico());
     }
 }

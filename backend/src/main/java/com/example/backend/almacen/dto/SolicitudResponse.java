@@ -26,4 +26,7 @@ public class SolicitudResponse {
     private Long pedidoId;
     // Por qué no se surtió lo que falta (último despacho parcial o sin existencia); null si no faltó nada.
     private String motivoFaltante;
+    // Pedido por paquete: cuántos paquetes y cuántas cajas trae cada uno (null si se pidió en cajas o falta anotarlo).
+    private Integer paquetes;
+    private Integer cajasPorPaquete;
 }

@@ -9,52 +9,76 @@
   }
 </div>
 
-@for (h of hojas(); track h.solicitud.folio) {
-  <section class="hoja">
-    <header class="encabezado">
-      <div class="titulo">
+@for (h of hojas(); track h.detalle.solicitud.folio) {
+  <section class="hoja sp">
+    <header class="sp-encabezado">
+      <div class="sp-salud">SALUD<small>Secretaría de Salud</small></div>
+      <div class="sp-titulo">
         <strong>HOSPITAL REGIONAL DE ALTA ESPECIALIDAD DE OAXACA</strong>
-        <span class="clues">CLUES: OCSSA007483</span>
-        <strong>SOLICITUD DE QUIMIOTERAPIA · ONCOLOGÍA MÉDICA</strong>
+        <span>CLUES: OCSSA007483</span>
+        <strong>SOLICITUD DE PROCEDIMIENTO</strong>
       </div>
+      <img class="sp-logo" src="logo-hraeo-gris.png" alt="HRAEO" />
     </header>
 
-    <div class="datos-paciente">
-      <div><b>Nombre:</b> {{ h.solicitud.paciente ?? '' }}</div>
-      <div><b>Folio:</b> {{ h.solicitud.folio }}</div>
-      <div><b>Expediente:</b> {{ h.solicitud.expediente ?? '' }}</div>
-      <div><b>Fecha requerida:</b> {{ h.solicitud.fechaRequerida | date: 'dd/MM/yyyy' }}
-        @if (h.solicitud.fechaOriginal) { (reprogramada del {{ h.solicitud.fechaOriginal | date: 'dd/MM/yyyy' }}) }
-      </div>
-      <div><b>Servicio que solicita:</b> {{ h.solicitud.servicioSolicita ?? '' }}</div>
-      <div><b>Fecha de solicitud:</b> {{ h.solicitud.fecha | date: 'dd/MM/yyyy' }}</div>
-      @if (h.solicitud.sesionesSurtidas) {
-        <div><b>Sesión:</b> {{ h.solicitud.sesionesSurtidas + 1 }}</div>
-      }
-    </div>
+    <table class="sp-tabla">
+      <tr>
+        <td colspan="2"><b>Servicio al que solicita:</b> {{ h.detalle.solicitud.servicioSolicita ?? 'ONCOLOGÍA MÉDICA' }}</td>
+        <td><b>Folio:</b> {{ h.detalle.solicitud.folio }}</td>
+        <td><b>Solicitud:</b> {{ h.detalle.solicitud.fecha | date: 'dd/MM/yyyy' }}</td>
+      </tr>
+      <tr>
+        <td colspan="2"><b>Paciente:</b> {{ h.detalle.solicitud.paciente ?? '' }}</td>
+        <td><b>Edad:</b> {{ edad(h.formato['fechaNacimiento']) }}</td>
+        <td><b>Sexo:</b> {{ h.formato['sexo'] ?? '' }}</td>
+      </tr>
+      <tr>
+        <td><b>Fec. Nac.:</b> {{ h.formato['fechaNacimiento'] ? (h.formato['fechaNacimiento'] | date: 'dd/MM/yyyy') : '' }}</td>
+        <td><b>Expdte.:</b> {{ h.detalle.solicitud.expediente ?? '' }}</td>
+        <td colspan="2"><b>CURP:</b> {{ h.formato['curp'] ?? '' }}</td>
+      </tr>
+    </table>
 
-    <div class="seccion">Diagnóstico</div>
-    <div class="generales"><div>{{ h.diagnostico ?? '—' }}</div></div>
+    <table class="sp-tabla">
+      <tr>
+        <td colspan="2"><b>Procedimiento a realizar:</b> {{ h.formato['procedimiento'] ?? 'QUIMIOTERAPIA' }}</td>
+        <td><b>Sesiones:</b> {{ h.formato['sesiones'] ?? '' }}</td>
+      </tr>
+      <tr>
+        <td><b>Fecha sugerida a programar:</b> {{ h.detalle.solicitud.fechaRequerida | date: 'dd/MM/yyyy' }}
+          @if (h.detalle.solicitud.fechaOriginal) { <small>(reprogramada del {{ h.detalle.solicitud.fechaOriginal | date: 'dd/MM/yyyy' }})</small> }
+        </td>
+        <td><b>Portátil:</b> <span class="sp-caja">{{ esSi(h.formato['portatil']) ? 'X' : '' }}</span></td>
+        <td><b>Prioridad:</b>
+          <span class="sp-caja">{{ urgente(h.formato['prioridad']) ? '' : 'X' }}</span> Ordinario
+          <span class="sp-caja">{{ urgente(h.formato['prioridad']) ? 'X' : '' }}</span> Urgente
+        </td>
+      </tr>
+    </table>
 
-    <div class="seccion">Notas del médico</div>
-    <div class="notas">{{ h.notas ?? '—' }}</div>
+    <div class="seccion">Diagnóstico de envío</div>
+    <div class="generales"><div>{{ h.detalle.diagnostico ?? '—' }}</div></div>
+
+    <div class="seccion">Notas</div>
+    <div class="notas">{{ h.detalle.notas ?? '—' }}</div>
 
     <div class="firmas-medicos">
       <div>
         <div class="linea-firma"></div>
-        <div>{{ h.solicitud.medico ?? '' }}</div>
-        <small>Médico que solicita</small>
+        <div>{{ h.detalle.solicitud.medico ?? '' }}</div>
+        <small>{{ h.formato['cedula'] ? 'Céd. Prof. ' + h.formato['cedula'] + ' · ' : '' }}{{ h.formato['especialidad'] ?? '' }}</small>
+        <small>Firma del médico adscrito</small>
       </div>
       <div>
         <div class="linea-firma"></div>
         <div>&nbsp;</div>
-        <small>Surtió (Farmacia)</small>
+        <small>Recibió / Surtió (Farmacia)</small>
       </div>
     </div>
 
     <footer class="pie">
-      <span>{{ impreso | date: 'dd/MM/yyyy HH:mm' }}</span>
-      <span>Impreso desde SICOMED</span>
+      <span>Fecha impresión: {{ impreso | date: 'dd/MM/yyyy HH:mm' }}</span>
+      <span>SICOMED · HRAEO</span>
     </footer>
   </section>
 } @empty {

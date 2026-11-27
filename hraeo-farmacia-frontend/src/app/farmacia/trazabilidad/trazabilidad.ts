@@ -25,6 +25,7 @@ interface EntregaFila {
   despachador: string;
   folio: string;
   fuente: 'HAERO' | 'Intelisis';
+  medico?: string | null;
 }
 
 // Etapas que recorre un lote; se llenan con SICOMED y, donde SICOMED no sabe, con Intelisis.
@@ -111,7 +112,14 @@ export class Trazabilidad {
   readonly pasosConDatos = computed(() => this.recorrido().filter((p) => p.fuente));
   readonly entregas = signal<EntregaFila[]>([]);
   // Un lote puede tener cientos de entregas (las de Intelisis llegan hasta 2,000).
-  readonly pagEntregas = new Paginacion(() => this.entregas());
+  // Filtro por médico (como en Quimio): solo las entregas de SICOMED traen médico; las de Intelisis no.
+  readonly medicoFiltro = signal('');
+  readonly medicos = computed(() => [...new Set(this.entregas().map((e) => e.medico?.trim()).filter((m): m is string => !!m))].sort());
+  readonly entregasFiltradas = computed(() => {
+    const medico = this.medicoFiltro();
+    return medico ? this.entregas().filter((e) => e.medico?.trim() === medico) : this.entregas();
+  });
+  readonly pagEntregas = new Paginacion(() => this.entregasFiltradas());
   private readonly api = inject(FarmaciaApi);
 
   buscar(): void {
@@ -278,6 +286,7 @@ export class Trazabilidad {
     this.loteActual.set('');
     this.recorrido.set(ETAPAS);
     this.entregas.set([]);
+    this.medicoFiltro.set('');
   }
 
   private llaveLote(l: LoteTrazable): string {

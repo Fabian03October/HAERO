@@ -83,6 +83,7 @@ import java.util.Set;
 @Service
 public class ServicioQuimioterapia {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ServicioQuimioterapia.class);
     static final String PREFIJO_FOLIO = "QUIM-";
     private static final Set<String> DESTINOS_SOBRANTE = Set.of("MERMA", "RESGUARDO");
 
@@ -188,6 +189,66 @@ public class ServicioQuimioterapia {
         return conMedicamentos(lista, notas);
     }
 
+    /**
+     * Historial: solicitudes de Oncología Médica de cualquier fecha (también de años pasados), leídas de Intelisis en el
+     * momento. Solo se consultan y se pueden reprogramar; no se surten desde aquí. buscar: folio o expediente.
+     */
+    public List<SolicitudQuimio> historial(LocalDate desde, LocalDate hasta, String buscar) {
+        String texto = ServicioInventarioFarmacia.texto(buscar);
+        if (texto == null && (desde == null || hasta == null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escribe el folio o el expediente, o elige el periodo (desde y hasta)");
+        }
+        JdbcTemplate intelisis = conexion.plantilla().orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "No hay conexión con Intelisis para leer el historial. " + conexion.motivoNoDisponible()));
+        StringBuilder where = new StringBuilder();
+        List<Object> parametros = new ArrayList<>();
+        if (texto != null) {
+            if (texto.matches("\\d{1,9}")) {
+                where.append(" AND (s.ID_AuxTxSol = ? OR ").append(NombrePaciente.FILTRO_EXPEDIENTE).append(")");
+                parametros.add(Integer.parseInt(texto));
+            } else {
+                where.append(" AND ").append(NombrePaciente.FILTRO_EXPEDIENTE);
+            }
+            parametros.add(texto);
+            parametros.add(texto);
+        }
+        if (desde != null) {
+            where.append(" AND COALESCE(s.FechaRequerida, s.Fecha) >= ?");
+            parametros.add(Timestamp.valueOf(desde.atStartOfDay()));
+        }
+        if (hasta != null) {
+            where.append(" AND COALESCE(s.FechaRequerida, s.Fecha) < ?");
+            parametros.add(Timestamp.valueOf(hasta.plusDays(1).atStartOfDay()));
+        }
+        List<Object[]> filas;
+        try {
+            filas = intelisis.query(ServicioSincronizacionQuimio.SELECT_SOLICITUD.replaceFirst("SELECT ", "SELECT TOP (" + MAXIMO_LISTA + ") ")
+                            + where + " ORDER BY COALESCE(s.FechaRequerida, s.Fecha) DESC",
+                    (rs, n) -> ServicioSincronizacionQuimio.fila(rs), parametros.toArray());
+        } catch (DataAccessException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Intelisis no respondió; intenta de nuevo en un momento");
+        }
+        Map<String, Object[]> sesiones = new HashMap<>();
+        haero.query("SELECT folio_solicitud, COUNT(*), MAX(fecha) FROM quimio_preparacion GROUP BY folio_solicitud",
+                rs -> { sesiones.put(rs.getString(1), new Object[]{rs.getInt(2), rs.getTimestamp(3)}); });
+        Map<Integer, Object[]> reprogramadas = new HashMap<>();
+        haero.query("SELECT r.folio, r.fecha_nueva, r.motivo FROM quimio_reprogramacion r "
+                + "WHERE r.id = (SELECT MAX(r2.id) FROM quimio_reprogramacion r2 WHERE r2.folio = r.folio)",
+                rs -> { reprogramadas.put(rs.getInt(1), new Object[]{rs.getDate(2).toLocalDate().atStartOfDay(), rs.getString(3)}); });
+        List<SolicitudQuimio> lista = new ArrayList<>();
+        for (Object[] f : filas) {
+            int folio = (Integer) f[0];
+            Object[] ses = sesiones.getOrDefault(String.valueOf(folio), new Object[]{0, null});
+            Object[] rep = reprogramadas.get(folio);
+            LocalDateTime requerida = fecha((Timestamp) f[2]);
+            lista.add(new SolicitudQuimio(folio, fecha((Timestamp) f[1]), rep != null ? (LocalDateTime) rep[0] : requerida, (String) f[3],
+                    (String) f[4], (String) f[5], (String) f[6], (String) f[10], (Integer) ses[0],
+                    ses[1] == null ? null : ((Timestamp) ses[1]).toLocalDateTime(), List.of(), 0,
+                    rep != null ? requerida : null, rep != null ? (String) rep[1] : null));
+        }
+        return lista;
+    }
+
     /** Condición SQL de cada filtro de estado (alias x = SOLICITUDES_CON_SESIONES). */
     private static String condicionFiltro(String filtro, List<Object> parametros) {
         LocalDate hoy = LocalDate.now();
@@ -209,12 +270,12 @@ public class ServicioQuimioterapia {
         return "";
     }
 
-    // Tiene un medicamento que se marcó "no se surte" y no se ha entregado en ninguna sesión de la solicitud.
+    // Tiene un medicamento que se marcó "no se surte" o se surtió incompleto, y no se ha entregado completo en otra sesión.
     private static final String CON_PENDIENTE_SQL = """
             EXISTS (SELECT 1 FROM quimio_preparacion p JOIN quimio_renglon r ON r.preparacion_id = p.id
-                    WHERE p.folio_solicitud = CAST(x.folio AS VARCHAR(30)) AND r.no_surtido = 1
+                    WHERE p.folio_solicitud = CAST(x.folio AS VARCHAR(30)) AND (r.no_surtido = 1 OR r.motivo_parcial IS NOT NULL)
                       AND NOT EXISTS (SELECT 1 FROM quimio_preparacion p2 JOIN quimio_renglon r2 ON r2.preparacion_id = p2.id
-                                      WHERE p2.folio_solicitud = p.folio_solicitud AND r2.no_surtido = 0
+                                      WHERE p2.folio_solicitud = p.folio_solicitud AND r2.no_surtido = 0 AND r2.motivo_parcial IS NULL
                                         AND r2.clave_indicada = r.clave_indicada))""";
 
     /** Los números del día para los recuadros de arriba y las pastillas de filtro. */
@@ -283,10 +344,11 @@ public class ServicioQuimioterapia {
         List<String> conSesiones = lista.stream().filter(s -> s.sesionesSurtidas() > 0).map(s -> String.valueOf(s.folio())).toList();
         if (!conSesiones.isEmpty()) {
             String marcas = String.join(",", java.util.Collections.nCopies(conSesiones.size(), "?"));
-            haero.query("SELECT p.folio_solicitud, r.clave_indicada, r.clave_surtida, r.no_surtido FROM quimio_preparacion p "
+            haero.query("SELECT p.folio_solicitud, r.clave_indicada, r.clave_surtida, r.no_surtido, r.motivo_parcial FROM quimio_preparacion p "
                     + "JOIN quimio_renglon r ON r.preparacion_id = p.id WHERE p.folio_solicitud IN (" + marcas + ")", rs -> {
                 String folio = rs.getString(1);
-                if (rs.getBoolean(4)) {
+                // No surtido o surtido incompleto: el medicamento sigue pendiente.
+                if (rs.getBoolean(4) || rs.getString(5) != null) {
                     noSurtidas.computeIfAbsent(folio, k -> new HashSet<>()).add(rs.getString(2));
                 } else {
                     Set<String> claves = entregadas.computeIfAbsent(folio, k -> new HashSet<>());
@@ -406,7 +468,19 @@ public class ServicioQuimioterapia {
                 + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.fecha_original, x.motivo_reprogramacion FROM ("
                 + SOLICITUDES_CON_SESIONES + ") x WHERE x.folio = ?", (rs, n) -> solicitud(rs), numero);
         if (actual.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No está la solicitud " + numero + " en la copia de Intelisis");
+            // Del historial (años pasados): se copia de Intelisis para que aparezca en su nueva fecha.
+            boolean copiada;
+            try {
+                copiada = sincronizacion.copiarSolicitud(numero);
+            } catch (IllegalStateException | DataAccessException e) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Intelisis no respondió; no se pudo leer la solicitud " + numero);
+            }
+            if (!copiada) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una solicitud de Oncología Médica con el folio " + numero + " en Intelisis");
+            }
+            actual = haero.query("SELECT x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
+                    + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.fecha_original, x.motivo_reprogramacion FROM ("
+                    + SOLICITUDES_CON_SESIONES + ") x WHERE x.folio = ?", (rs, n) -> solicitud(rs), numero);
         }
         QuimioReprogramacion r = new QuimioReprogramacion();
         r.setFolio(numero);
@@ -419,6 +493,66 @@ public class ServicioQuimioterapia {
         return haero.query("SELECT x.folio, x.fecha, x.fecha_requerida, x.estatus, x.expediente, x.paciente, "
                 + "x.servicio_solicita, x.medico, x.sesiones, x.ultima, x.fecha_original, x.motivo_reprogramacion FROM ("
                 + SOLICITUDES_CON_SESIONES + ") x WHERE x.folio = ?", (rs, n) -> solicitud(rs), numero).get(0);
+    }
+
+    /**
+     * Datos de la hoja impresa "Solicitud de procedimiento" que no se copian de Intelisis (sexo, nacimiento, CURP, sesiones,
+     * prioridad, portátil, procedimiento, cédula). Solo SELECT; si Intelisis no responde, la hoja sale con esos campos en blanco.
+     * shortcut: los nombres de columna de vsa_AuxTxSol y Usuario se buscan entre varios posibles; si alguno sale vacío,
+     * revisar el nombre real en Intelisis y agregarlo a la lista.
+     */
+    public Map<String, String> formatoImpresion(String folio) {
+        int numero = numeroDeFolio(folio);
+        Map<String, String> datos = new HashMap<>();
+        JdbcTemplate intelisis = conexion.plantilla().orElse(null);
+        if (intelisis == null) return datos;
+        try {
+            List<Map<String, Object>> sol = intelisis.queryForList("SELECT * FROM vsa_AuxTxSol WITH (NOLOCK) WHERE ID_AuxTxSol = ?", numero);
+            if (sol.isEmpty()) return datos;
+            Map<String, Object> s = sol.get(0);
+            poner(datos, "procedimiento", s, "Procedimiento", "ProcedimientoRealizar", "Descripcion", "Tratamiento", "Servicio");
+            poner(datos, "fechaSugerida", s, "FechaSugerida", "FechaProgramar", "FechaRequerida");
+            poner(datos, "sesiones", s, "Sesiones", "NumSesiones", "NoSesiones", "Sesion");
+            poner(datos, "prioridad", s, "Prioridad", "Urgente", "TipoPrioridad");
+            poner(datos, "portatil", s, "Portatil", "EsPortatil");
+            poner(datos, "notas", s, "Notas");
+            Object expKey = buscar(s, "ExpKey");
+            if (expKey != null) {
+                List<Map<String, Object>> cte = intelisis.queryForList("SELECT * FROM Cte WITH (NOLOCK) WHERE Cliente = ?", expKey);
+                if (!cte.isEmpty()) {
+                    poner(datos, "sexo", cte.get(0), "Sexo");
+                    poner(datos, "fechaNacimiento", cte.get(0), "FechaNacimiento");
+                    poner(datos, "curp", cte.get(0), "CURP");
+                }
+            }
+            Object medico = buscar(s, "MedicoAdscrito");
+            if (medico != null) {
+                List<Map<String, Object>> u = intelisis.queryForList("SELECT * FROM Usuario WITH (NOLOCK) WHERE Usuario = ?", medico);
+                if (!u.isEmpty()) {
+                    poner(datos, "cedula", u.get(0), "Cedula", "CedulaProfesional", "NoCedula", "Cedula1");
+                    poner(datos, "especialidad", u.get(0), "Especialidad", "Departamento", "Puesto");
+                }
+            }
+        } catch (DataAccessException e) {
+            log.warn("No se pudieron leer de Intelisis los datos de la hoja {}: {}", numero, e.getMostSpecificCause().getMessage());
+        }
+        return datos;
+    }
+
+    private static Object buscar(Map<String, Object> fila, String... columnas) {
+        for (String c : columnas) {
+            for (Map.Entry<String, Object> e : fila.entrySet()) {
+                if (e.getKey().equalsIgnoreCase(c) && e.getValue() != null && !String.valueOf(e.getValue()).isBlank()) return e.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static void poner(Map<String, String> datos, String nombre, Map<String, Object> fila, String... columnas) {
+        Object valor = buscar(fila, columnas);
+        if (valor == null) return;
+        String texto = valor instanceof java.util.Date d ? new java.sql.Date(d.getTime()).toLocalDate().toString() : String.valueOf(valor).strip();
+        datos.put(nombre, texto);
     }
 
     /** Hoja con un folio que ya no está en la copia: se lee solo esa solicitud de Intelisis. */
@@ -469,6 +603,7 @@ public class ServicioQuimioterapia {
                 rs -> {
                     existencias.put(rs.getString(1), rs.getInt(2));
                 }, java.sql.Date.valueOf(LocalDate.now()));
+        Map<String, List<String>> proveedores = proveedoresPorClave();
         List<LectorNotaQuimio.Farmaco> farmacos = catalogo.entrySet().stream()
                 .map(e -> new LectorNotaQuimio.Farmaco(e.getKey(), LectorNotaQuimio.palabrasFarmaco((String) e.getValue()[0])))
                 .toList();
@@ -484,7 +619,7 @@ public class ServicioQuimioterapia {
                     unidad = LectorNotaQuimio.contenidoDeDescripcion((String) m[0], contenido);
                 }
                 return new ClaveSugerida(clave, (String) m[0], (String) m[1], (String) m[2], contenido[0], unidad,
-                        existencias.getOrDefault(clave, 0), usadasAntes.contains(clave));
+                        existencias.getOrDefault(clave, 0), usadasAntes.contains(clave), proveedores.getOrDefault(clave, List.of()));
             }).sorted(Comparator.comparing((ClaveSugerida c) -> !c.usadaAntes())
                     .thenComparing(c -> c.existencia() <= 0)
                     .thenComparing(c -> c.concentracion() == null)
@@ -494,6 +629,41 @@ public class ServicioQuimioterapia {
                     h.soloSiNoHay(), h.siNoHayDe(), h.solucion(), h.veces()));
         }
         return resultado;
+    }
+
+    /** Laboratorio (proveedor) de cada clave, según los códigos de barras dados de alta. */
+    private Map<String, List<String>> proveedoresPorClave() {
+        Map<String, List<String>> proveedores = new HashMap<>();
+        haero.query("SELECT DISTINCT medicamento_clave, UPPER(LTRIM(RTRIM(proveedor))) FROM codigo_barras WHERE NULLIF(LTRIM(proveedor), '') IS NOT NULL",
+                rs -> {
+                    proveedores.computeIfAbsent(rs.getString(1), k -> new ArrayList<>()).add(rs.getString(2));
+                });
+        return proveedores;
+    }
+
+    /** Un medicamento de la nota surtido con varias claves: todas deben ser del mismo laboratorio. */
+    private void exigirMismoLaboratorio(List<RenglonQuimioRequest> renglones) {
+        Map<String, Set<String>> clavesPorMedicamento = new HashMap<>();
+        for (RenglonQuimioRequest r : renglones) {
+            String texto = ServicioInventarioFarmacia.texto(r.grupo());
+            if (texto == null || r.noSurtido()) continue;
+            String surtida = r.usarAlternativa() && r.alternativa() != null ? r.alternativa().strip() : r.clave() == null ? "" : r.clave().strip();
+            clavesPorMedicamento.computeIfAbsent(texto, k -> new java.util.TreeSet<>()).add(surtida);
+        }
+        Map<String, List<String>> proveedores = null;
+        for (Set<String> claves : clavesPorMedicamento.values()) {
+            if (claves.size() < 2) continue;
+            if (proveedores == null) proveedores = proveedoresPorClave();
+            Set<String> comunes = null;
+            for (String clave : claves) {
+                Set<String> deEsta = new HashSet<>(proveedores.getOrDefault(clave, List.of()));
+                if (comunes == null) comunes = deEsta; else comunes.retainAll(deEsta);
+            }
+            if (comunes == null || comunes.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las claves " + String.join(", ", claves)
+                        + " son del mismo medicamento pero no del mismo laboratorio: solo se combinan claves del mismo laboratorio");
+            }
+        }
     }
 
     private Medicamento medicamento(String clave) {
@@ -585,6 +755,7 @@ public class ServicioQuimioterapia {
         if (renglones.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pasa a clave al menos un medicamento de la indicación");
         }
+        exigirMismoLaboratorio(renglones);
         Map<String, Integer> piezasPorClave = new LinkedHashMap<>();
         List<CajaEntregaRequest> cajas = new ArrayList<>();
         List<Object[]> filas = new ArrayList<>();
@@ -657,6 +828,10 @@ public class ServicioQuimioterapia {
                 texto = texto.substring(0, 300);
             }
             piezasPorClave.merge(surtida, renglon.piezas(), Integer::sum);
+            String motivoParcial = noSurtido ? null : ServicioInventarioFarmacia.texto(renglon.motivoParcial());
+            if (motivoParcial != null && motivoParcial.length() > 200) {
+                motivoParcial = motivoParcial.substring(0, 200);
+            }
             List<LoteEscaneado> escaneados = renglon.lotes() == null ? List.of() : renglon.lotes();
             if (noSurtido) {
                 noSurtidas.put(surtida, motivoNoSurtido);
@@ -684,13 +859,18 @@ public class ServicioQuimioterapia {
                     caja.setPiezas(l.piezas());
                     cajas.add(caja);
                 }
-                if (escaneadas != renglon.piezas()) {
+                // Menos piezas solo como surtido parcial, con su motivo; lo que falta queda pendiente en la receta.
+                if (escaneadas > renglon.piezas() || (escaneadas < renglon.piezas() && motivoParcial == null)) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "De " + surtida + " se escanearon " + escaneadas
-                            + " piezas y la indicación pide " + renglon.piezas());
+                            + " piezas y la indicación pide " + renglon.piezas()
+                            + (escaneadas < renglon.piezas() ? ": si se surte incompleto, márcalo como parcial y escribe por qué" : ""));
+                }
+                if (escaneadas == renglon.piezas()) {
+                    motivoParcial = null;
                 }
             }
             filas.add(new Object[]{texto, indicada, alternativa, surtida, dosis, renglon.piezas(), motivoAlternativa,
-                    cantidad, unidad, porPieza, noSurtido ? null : destino, noSurtido, motivoNoSurtido});
+                    cantidad, unidad, porPieza, noSurtido ? null : destino, noSurtido, motivoNoSurtido, motivoParcial});
         }
         // Lo ya entregado en otra sesión de la misma solicitud no se vuelve a dar, salvo que el paciente
         // lo haya devuelto (se registra en Devoluciones y entonces se libera).
@@ -700,8 +880,11 @@ public class ServicioQuimioterapia {
                 sinDevolver.merge(p.getClave(), p.getEntregada() - p.getDevuelta(), Integer::sum);
             }
         }
+        // Lo surtido incompleto en otra sesión sí se puede completar.
+        Set<String> parciales = new HashSet<>(haero.queryForList("SELECT DISTINCT r.clave_surtida FROM quimio_preparacion p "
+                + "JOIN quimio_renglon r ON r.preparacion_id = p.id WHERE p.folio_solicitud = ? AND r.motivo_parcial IS NOT NULL", String.class, folio));
         for (String clave : surtidas) {
-            if (sinDevolver.getOrDefault(clave, 0) > 0) {
+            if (sinDevolver.getOrDefault(clave, 0) > 0 && !parciales.contains(clave)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "La clave " + clave + " ya se entregó en otra sesión de la solicitud "
                         + folio + " y no se ha devuelto. Si hay que cambiarla, registra primero la devolución");
             }
@@ -776,6 +959,7 @@ public class ServicioQuimioterapia {
             r.setDestinoSobrante((String) fila[10]);
             r.setNoSurtido((Boolean) fila[11]);
             r.setMotivoNoSurtido((String) fila[12]);
+            r.setMotivoParcial((String) fila[13]);
             renglonesQuimio.save(r);
         }
         // El detalle se arma con SQL: se escribe ya lo guardado para que lo vea.
@@ -837,7 +1021,7 @@ public class ServicioQuimioterapia {
         List<RenglonQuimioResponse> renglones = haero.query("""
                 SELECT r.texto_medico, r.clave_indicada, r.clave_alternativa, r.clave_surtida, m.nombre_generico, r.dosis, r.piezas,
                        r.motivo_alternativa, r.dosis_cantidad, r.dosis_unidad, r.contenido_por_pieza, r.destino_sobrante,
-                       mi.nombre_generico, ma.nombre_generico, r.no_surtido, r.motivo_no_surtido
+                       mi.nombre_generico, ma.nombre_generico, r.no_surtido, r.motivo_no_surtido, r.motivo_parcial
                 FROM quimio_renglon r JOIN medicamento m ON m.clave = r.clave_surtida
                 JOIN medicamento mi ON mi.clave = r.clave_indicada
                 LEFT JOIN medicamento ma ON ma.clave = r.clave_alternativa
@@ -849,7 +1033,7 @@ public class ServicioQuimioterapia {
                     ? porPieza.multiply(BigDecimal.valueOf(rs.getInt(7))).subtract(cantidad).stripTrailingZeros() : null;
             return new RenglonQuimioResponse(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
                     rs.getString(6), rs.getInt(7), rs.getString(8), cantidad, rs.getString(10), porPieza, sobrante, rs.getString(12),
-                    rs.getString(13), rs.getString(14), rs.getBoolean(15), rs.getString(16));
+                    rs.getString(13), rs.getString(14), rs.getBoolean(15), rs.getString(16), rs.getString(17));
         }, id);
         return haero.query("""
                 SELECT p.id, p.folio_solicitud, p.sesion, p.expediente_solicitud, p.paciente_nombre, p.paciente_expediente, p.expediente_corregido,

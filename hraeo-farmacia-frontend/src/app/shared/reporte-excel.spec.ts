@@ -6,8 +6,8 @@ describe('reporte en Excel', () => {
   it('el vale en Excel trae lo mismo que el PDF, con sus colores', async () => {
     const doc = armarValePedido('PED-0027', {
       pedidoId: 27, solicitadoPor: 'Farmacia', fechaPedido: '2026-11-26T10:00:00',
-      entregado: [{ clave: '010.000.0622.00', medicamento: 'HEPARINA SODICA', lote: 'A0980107 SCC', caducidad: '2027-06-30', ubicacion: 'A-2', cajas: 6, despacho: 'Almacén', fecha: '2026-11-26T10:05:00' }],
-      noSurtido: [{ clave: '010.000.5541.00', medicamento: 'LETROZOL', pedidas: 5, surtidas: 0, faltan: 5, motivo: 'Sin existencia en Almacén', estatus: 'PENDIENTE' }],
+      entregado: [{ clave: '010.000.0622.00', medicamento: 'HEPARINA SODICA', lote: 'A0980107 SCC', caducidad: '2027-06-30', ubicacion: 'A-2', cajas: 6, despacho: 'Almacén', fecha: '2026-11-26T10:05:00', cajasPorPaquete: 3 }],
+      noSurtido: [{ clave: '010.000.5541.00', medicamento: 'LETROZOL', pedidas: 5, surtidas: 0, faltan: 5, motivo: 'Sin existencia en Almacén', estatus: 'PENDIENTE', paquetes: null, cajasPorPaquete: null }],
     }, 'Almacén');
     const libro = new ExcelJS.Workbook();
     await libro.xlsx.load(await armarExcel(doc));
@@ -23,6 +23,9 @@ describe('reporte en Excel', () => {
     expect(valores).toContain('A0980107 SCC');
     expect(valores).toContain('Sin existencia en Almacén');
     expect(valores).toContain('6');
+    // Pedido por paquete: 6 cajas de paquetes de 3 = 2 paquetes; lo pedido en cajas dice "No aplica".
+    expect(valores).toContain('2 (de 3 cajas)');
+    expect(valores).toContain('No aplica');
     expect(encabezadoGuinda).toBe(true);
     expect(encabezadoDorado).toBe(true);
   });

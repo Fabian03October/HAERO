@@ -82,6 +82,8 @@ export class SolicitudesFarmacia {
   readonly medicamento = computed(() => this.catalogo().find((item) => item.clave === this.clave().trim()));
   readonly solicitante = computed(() => this.session.usuarioActual()?.nombreCompleto ?? '');
   cantidad = 0;
+  // Se pide por caja (normal) o por paquete; con paquete, Almacén anota cuántas cajas trae cada uno.
+  unidad: 'CAJA' | 'PAQUETE' = 'CAJA';
 
   readonly mensaje = signal('');
   readonly tipoMensaje = signal<'success' | 'error'>('success');
@@ -130,8 +132,9 @@ export class SolicitudesFarmacia {
   }
 
   // HU39: el pedido que se está armando; se manda completo a Almacén.
-  readonly renglones = signal<{ clave: string; nombre: string; cantidad: number }[]>([]);
-  readonly totalCajasPedido = computed(() => this.renglones().reduce((total, r) => total + r.cantidad, 0));
+  readonly renglones = signal<{ clave: string; nombre: string; cantidad: number; unidad: 'CAJA' | 'PAQUETE' }[]>([]);
+  readonly totalCajasPedido = computed(() => this.renglones().filter((r) => r.unidad === 'CAJA').reduce((total, r) => total + r.cantidad, 0));
+  readonly totalPaquetesPedido = computed(() => this.renglones().filter((r) => r.unidad === 'PAQUETE').reduce((total, r) => total + r.cantidad, 0));
   protected readonly folioPedido = folioPedido;
 
   /** Agrega la clave al pedido; si ya estaba, suma la cantidad. */
@@ -167,15 +170,28 @@ export class SolicitudesFarmacia {
     }
 
     const cantidad = this.cantidad;
+    const unidad = this.unidad;
     const nombre = this.medicamento()?.nombreGenerico ?? clave;
+    const yaEsta = this.renglones().find((r) => r.clave === clave);
+    if (yaEsta && yaEsta.unidad !== unidad) {
+      this.mostrarMensaje(`La clave ${clave} ya está en el pedido por ${yaEsta.unidad === 'CAJA' ? 'caja' : 'paquete'}; pídela igual o quítala primero.`, 'error');
+      return;
+    }
     this.renglones.update((lista) =>
-      lista.some((r) => r.clave === clave)
+      yaEsta
         ? lista.map((r) => (r.clave === clave ? { ...r, cantidad: r.cantidad + cantidad } : r))
-        : [...lista, { clave, nombre, cantidad }],
+        : [...lista, { clave, nombre, cantidad, unidad }],
     );
     this.mensaje.set('');
     this.clave.set('');
     this.cantidad = 0;
+  }
+
+  resumenPedido(): string {
+    const partes = [];
+    if (this.totalCajasPedido()) partes.push(`${this.totalCajasPedido()} cajas`);
+    if (this.totalPaquetesPedido()) partes.push(`${this.totalPaquetesPedido()} paquetes`);
+    return partes.join(' y ');
   }
 
   quitarRenglon(clave: string): void {
@@ -183,7 +199,7 @@ export class SolicitudesFarmacia {
   }
 
   enviar(): void {
-    const partidas = this.renglones().map((r) => ({ clave: r.clave, cantidad: r.cantidad }));
+    const partidas = this.renglones().map((r) => ({ clave: r.clave, cantidad: r.cantidad, unidad: r.unidad }));
     if (!partidas.length || this.enviando()) return;
     this.enviando.set(true);
     this.api.crearPedido(partidas).subscribe({
@@ -191,7 +207,7 @@ export class SolicitudesFarmacia {
         this.enviando.set(false);
         const folio = creadas[0]?.pedidoId ? folioPedido(creadas[0].pedidoId) : '';
         this.mostrarMensaje(
-          `Pedido ${folio} enviado a Almacén: ${creadas.length} ${creadas.length === 1 ? 'clave' : 'claves'}, ${this.totalCajasPedido()} cajas. Queda pendiente hasta que Almacén lo despache.`,
+          `Pedido ${folio} enviado a Almacén: ${creadas.length} ${creadas.length === 1 ? 'clave' : 'claves'}, ${this.resumenPedido()}. Queda pendiente hasta que Almacén lo despache.`,
           'success', 'Pedido enviado',
         );
         this.solicitudes.set([...creadas, ...this.solicitudes()]);

@@ -13,7 +13,8 @@ import {
 } from '../../almacen-api';
 import { SolicitudesAlmacen, estaVencido, formatoCaducidad } from '../../solicitudes-almacen';
 import { RotacionAlmacen } from '../../rotacion-almacen';
-import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
+import { Notificaciones } from '../../../shared/notificaciones/notificaciones';
+
 import { MarcaSeguridad } from '../../../shared/marca-seguridad/marca-seguridad';
 
 interface RenglonDespacho extends Existencia {
@@ -44,6 +45,9 @@ export class BandejaDespacho {
   readonly cargandoBandeja = signal(true);
   readonly cargandoDetalle = signal(false);
   readonly enviando = signal(false);
+  // Pedido por paquete: cuántas cajas trae cada paquete.
+  readonly cajasPorPaquete = signal<number | null>(null);
+  readonly guardandoPaquete = signal(false);
 
   readonly seleccionada = signal<number | null>(null);
   readonly solicitud = computed(() => this.porAtender().find((item) => item.id === this.seleccionada()));
@@ -320,6 +324,27 @@ export class BandejaDespacho {
         this.mostrarMensaje(mensajeDeError(error, 'No se pudo registrar el despacho.'), 'error');
         // El inventario pudo cambiar (otro despachador); se vuelve a leer.
         this.seleccionar(solicitud.id);
+      },
+    });
+  }
+
+  guardarCajasPorPaquete(id: number): void {
+    const cajas = Number(this.cajasPorPaquete());
+    if (!Number.isInteger(cajas) || cajas <= 0) {
+      this.mostrarMensaje('Escribe cuántas cajas trae cada paquete (número entero mayor a cero).', 'error');
+      return;
+    }
+    this.guardandoPaquete.set(true);
+    this.api.cajasPorPaquete(id, cajas).subscribe({
+      next: (actualizada) => {
+        this.guardandoPaquete.set(false);
+        this.cajasPorPaquete.set(null);
+        this.porAtender.update((lista) => lista.map((item) => (item.id === id ? actualizada : item)));
+        this.seleccionar(id);
+      },
+      error: (error) => {
+        this.guardandoPaquete.set(false);
+        this.mostrarMensaje(mensajeDeError(error, 'No se pudieron guardar las cajas por paquete.'), 'error');
       },
     });
   }

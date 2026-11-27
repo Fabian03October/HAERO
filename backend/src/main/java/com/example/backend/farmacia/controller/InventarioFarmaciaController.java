@@ -76,12 +76,14 @@ public class InventarioFarmaciaController {
     }
 
     @GetMapping("/bajas")
-    public ResponseEntity<List<BajaResponse>> bajas() {
+    public ResponseEntity<List<BajaResponse>> bajas(Authentication authentication) {
+        servicio.bajasAutomaticasPorCaducidad(authentication.getName());
         return ResponseEntity.ok(servicio.bajas());
     }
 
     @GetMapping("/bajas/sugeridas")
-    public ResponseEntity<List<LoteFarmaciaResponse>> sugeridas() {
+    public ResponseEntity<List<LoteFarmaciaResponse>> sugeridas(Authentication authentication) {
+        servicio.bajasAutomaticasPorCaducidad(authentication.getName());
         return ResponseEntity.ok(servicio.sugeridosParaBaja());
     }
 

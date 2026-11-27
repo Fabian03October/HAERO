@@ -47,6 +47,13 @@ public class SolicitudAlmacenController {
         return ResponseEntity.ok(servicioDespacho.rechazar(id, cuerpo == null ? null : cuerpo.get("motivo"), authentication.getName()));
     }
 
+    // Pedido por paquete: cuántas cajas trae cada paquete (antes de despachar).
+    @PutMapping("/{id}/cajas-por-paquete")
+    public ResponseEntity<SolicitudResponse> cajasPorPaquete(@PathVariable Long id, @RequestBody java.util.Map<String, Integer> cuerpo,
+                                                             Authentication authentication) {
+        return ResponseEntity.ok(servicioDespacho.anotarCajasPorPaquete(id, cuerpo.get("cajasPorPaquete"), authentication.getName()));
+    }
+
     @PostMapping("/{id}/despachar")
     public ResponseEntity<DespacharSolicitudResponse> despachar(@PathVariable Long id,
                                                                  @RequestBody DespacharSolicitudRequest request,

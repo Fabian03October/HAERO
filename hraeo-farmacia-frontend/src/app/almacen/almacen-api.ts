@@ -183,6 +183,9 @@ export interface Solicitud {
   pedidoId: number | null;
   // Por qué no se surtió lo que falta (despacho parcial o sin existencia).
   motivoFaltante: string | null;
+  // Pedido por paquete: paquetes pedidos y cajas que trae cada uno (lo anota Almacén); null si se pidió en cajas.
+  paquetes?: number | null;
+  cajasPorPaquete?: number | null;
 }
 
 export interface DespachoPedido {
@@ -227,8 +230,8 @@ export interface ValePedido {
   pedidoId: number;
   solicitadoPor: string | null;
   fechaPedido: string;
-  entregado: { clave: string; medicamento: string; lote: string; caducidad: string; ubicacion: string; cajas: number; despacho: string | null; fecha: string }[];
-  noSurtido: { clave: string; medicamento: string; pedidas: number; surtidas: number; faltan: number; motivo: string; estatus: string }[];
+  entregado: { clave: string; medicamento: string; lote: string; caducidad: string; ubicacion: string; cajas: number; despacho: string | null; fecha: string; cajasPorPaquete: number | null }[];
+  noSurtido: { clave: string; medicamento: string; pedidas: number; surtidas: number; faltan: number; motivo: string; estatus: string; paquetes: number | null; cajasPorPaquete: number | null }[];
 }
 
 export interface DespacharSolicitudResponse {
@@ -751,6 +754,11 @@ export class AlmacenApi {
     return this.http.get<ValePedido>(`${API_BASE_URL}/${area}/solicitudes/pedidos/${pedidoId}/vale`, this.cabeceras());
   }
 
+  /** Pedido por paquete: Almacén anota cuántas cajas trae cada paquete. */
+  cajasPorPaquete(solicitudId: number, cajasPorPaquete: number): Observable<Solicitud> {
+    return this.http.put<Solicitud>(`${API_BASE_URL}/almacen/solicitudes/${solicitudId}/cajas-por-paquete`, { cajasPorPaquete }, this.cabeceras());
+  }
+
   despachar(solicitudId: number, request: DespacharSolicitudRequest): Observable<DespacharSolicitudResponse> {
     return this.http.post<DespacharSolicitudResponse>(`${API_BASE_URL}/almacen/solicitudes/${solicitudId}/despachar`, request, this.cabeceras());
   }
@@ -801,7 +809,7 @@ export class AlmacenApi {
 
   // ---------- Solicitudes: lado de Farmacia (HU13) ----------
   /** HU39: varias claves en un solo pedido; se guardan todas o ninguna. */
-  crearPedido(partidas: { clave: string; cantidad: number }[], observaciones?: string): Observable<Solicitud[]> {
+  crearPedido(partidas: { clave: string; cantidad: number; unidad?: 'CAJA' | 'PAQUETE' }[], observaciones?: string): Observable<Solicitud[]> {
     return this.http.post<Solicitud[]>(`${API_BASE_URL}/farmacia/solicitudes/pedidos`, { partidas, observaciones }, this.cabeceras());
   }
 

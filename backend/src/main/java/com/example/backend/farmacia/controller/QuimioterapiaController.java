@@ -62,6 +62,14 @@ public class QuimioterapiaController {
         return ResponseEntity.ok(servicio.solicitudes(filtro, buscar, desde, hasta, medico));
     }
 
+    // Historial de cualquier año, leído de Intelisis: solo consulta y reprogramar (no se surte desde aquí).
+    @GetMapping("/historial")
+    public ResponseEntity<List<SolicitudQuimio>> historial(@RequestParam(required = false) LocalDate desde,
+                                                           @RequestParam(required = false) LocalDate hasta,
+                                                           @RequestParam(required = false) String buscar) {
+        return ResponseEntity.ok(servicio.historial(desde, hasta, buscar));
+    }
+
     // Números del día (recuadros y pastillas de filtro).
     @GetMapping("/resumen")
     public ResponseEntity<ResumenQuimio> resumen() {
@@ -72,6 +80,12 @@ public class QuimioterapiaController {
     @GetMapping("/medicos")
     public ResponseEntity<List<String>> medicos() {
         return ResponseEntity.ok(servicio.medicos());
+    }
+
+    // Datos extra de Intelisis para la hoja impresa con el formato "Solicitud de procedimiento".
+    @GetMapping("/intelisis/{folio}/formato")
+    public ResponseEntity<java.util.Map<String, String>> formato(@PathVariable String folio) {
+        return ResponseEntity.ok(servicio.formatoImpresion(folio));
     }
 
     // Una solicitud con su nota, las claves sugeridas y el ciclo anterior del paciente.

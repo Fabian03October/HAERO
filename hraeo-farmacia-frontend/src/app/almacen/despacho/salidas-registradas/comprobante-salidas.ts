@@ -112,17 +112,21 @@ export function armarValePedido(folio: string, vale: ValePedido, generadoPor: st
     ...(vale.noSurtido.length ? [['Claves no surtidas o incompletas', `${vale.noSurtido.length} (faltan ${faltan} cajas)`] as [string, string]] : []),
   ]);
   subtitulo(doc, 'Entregas de Almacén', y);
+  // Pedido por paquete: cuántos paquetes son esas cajas (o "No aplica" si se pidió en cajas).
+  const paquete = (cajasEntregadas: number, cajasPorPaquete: number | null) =>
+    cajasPorPaquete ? `${+(cajasEntregadas / cajasPorPaquete).toFixed(2)} (de ${cajasPorPaquete} cajas)` : 'No aplica';
   tabla(doc, {
     startY: y + 3,
     margin: { left: MARGEN, right: MARGEN },
-    head: [['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Ubicación', 'Cajas', 'Despachó']],
+    head: [['Clave', 'Medicamento', 'Lote', 'Caducidad', 'Ubicación', 'Paquete', 'Cajas', 'Despachó']],
     body: salidas.length
-      ? salidas.map((s) => [s.clave, corto(s.nombreGenerico), s.lote, formatoCaducidad(s.caducidad), s.ubicacion, String(s.cajas), s.usuario || 'Sin dato'])
-      : [[{ content: 'Almacén todavía no entrega nada de este pedido.', colSpan: 7 }]],
-    foot: [['', '', '', '', 'Total', { content: String(cajas), styles: { halign: 'right' } }, '']],
+      ? salidas.map((s, i) => [s.clave, corto(s.nombreGenerico), s.lote, formatoCaducidad(s.caducidad), s.ubicacion,
+        paquete(s.cajas, vale.entregado[i].cajasPorPaquete), String(s.cajas), s.usuario || 'Sin dato'])
+      : [[{ content: 'Almacén todavía no entrega nada de este pedido.', colSpan: 8 }]],
+    foot: [['', '', '', '', '', 'Total', { content: String(cajas), styles: { halign: 'right' } }, '']],
     ...ESTILO_TABLA,
     footStyles: { fillColor: [246, 233, 237], textColor: GUINDA, fontStyle: 'bold' },
-    columnStyles: { 1: { cellWidth: 52 }, 5: { halign: 'right' } },
+    columnStyles: { 1: { cellWidth: 46 }, 6: { halign: 'right' } },
   });
   y = doc.lastAutoTable.finalY + 10;
   if (vale.noSurtido.length) {
@@ -131,12 +135,14 @@ export function armarValePedido(folio: string, vale: ValePedido, generadoPor: st
     tabla(doc, {
       startY: y + 3,
       margin: { left: MARGEN, right: MARGEN },
-      head: [['Clave', 'Medicamento', 'Pedidas', 'Surtidas', 'Faltan', 'Motivo']],
-      body: vale.noSurtido.map((n) => [n.clave, corto(n.medicamento), String(n.pedidas), String(n.surtidas), String(n.faltan),
+      head: [['Clave', 'Medicamento', 'Paquete', 'Pedidas', 'Surtidas', 'Faltan', 'Motivo']],
+      body: vale.noSurtido.map((n) => [n.clave, corto(n.medicamento),
+        n.paquetes ? `${n.paquetes} paq.` + (n.cajasPorPaquete ? ` × ${n.cajasPorPaquete}` : ' (sin anotar cajas)') : 'No aplica',
+        String(n.pedidas), String(n.surtidas), String(n.faltan),
         n.motivo + (n.estatus === 'RECHAZADA' ? ' (no se surtirá)' : n.estatus === 'CANCELADA' ? ' (Farmacia la canceló)' : '')]),
       ...ESTILO_TABLA,
       headStyles: { fillColor: DORADO, textColor: 255, fontStyle: 'bold' },
-      columnStyles: { 1: { cellWidth: 48 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } },
+      columnStyles: { 1: { cellWidth: 44 }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } },
     });
     y = doc.lastAutoTable.finalY + 10;
   }

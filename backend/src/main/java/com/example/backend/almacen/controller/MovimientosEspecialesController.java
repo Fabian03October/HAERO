@@ -43,7 +43,9 @@ public class MovimientosEspecialesController {
     }
 
     @GetMapping("/caducados")
-    public ResponseEntity<List<CaducadoResponse>> listarCaducados(@RequestParam(defaultValue = "false") boolean pendientes) {
+    public ResponseEntity<List<CaducadoResponse>> listarCaducados(@RequestParam(defaultValue = "false") boolean pendientes,
+                                                                  Authentication authentication) {
+        servicio.apartarVencidos(authentication.getName());
         return ResponseEntity.ok(servicio.listarCaducados(pendientes));
     }
 

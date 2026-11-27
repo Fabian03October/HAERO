@@ -31,7 +31,7 @@
                 <span [class]="'status ' + item.estatus.toLowerCase()">{{ estadoTexto[item.estatus] }}</span>
               </span>
               <span class="request-name">{{ item.nombreGenerico || 'Clave ' + item.clave }}</span>
-              <small>{{ item.clave }} · {{ item.cantidadSolicitada - item.cantidadAtendida }} cajas por surtir · {{ item.fecha | date: 'dd/MM HH:mm' }}</small>
+              <small>{{ item.clave }} · @if (item.paquetes && !item.cajasPorPaquete) {{{ item.paquetes }} paquetes (falta anotar cajas)} @else {{{ item.cantidadSolicitada - item.cantidadAtendida }} cajas por surtir@if (item.paquetes) { ({{ item.paquetes }} paq.)}} · {{ item.fecha | date: 'dd/MM HH:mm' }}</small>
             </button>
           </li>
         }
@@ -60,7 +60,20 @@
         </div>
       </div>
 
-      @if (cargandoDetalle()) {
+      @if (actual.paquetes && !actual.cajasPorPaquete) {
+        <div class="message info">Farmacia pidió <strong>{{ actual.paquetes }} paquetes</strong>. Antes de despachar, anota cuántas cajas trae cada paquete; el pedido queda en cajas (paquetes × cajas).</div>
+        <div class="form-row">
+          <label>Cajas por paquete
+            <input type="number" min="1" [ngModel]="cajasPorPaquete()" (ngModelChange)="cajasPorPaquete.set($event)" placeholder="0" />
+          </label>
+          <label>Total en cajas
+            <input [value]="(cajasPorPaquete() || 0) * actual.paquetes" readonly />
+          </label>
+        </div>
+        <button class="primary-button" type="button" [disabled]="guardandoPaquete()" (click)="guardarCajasPorPaquete(actual.id)">
+          {{ guardandoPaquete() ? 'Guardando…' : 'Guardar cajas por paquete' }}
+        </button>
+      } @else if (cargandoDetalle()) {
         <p class="card-help">Cargando existencias y sugerencia FEFO…</p>
       } @else if (sugerenciaFefo(); as fefo) {
         <div class="fefo-callout">
