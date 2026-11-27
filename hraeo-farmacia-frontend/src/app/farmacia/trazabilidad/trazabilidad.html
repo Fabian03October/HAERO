@@ -178,6 +178,34 @@
             </section>
           }
 
+          @if (resultado()?.financiamiento?.length) {
+            <section class="card">
+              <div class="card-heading"><div><p class="eyebrow">Intelisis · fuente de financiamiento</p><h2>Donaciones con las que llegó el lote</h2>
+                <p class="card-help">Cada consumo de Farmacia se asigna a una entrada por PEPS: primero la que caduca antes, luego la que llegó antes. «Mismo día» = almacén eligió entre varias entregas del mismo día.</p></div></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Entrada</th><th>Llegó</th><th>Fuente</th><th>Orden de suministro</th><th>Remisión</th><th>Contrato</th><th class="number">Piezas</th><th>Caducidad</th><th>Carta canje</th><th>PDF</th></tr></thead>
+                  <tbody>
+                    @for (f of resultado()!.financiamiento!; track $index) {
+                      <tr>
+                        <td>{{ f.entrada }}@if (f.via) {<small class="sub">vía {{ f.via }}</small>}<small class="sub">{{ f.lote }} · {{ f.proveedor ?? '' }}</small></td>
+                        <td>{{ fechaCorta(f.fechaLlegada) }}@if (f.entregaMismoDia) {<small class="sub">mismo día</small>}</td>
+                        <td><strong>{{ f.fuente }}</strong></td>
+                        <td class="detalle">{{ f.ordenSuministro ?? '—' }}</td>
+                        <td>{{ f.remision ?? '—' }}@if (f.origenRemision) {<small class="sub">{{ f.origenRemision.toLowerCase() }}</small>}</td>
+                        <td>{{ f.contrato ?? '—' }}</td>
+                        <td class="number">{{ f.cantidad }}<small class="sub">{{ f.piezaDesde }}–{{ f.piezaHasta }}</small></td>
+                        <td>{{ fechaCorta(f.caducidad) }}</td>
+                        <td>{{ f.cartaCanje ?? '—' }}</td>
+                        <td class="detalle">{{ f.documentoPdf ?? '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          }
+
           @if (resultado()?.existencias?.length) {
             <section class="card">
               <div class="card-heading"><div><p class="eyebrow">Intelisis</p><h2>Existencia hoy</h2></div></div>
@@ -237,7 +265,7 @@
                         <small class="sub">{{ entrega.clave }}</small>
                       </td>
                       <td class="number">{{ entrega.piezas }}</td>
-                      <td>{{ entrega.despachador }}@if (entrega.medico) {<small class="sub">Dr(a). {{ entrega.medico }}</small>}</td>
+                      <td>{{ entrega.despachador }}@if (entrega.medico) {<small class="sub">Dr(a). {{ entrega.medico }}</small>}@if (entrega.financiamiento) {<small class="sub">{{ entrega.financiamiento }}</small>}</td>
                       <td class="centro"><span class="fuente" [class.haero]="entrega.fuente === 'HAERO'" [class.intelisis]="entrega.fuente === 'Intelisis'">{{ entrega.fuente === 'HAERO' ? 'SICOMED' : entrega.fuente }}</span></td>
                     </tr>
                   } @empty {

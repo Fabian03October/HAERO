@@ -26,6 +26,7 @@ interface EntregaFila {
   folio: string;
   fuente: 'HAERO' | 'Intelisis';
   medico?: string | null;
+  financiamiento?: string | null;
 }
 
 // Etapas que recorre un lote; se llenan con SICOMED y, donde SICOMED no sabe, con Intelisis.

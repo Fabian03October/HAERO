@@ -106,6 +106,12 @@ function seccion(doc: Documento, cab: Cabecera, y: number, resultado: Trazabilid
       resultado.compras.map((c) => [fecha(c.fecha), c.compra ?? '—', c.origen ?? '—', c.contrato ?? '—', c.proveedor ?? '—', String(c.cantidad), fecha(c.caducidad)]),
       { 5: { halign: 'right' } });
   }
+  if (resultado.financiamiento?.length) {
+    y = tabla(doc, cab, y, 'Fuente de financiamiento (donaciones FONSABI / UNOPS)', ['Entrada', 'Llegó', 'Fuente', 'Orden de suministro', 'Remisión', 'Contrato', 'Piezas (PEPS)', 'Carta canje'],
+      resultado.financiamiento.map((f) => [f.entrada + (f.via ? ` (vía ${f.via})` : ''), fecha(f.fechaLlegada), f.fuente, f.ordenSuministro ?? '—',
+        f.remision ?? '—', f.contrato ?? '—', `${f.cantidad} (${f.piezaDesde}–${f.piezaHasta})`, f.cartaCanje ?? '—']),
+      { 3: { cellWidth: 38 } });
+  }
   if (resultado.existencias?.length) {
     y = tabla(doc, cab, y, 'Existencia hoy en Intelisis', ['Almacén', 'Tipo', 'Clave', 'Cantidad'],
       resultado.existencias.map((e) => [e.almacen, e.tipo, e.clave, String(e.cantidad)]), { 3: { halign: 'right' } });

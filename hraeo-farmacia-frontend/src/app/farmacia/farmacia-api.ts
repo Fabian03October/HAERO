@@ -385,6 +385,8 @@ export interface EntregaPaciente {
   fuente: 'HAERO' | 'Intelisis';
   // Médico de la receta (solo SICOMED).
   medico?: string | null;
+  // Fuente de financiamiento de la baja de Intelisis (PEPS): "SAEAC · Donacion FONSABI 953 · orden …".
+  financiamiento?: string | null;
 }
 
 /** Periodo de las entregas a pacientes (aaaa-mm-dd, ambos días incluidos). */
@@ -403,6 +405,32 @@ export interface Trazabilidad {
   // Solo por lote: compras de Intelisis con las que llegó y existencia de hoy en Intelisis.
   compras: CompraTrazabilidad[];
   existencias: ExistenciaTrazabilidad[];
+  // Solo por lote (script de almacén): donaciones FONSABI/UNOPS con fuente, orden, remisión y rango de piezas PEPS.
+  financiamiento?: EntradaFinanciamiento[];
+}
+
+export interface EntradaFinanciamiento {
+  articulo: string;
+  lote: string;
+  entrada: string;
+  // null = directa; "Conversion N" o "Cambio de lote X".
+  via: string | null;
+  fechaLlegada: string | null;
+  cantidad: number;
+  piezaDesde: number;
+  piezaHasta: number;
+  caducidad: string | null;
+  fuente: string;
+  ordenSuministro: string | null;
+  remision: string | null;
+  origenRemision: string | null;
+  contrato: string | null;
+  proveedor: string | null;
+  concepto: string | null;
+  costo: number | null;
+  documentoPdf: string | null;
+  entregaMismoDia: boolean;
+  cartaCanje: string | null;
 }
 
 export interface CompraTrazabilidad {

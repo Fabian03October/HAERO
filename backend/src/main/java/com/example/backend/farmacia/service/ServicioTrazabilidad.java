@@ -58,6 +58,7 @@ public class ServicioTrazabilidad {
     private final JdbcTemplate haero;
     private final ServicioBajasPacienteIntelisis bajasIntelisis;
     private final ServicioRecetasIntelisis recetasIntelisis;
+    private final ServicioFinanciamientoIntelisis financiamiento;
 
     public ServicioTrazabilidad(ServicioBajasPacienteIntelisis bajasIntelisis,
                                 ServicioRecetasIntelisis recetasIntelisis,
@@ -68,7 +69,9 @@ public class ServicioTrazabilidad {
                                 MovimientoFarmaciaRepository movimientoFarmaciaRepository,
                                 CorteFarmaciaRepository corteRepository,
                                 ServicioInventarioFarmacia inventario,
-                                JdbcTemplate haero) {
+                                JdbcTemplate haero,
+                                ServicioFinanciamientoIntelisis financiamiento) {
+        this.financiamiento = financiamiento;
         this.loteFarmaciaRepository = loteFarmaciaRepository;
         this.loteRepository = loteRepository;
         this.recepcionRepository = recepcionRepository;
@@ -136,7 +139,19 @@ public class ServicioTrazabilidad {
                 .map(e -> new TrazabilidadResponse.Existencia(e.almacen(), e.articulo().endsWith(SUFIJO_FARMACIA) ? "Farmacia" : "Almacén",
                         e.clave(), e.existencia()))
                 .toList();
-        return new TrazabilidadResponse("LOTE", lote, recorrido, juntar(periodo.filtrar(partidas), anteriores), anteriores.aviso(), compras, existenciasHoy);
+        // Script de almacén (Ada): con qué donación FONSABI/UNOPS llegó el lote y a cuál toca cada consumo (PEPS).
+        ServicioFinanciamientoIntelisis.Resultado fuentes = financiamiento.delLote(ServicioTrazabilidad.loteBase(lote), filtroClave);
+        List<EntregaPacienteResponse> entregas = juntar(periodo.filtrar(partidas), anteriores);
+        for (EntregaPacienteResponse e : entregas) {
+            ServicioFinanciamientoIntelisis.Entrada toca = fuentes.porConsumo().get(
+                    ServicioFinanciamientoIntelisis.llaveConsumo(e.getFolio(), e.getClave(), e.getLote()));
+            if (toca != null) e.setFinanciamiento(toca.fuente() + " · " + toca.entrada()
+                    + (toca.ordenSuministro() != null ? " · orden " + toca.ordenSuministro() : ""));
+        }
+        TrazabilidadResponse respuesta = new TrazabilidadResponse("LOTE", lote, recorrido, entregas,
+                anteriores.aviso() != null ? anteriores.aviso() : fuentes.aviso(), compras, existenciasHoy);
+        respuesta.setFinanciamiento(fuentes.entradas());
+        return respuesta;
     }
 
     /** Periodo de las entregas a pacientes (días completos, ambos incluidos); sin fechas = todo. */

@@ -20,10 +20,18 @@ public class TrazabilidadResponse {
     // Solo por lote: compras de Intelisis con las que llegó y existencia de hoy en Intelisis.
     private List<Compra> compras;
     private List<Existencia> existencias;
+    // Solo por lote: entradas FONSABI/UNOPS del lote (directa, por conversión o cambio de lote) con fuente, orden y PEPS.
+    @lombok.Setter
+    private List<com.example.backend.farmacia.service.ServicioFinanciamientoIntelisis.Entrada> financiamiento = List.of();
 
     public TrazabilidadResponse(String modo, String valor, List<PasoRecorridoResponse> recorrido,
                                 List<EntregaPacienteResponse> entregas, String aviso) {
         this(modo, valor, recorrido, entregas, aviso, List.of(), List.of());
+    }
+
+    public TrazabilidadResponse(String modo, String valor, List<PasoRecorridoResponse> recorrido, List<EntregaPacienteResponse> entregas,
+                                String aviso, List<Compra> compras, List<Existencia> existencias) {
+        this(modo, valor, recorrido, entregas, aviso, compras, existencias, List.of());
     }
 
     /** Compra de Intelisis: origen = pedido u orden de la que viene; cantidad en unidades de Intelisis. */
